@@ -19,3 +19,5 @@ Cadence PK2测试机所使用的Kedit代码编辑器，当想要跳转到定义�
   
 这个软件全是在摸鱼的时间写的，也算是一种无缝工作（摸鱼时造铲子，工作时用铲子）  
 后续还会加入更多新内容。
+
+<img width="768" height="432" alt="PixPin_2025-12-29_15-27-10" src="https://github.com/user-attachments/assets/fb69e532-a6f0-48ba-8b4f-03f0ddc68ed5" />
