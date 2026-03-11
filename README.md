@@ -33,6 +33,8 @@ To Do：
 - [ ] 在每个控制面板中都新增一键屏蔽快捷键的功能。（这个在改版前就要加，到时候新版用JavaScript做的UI会把这个做得更好一些）
 - [ ] 大改版，加入 JavaScript 做的 UI，AHK作为底层应用。
 - [ ] 列选择填充功能（仿照notepad++）。
+- [ ] 将代码迁至GitHub库中管理，优化此前代码管理模式。
+- [ ] 关于页面跳转到Github要自动关闭，另外点击按钮触发范围错误需要修改。
 
 
 <img width="1358" height="700" alt="PixPin_2026-01-02_17-59-09" src="https://github.com/user-attachments/assets/0f73679a-a875-4ec9-9257-b0cf3d0faf58" />
