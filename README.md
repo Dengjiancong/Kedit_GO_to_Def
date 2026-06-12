@@ -73,6 +73,8 @@ Intel取消订单的根本原因在于
 2008 年 8 月 29 日，两家公司的合并正式完成，联合组建了新的实体 LTX-Credence Corporation，并在纳斯达克以新的股票代码 (LTXC) 上市。
 LTX-Credence 在整合了更多业务后，于 2014 年更名为 Xcerra Corporation。最终在 2018 年，Xcerra 被另一家半导体测试设备巨头 Cohu, Inc. 全资收购。Credence 当年遗留下来的技术资产和经典产品线架构也由此完全融入了 Cohu 的业务体系中。
 
+<img width="3060" height="3060" alt="IMG_20260612_175246" src="https://github.com/user-attachments/assets/ceaad651-3ec2-41a0-8c6a-9ad4c8641e97" />
+
 
 个人对于PK2的评价
 ---
