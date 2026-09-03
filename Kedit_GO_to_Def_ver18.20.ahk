@@ -22,7 +22,7 @@
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "18.20"
+Global CurrentVersion := "18.30"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -36,6 +36,7 @@ IniRead, Key_SmartClick, %IniFile%, Hotkeys, SmartClick, ~MButton
 IniRead, Key_AltA,       %IniFile%, Hotkeys, AltA,       !a  ; <--- 新增 Alt+A 变量
 IniRead, Key_ColumnInsert, %IniFile%, Hotkeys, ColumnInsert, !i  ; [新增代码] --- 列选择批量填入
 IniRead, Key_ToggleComment, %IniFile%, Hotkeys, ToggleComment, ^/	; [新增代码] --- 注释/取消注释 (单键切换)
+IniRead, Key_FindClipboard, %IniFile%, Hotkeys, FindClipboard, F1 ; 查找剪贴板内容
 
 ; [新增代码] --- Visual Studio 专用快捷键设置
 IniRead, Key_VS_Peek,    %IniFile%, Hotkeys, VS_Peek,    MButton
@@ -59,6 +60,7 @@ Menu, Tray, Add, 设置: 默认 Ctrl+W (关闭窗口), SetKey_CtrlW
 Menu, Tray, Add, 设置: 默认 Alt+A (另存为), SetKey_AltA ; <--- 新增菜单项
 Menu, Tray, Add, 设置: 默认 Alt+I (列填入数据), SetKey_ColumnInsert ; [新增代码]
 Menu, Tray, Add, 设置: 默认 Ctrl+/ (注释/取消注释), SetKey_ToggleComment	; [新增代码] --- 注释切换菜单
+Menu, Tray, Add, 设置: 默认 F1 (查找剪贴板内容), SetKey_FindClipboard
 Menu, Tray, Add, 设置: 默认 中键 (跳转至定义), SetKey_SmartClick
 
 ; --- Visual Studio 的设置入口
@@ -186,6 +188,7 @@ RestoreDefaults:
         Hotkey, %Key_SmartClick%, Off
         Hotkey, %Key_ColumnInsert%, Off ; [新增代码] 取消旧热键
         Hotkey, %Key_ToggleComment%, Off
+        Hotkey, %Key_FindClipboard%, Off
     }
 
     Hotkey, IfWinActive, ahk_class CabinetWClass
@@ -202,6 +205,7 @@ RestoreDefaults:
     Key_SmartClick := "~MButton"
     Key_RunPy      := "F8"
     Key_CommentToggle := "^/"  ; <--- 恢复默认值
+    Key_FindClipboard := "F1"
 
     IniWrite, %Key_GoToDef%,    %IniFile%, Hotkeys, GoToDef
     IniWrite, %Key_ShiftF2%,    %IniFile%, Hotkeys, ShiftF2
@@ -212,6 +216,7 @@ RestoreDefaults:
     IniWrite, %Key_SmartClick%, %IniFile%, Hotkeys, SmartClick
     IniWrite, %Key_RunPy%,      %IniFile%, Hotkeys, RunPy
     IniWrite, %Key_ToggleComment%, %IniFile%, Hotkeys, ToggleComment ; <--- 写入 INI
+    IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
 
     UpdateHotkeys()
     MsgBox, 64, 成功, 所有快捷键已恢复为默认设置！
@@ -243,6 +248,15 @@ return
 Label_AltA:  ; <--- 新增 Alt+A 逻辑标签
     ShowOSD("Action: Alt+F+A")
     Send !fa
+return
+
+Label_FindClipboard:
+    ShowOSD("Find Clipboard Text")
+    SendInput, ^f
+    Sleep, 10
+    SendInput, ^v
+    Sleep, 10
+    SendInput, {Enter}
 return
 
 Label_SmartClick:
@@ -709,6 +723,7 @@ UpdateHotkeys() {
         Hotkey, %Key_ColumnInsert%, Label_ColumnInsert, On ; [新增代码]
         Hotkey, %Key_SmartClick%, Label_SmartClick, On
         Hotkey, %Key_ToggleComment%, ProcessCommentToggle, On
+        Hotkey, %Key_FindClipboard%, Label_FindClipboard, On
     } catch e {
         MsgBox, 16, 错误, 加载快捷键失败。
     }
@@ -800,6 +815,10 @@ return
 
 SetKey_ToggleComment:
     ChangeHotkey("ToggleComment", "注释/取消注释 (智能切换)`n(建议使用 Ctrl+/)", Key_ToggleComment)
+return
+
+SetKey_FindClipboard:
+    ChangeHotkey("FindClipboard", "查找剪贴板内容`n(依次发送 Ctrl+F、Ctrl+V、回车，默认 F1)", Key_FindClipboard)
 return
 
 SetQuickOpen_All:
