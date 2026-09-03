@@ -1,0 +1,6 @@
+# Ignore everything in the repository root.
+/*
+
+# Keep this ignore file and root-level AutoHotkey scripts.
+!/.gitignore
+!/*.ahk
