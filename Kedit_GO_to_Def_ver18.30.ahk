@@ -16,7 +16,7 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v16.2 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
@@ -36,6 +36,7 @@ IniRead, Key_SmartClick, %IniFile%, Hotkeys, SmartClick, ~MButton
 IniRead, Key_AltA,       %IniFile%, Hotkeys, AltA,       !a  ; <--- 新增 Alt+A 变量
 IniRead, Key_ColumnInsert, %IniFile%, Hotkeys, ColumnInsert, !i  ; [新增代码] --- 列选择批量填入
 IniRead, Key_ToggleComment, %IniFile%, Hotkeys, ToggleComment, ^/	; [新增代码] --- 注释/取消注释 (单键切换)
+IniRead, Key_SpacesToTabs, %IniFile%, Hotkeys, SpacesToTabs, ^\ ; 行首每 4 个空格转换为 1 个 Tab
 IniRead, Key_FindClipboard, %IniFile%, Hotkeys, FindClipboard, F1 ; 查找剪贴板内容
 
 ; [新增代码] --- Visual Studio 专用快捷键设置
@@ -60,6 +61,7 @@ Menu, Tray, Add, 设置: 默认 Ctrl+W (关闭窗口), SetKey_CtrlW
 Menu, Tray, Add, 设置: 默认 Alt+A (另存为), SetKey_AltA ; <--- 新增菜单项
 Menu, Tray, Add, 设置: 默认 Alt+I (列填入数据), SetKey_ColumnInsert ; [新增代码]
 Menu, Tray, Add, 设置: 默认 Ctrl+/ (注释/取消注释), SetKey_ToggleComment	; [新增代码] --- 注释切换菜单
+Menu, Tray, Add, 设置: 默认 Ctrl+\ (行首空格转 Tab), SetKey_SpacesToTabs
 Menu, Tray, Add, 设置: 默认 F1 (查找剪贴板内容), SetKey_FindClipboard
 Menu, Tray, Add, 设置: 默认 中键 (跳转至定义), SetKey_SmartClick
 
@@ -188,6 +190,7 @@ RestoreDefaults:
         Hotkey, %Key_SmartClick%, Off
         Hotkey, %Key_ColumnInsert%, Off ; [新增代码] 取消旧热键
         Hotkey, %Key_ToggleComment%, Off
+        Hotkey, %Key_SpacesToTabs%, Off
         Hotkey, %Key_FindClipboard%, Off
     }
 
@@ -204,7 +207,8 @@ RestoreDefaults:
     Key_ColumnInsert := "!i"      ; [新增代码]
     Key_SmartClick := "~MButton"
     Key_RunPy      := "F8"
-    Key_CommentToggle := "^/"  ; <--- 恢复默认值
+    Key_ToggleComment := "^/"  ; <--- 恢复默认值
+    Key_SpacesToTabs := "^\"
     Key_FindClipboard := "F1"
 
     IniWrite, %Key_GoToDef%,    %IniFile%, Hotkeys, GoToDef
@@ -216,6 +220,7 @@ RestoreDefaults:
     IniWrite, %Key_SmartClick%, %IniFile%, Hotkeys, SmartClick
     IniWrite, %Key_RunPy%,      %IniFile%, Hotkeys, RunPy
     IniWrite, %Key_ToggleComment%, %IniFile%, Hotkeys, ToggleComment ; <--- 写入 INI
+    IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
 
     UpdateHotkeys()
@@ -258,6 +263,132 @@ Label_FindClipboard:
     Sleep, 10
     SendInput, {Enter}
 return
+
+; =======================================================
+; 按 4 列制表位整理所选文本的行首缩进，并保持正文的视觉列不变
+; =======================================================
+Label_SpacesToTabs:
+    if (IsSpacesToTabsBusy) {
+        ShowOSD("正在转换缩进，请稍候...")
+        return
+    }
+
+    IsSpacesToTabsBusy := true
+    SetTimer, ProcessSpacesToTabs, -1
+return
+
+ProcessSpacesToTabs:
+    ; 从热键线程中剥离后释放修饰键，避免 Ctrl 处于按下状态干扰复制/粘贴。
+    SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+
+    SpacesToTabs_ClipSaved := ClipboardAll
+    Clipboard := ""
+
+    BlockInput, On
+    SendInput, ^c
+    BlockInput, Off
+
+    SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+    ClipWait, 2.0
+    if (ErrorLevel) {
+        Clipboard := SpacesToTabs_ClipSaved
+        IsSpacesToTabsBusy := false
+        ShowOSD("未选中文本或复制超时")
+        return
+    }
+
+    SpacesToTabs_Source := Clipboard
+    SpacesToTabs_Result := ConvertLeadingSpacesToTabs(SpacesToTabs_Source, SpacesToTabs_TabCount, SpacesToTabs_LineCount)
+
+    if (SpacesToTabs_TabCount = 0) {
+        Clipboard := SpacesToTabs_ClipSaved
+        IsSpacesToTabsBusy := false
+        ShowOSD("行首缩进无需整理")
+        return
+    }
+
+    Clipboard := SpacesToTabs_Result
+    Sleep, 30
+
+    BlockInput, On
+    SendInput, ^v
+    Sleep, 120
+    BlockInput, Off
+
+    SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+    ShowOSD("缩进整理: " . SpacesToTabs_LineCount . " 行 / " . SpacesToTabs_TabCount . " 个 Tab")
+    SetTimer, RestoreSpacesToTabsClipboard, -150
+return
+
+RestoreSpacesToTabsClipboard:
+    ; 若用户在后台恢复前主动复制了其他内容，则保留用户的新剪贴板。
+    if (Clipboard = SpacesToTabs_Result)
+        Clipboard := SpacesToTabs_ClipSaved
+    SpacesToTabs_ClipSaved := ""
+    IsSpacesToTabsBusy := false
+return
+
+ConvertLeadingSpacesToTabs(Text, ByRef ConvertedTabs, ByRef ConvertedLines) {
+    TabSize := 4
+    ConvertedTabs := 0
+    ConvertedLines := 0
+    Result := ""
+    Lines := StrSplit(Text, "`n")
+
+    for LineIndex, CurrentLine in Lines {
+        ; StrSplit 保留了 Windows 换行中的 `r，先暂时移除以正确识别纯空行。
+        CarriageReturn := ""
+        if (SubStr(CurrentLine, 0) = "`r") {
+            CarriageReturn := "`r"
+            LineBody := SubStr(CurrentLine, 1, -1)
+        } else {
+            LineBody := CurrentLine
+        }
+
+        PrefixLength := 0
+        VisualColumn := 0
+        LineLength := StrLen(LineBody)
+
+        Loop, %LineLength% {
+            PrefixChar := SubStr(LineBody, A_Index, 1)
+            if (PrefixChar = " ") {
+                VisualColumn++
+            } else if (PrefixChar = "`t") {
+                VisualColumn += TabSize - Mod(VisualColumn, TabSize)
+            } else {
+                break
+            }
+            PrefixLength++
+        }
+
+        ; 没有正文的纯空行保持原样，避免产生无意义的隐藏修改。
+        if (PrefixLength < LineLength) {
+            TabsForLine := Floor(VisualColumn / TabSize)
+            SpacesForLine := Mod(VisualColumn, TabSize)
+            NewPrefix := ""
+
+            Loop, %TabsForLine%
+                NewPrefix .= "`t"
+            Loop, %SpacesForLine%
+                NewPrefix .= " "
+
+            OldPrefix := SubStr(LineBody, 1, PrefixLength)
+            if (NewPrefix != OldPrefix) {
+                LineBody := NewPrefix . SubStr(LineBody, PrefixLength + 1)
+                ConvertedTabs += TabsForLine
+                ConvertedLines++
+            }
+        }
+
+        CurrentLine := LineBody . CarriageReturn
+
+        if (LineIndex > 1)
+            Result .= "`n"
+        Result .= CurrentLine
+    }
+
+    return Result
+}
 
 Label_SmartClick:
     ; =======================================================
@@ -723,6 +854,7 @@ UpdateHotkeys() {
         Hotkey, %Key_ColumnInsert%, Label_ColumnInsert, On ; [新增代码]
         Hotkey, %Key_SmartClick%, Label_SmartClick, On
         Hotkey, %Key_ToggleComment%, ProcessCommentToggle, On
+        Hotkey, %Key_SpacesToTabs%, Label_SpacesToTabs, On
         Hotkey, %Key_FindClipboard%, Label_FindClipboard, On
     } catch e {
         MsgBox, 16, 错误, 加载快捷键失败。
@@ -815,6 +947,10 @@ return
 
 SetKey_ToggleComment:
     ChangeHotkey("ToggleComment", "注释/取消注释 (智能切换)`n(建议使用 Ctrl+/)", Key_ToggleComment)
+return
+
+SetKey_SpacesToTabs:
+    ChangeHotkey("SpacesToTabs", "按 4 列制表位整理所选文本每行的行首缩进`n(默认 Ctrl+\；保持正文原来的视觉位置)", Key_SpacesToTabs)
 return
 
 SetKey_FindClipboard:
