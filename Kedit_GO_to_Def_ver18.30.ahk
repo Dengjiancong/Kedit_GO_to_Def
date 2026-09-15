@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30-Meme.v0.01 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v002 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v18.30-Meme.v0.01"
+Global CurrentVersion := "v18.30-Meme.v002"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -51,14 +51,14 @@ IniRead, Path_QuickOpen, %IniFile%, Settings, QuickPath, Z:\misc\testing\ATE\K2
 
 ; 读取 OSD 开关设置 (默认开启 = 1)
 IniRead, EnableOSD,      %IniFile%, Settings, EnableOSD, 1
-IniRead, EnableCompanionOSD, %IniFile%, Settings, EnableCompanionOSD, 1
-IniRead, CompanionChance, %IniFile%, Settings, CompanionChance, 25
+IniRead, EnableCompanionOSD, %IniFile%, Settings, EnableCompanionOSD, 0
+IniRead, CompanionChance, %IniFile%, Settings, CompanionChance, 15
 IniRead, CompanionCooldown, %IniFile%, Settings, CompanionCooldown, 15
 if (CompanionChance != 15 && CompanionChance != 25 && CompanionChance != 50 && CompanionChance != 100)
-    CompanionChance := 25
+    CompanionChance := 15
 if (CompanionCooldown < 1)
     CompanionCooldown := 15
-Global LastCompanionTick := 0
+Global LastSuccessCompanionTick := 0
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -2004,7 +2004,7 @@ ShowOSD(Text, DisplayTime := 1200) {  ; ★ 新增了 DisplayTime 参数，默�
 }
 
 MaybeShowCompanion(Text, DisplayTime) {
-    global EnableCompanionOSD, CompanionChance, CompanionCooldown, LastCompanionTick
+    global EnableCompanionOSD, CompanionChance, CompanionCooldown, LastSuccessCompanionTick
 
     ; 新提示到来时先清除旧表情，避免“处理中”的常驻图片残留。
     Gui, CompanionOSD:Destroy
@@ -2013,25 +2013,22 @@ MaybeShowCompanion(Text, DisplayTime) {
     if (!EnableCompanionOSD)
         return
 
-    IsPriority := false
-    if (InStr(Text, "Error") || InStr(Text, "错误") || InStr(Text, "未选中")
-        || InStr(Text, "无需") || InStr(Text, "不存在") || InStr(Text, "超时")
-        || InStr(Text, "失败")) {
+    FeedbackType := ClassifyCompanionFeedback(Text)
+    if (FeedbackType = "question") {
         CompanionFile := "companion_question.png"
-        IsPriority := true
-    } else if (InStr(Text, "正在") || InStr(Text, "稍候") || InStr(Text, "⏳")) {
+    } else if (FeedbackType = "busy") {
         CompanionFile := "companion_busy.png"
-        IsPriority := true
     } else {
         CompanionFile := "companion_success.png"
     }
 
-    if (!IsPriority) {
+    if (FeedbackType = "success") {
         if (CompanionChance <= 0)
             return
 
-        CooldownMs := CompanionCooldown * 1000
-        if (LastCompanionTick > 0 && A_TickCount - LastCompanionTick < CooldownMs)
+        ; “每次”档不受冷却限制；其他档仅统计成功表情的上次出现时间。
+        if (IsSuccessCompanionCoolingDown(CompanionChance, CompanionCooldown
+            , LastSuccessCompanionTick, A_TickCount))
             return
 
         Random, CompanionRoll, 1, 100
@@ -2043,9 +2040,30 @@ MaybeShowCompanion(Text, DisplayTime) {
     if (!FileExist(CompanionPath))
         return
 
-    LastCompanionTick := A_TickCount
+    if (FeedbackType = "success")
+        LastSuccessCompanionTick := A_TickCount
     ; 使用文字 OSD 的同一个 DisplayTime，并由文字 OSD 的淡出定时器统一关闭。
     ShowCompanionOSD(CompanionPath, DisplayTime, true)
+}
+
+ClassifyCompanionFeedback(Text) {
+    ; 错误与无需操作优先于“正在”等进度词，避免混合提示归错类。
+    if (InStr(Text, "Error", false) || InStr(Text, "错误") || InStr(Text, "未选")
+        || InStr(Text, "无需") || InStr(Text, "不存在") || InStr(Text, "超时")
+        || InStr(Text, "失败") || InStr(Text, "请跨行选择")
+        || InStr(Text, "非 Python 文件"))
+        return "question"
+
+    if (InStr(Text, "正在") || InStr(Text, "稍候") || InStr(Text, "⏳"))
+        return "busy"
+
+    return "success"
+}
+
+IsSuccessCompanionCoolingDown(Chance, CooldownSeconds, LastTick, CurrentTick) {
+    if (Chance >= 100 || LastTick <= 0)
+        return false
+    return CurrentTick - LastTick < CooldownSeconds * 1000
 }
 
 ShowCompanionOSD(ImagePath, DisplayTime, SyncWithText := false) {
