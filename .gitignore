@@ -4,3 +4,6 @@
 # Keep this ignore file and root-level AutoHotkey scripts.
 !/.gitignore
 !/*.ahk
+!/表情OSD实施方案.md
+!/osd_assets/
+!/osd_assets/*.png

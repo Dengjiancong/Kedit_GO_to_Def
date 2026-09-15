@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v0.01 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "18.30"
+Global CurrentVersion := "v18.30-Meme.v0.01"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -51,6 +51,14 @@ IniRead, Path_QuickOpen, %IniFile%, Settings, QuickPath, Z:\misc\testing\ATE\K2
 
 ; 读取 OSD 开关设置 (默认开启 = 1)
 IniRead, EnableOSD,      %IniFile%, Settings, EnableOSD, 1
+IniRead, EnableCompanionOSD, %IniFile%, Settings, EnableCompanionOSD, 1
+IniRead, CompanionChance, %IniFile%, Settings, CompanionChance, 25
+IniRead, CompanionCooldown, %IniFile%, Settings, CompanionCooldown, 15
+if (CompanionChance != 15 && CompanionChance != 25 && CompanionChance != 50 && CompanionChance != 100)
+    CompanionChance := 25
+if (CompanionCooldown < 1)
+    CompanionCooldown := 15
+Global LastCompanionTick := 0
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -77,11 +85,27 @@ Menu, Tray, Add, 设置: 默认 F8 (运行Py脚本), SetKey_RunPy
 Menu, Tray, Add, 设置: 快速打开 (键位与路径), SetQuickOpen_All
 
 ; OSD 开关菜单项
+Menu, CompanionChanceMenu, Add, 低频（15％）, SetCompanionChance15
+Menu, CompanionChanceMenu, Add, 标准（25％）, SetCompanionChance25
+Menu, CompanionChanceMenu, Add, 较多（50％）, SetCompanionChance50
+Menu, CompanionChanceMenu, Add, 每次（100％）, SetCompanionChance100
+UpdateCompanionChanceMenu()
+Menu, CompanionPreviewMenu, Add, 成功表情, PreviewCompanionSuccess
+Menu, CompanionPreviewMenu, Add, 疑惑表情, PreviewCompanionQuestion
+Menu, CompanionPreviewMenu, Add, 处理中表情, PreviewCompanionBusy
+
 Menu, Tray, Add, 开启屏幕操作提示 (OSD), ToggleOSD
 if (EnableOSD = 1)
     Menu, Tray, Check, 开启屏幕操作提示 (OSD)
 else
     Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
+Menu, Tray, Add, 开启陪伴表情 (OSD), ToggleCompanionOSD
+if (EnableCompanionOSD = 1)
+    Menu, Tray, Check, 开启陪伴表情 (OSD)
+else
+    Menu, Tray, Uncheck, 开启陪伴表情 (OSD)
+Menu, Tray, Add, 表情出现频率, :CompanionChanceMenu
+Menu, Tray, Add, 预览陪伴表情, :CompanionPreviewMenu
 Menu, Tray, Add, 恢复默认快捷键设置, RestoreDefaults
 Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 检查更新, CheckForUpdate
@@ -162,6 +186,9 @@ PreinstallAssets:
     GetTempPath("latest_bg.mp4")
     GetTempPath("logo.png")
     GetTempPath("btn_yellow.png")
+    GetTempPath("companion_success.png")
+    GetTempPath("companion_question.png")
+    GetTempPath("companion_busy.png")
 return
 
 ; =======================================================
@@ -995,6 +1022,15 @@ GetTempPath(FileName) {
     }
     else if (FileName = "btn_yellow.png") {
         FileInstall, btn_yellow.png, %TargetPath%, 1
+    }
+    else if (FileName = "companion_success.png") {
+        FileInstall, osd_assets\companion_success.png, %TargetPath%, 1
+    }
+    else if (FileName = "companion_question.png") {
+        FileInstall, osd_assets\companion_question.png, %TargetPath%, 1
+    }
+    else if (FileName = "companion_busy.png") {
+        FileInstall, osd_assets\companion_busy.png, %TargetPath%, 1
     }
 
     ; 2. 庞大的静态资源：仅在不存在时释放，节省启动时间
@@ -1846,10 +1882,81 @@ ToggleOSD:
         ShowOSD("屏幕提示已开启")
     } else {
         Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
+        Gui, CompanionOSD:Destroy
         ShowOSD("屏幕提示已关闭")
     }
     IniWrite, %EnableOSD%, %IniFile%, Settings, EnableOSD
 return
+
+ToggleCompanionOSD:
+    EnableCompanionOSD := !EnableCompanionOSD
+    if (EnableCompanionOSD) {
+        Menu, Tray, Check, 开启陪伴表情 (OSD)
+        ShowOSD("陪伴表情已开启")
+    } else {
+        Menu, Tray, Uncheck, 开启陪伴表情 (OSD)
+        Gui, CompanionOSD:Destroy
+        ShowOSD("陪伴表情已关闭")
+    }
+    IniWrite, %EnableCompanionOSD%, %IniFile%, Settings, EnableCompanionOSD
+return
+
+SetCompanionChance15:
+    SetCompanionChance(15)
+return
+
+SetCompanionChance25:
+    SetCompanionChance(25)
+return
+
+SetCompanionChance50:
+    SetCompanionChance(50)
+return
+
+SetCompanionChance100:
+    SetCompanionChance(100)
+return
+
+PreviewCompanionSuccess:
+    ShowCompanionOSD(GetTempPath("companion_success.png"), 2500)
+return
+
+PreviewCompanionQuestion:
+    ShowCompanionOSD(GetTempPath("companion_question.png"), 2500)
+return
+
+PreviewCompanionBusy:
+    ShowCompanionOSD(GetTempPath("companion_busy.png"), 2500)
+return
+
+HideCompanionOSD:
+    Gui, CompanionOSD:Destroy
+return
+
+SetCompanionChance(NewChance) {
+    global CompanionChance, IniFile
+    CompanionChance := NewChance
+    IniWrite, %CompanionChance%, %IniFile%, Settings, CompanionChance
+    UpdateCompanionChanceMenu()
+    ShowOSD("表情出现频率: " . CompanionChance . "%")
+}
+
+UpdateCompanionChanceMenu() {
+    global CompanionChance
+    Menu, CompanionChanceMenu, Uncheck, 低频（15％）
+    Menu, CompanionChanceMenu, Uncheck, 标准（25％）
+    Menu, CompanionChanceMenu, Uncheck, 较多（50％）
+    Menu, CompanionChanceMenu, Uncheck, 每次（100％）
+
+    if (CompanionChance = 15)
+        Menu, CompanionChanceMenu, Check, 低频（15％）
+    else if (CompanionChance = 50)
+        Menu, CompanionChanceMenu, Check, 较多（50％）
+    else if (CompanionChance = 100)
+        Menu, CompanionChanceMenu, Check, 每次（100％）
+    else
+        Menu, CompanionChanceMenu, Check, 标准（25％）
+}
 
 ; =======================================================
 ; OSD (On-Screen Display) 操作反馈系统 (支持自定义时长)
@@ -1858,6 +1965,8 @@ ShowOSD(Text, DisplayTime := 1200) {  ; ★ 新增了 DisplayTime 参数，默�
     Global EnableOSD
     if (!EnableOSD)
         return
+
+    MaybeShowCompanion(Text, DisplayTime)
 
     Gui, OSD:Destroy
     Gui, OSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhOSD +E0x20
@@ -1890,7 +1999,77 @@ ShowOSD(Text, DisplayTime := 1200) {  ; ★ 新增了 DisplayTime 参数，默�
 
     FadeOutOSD:
     Gui, OSD:Destroy
+    Gui, CompanionOSD:Destroy
     return
+}
+
+MaybeShowCompanion(Text, DisplayTime) {
+    global EnableCompanionOSD, CompanionChance, CompanionCooldown, LastCompanionTick
+
+    ; 新提示到来时先清除旧表情，避免“处理中”的常驻图片残留。
+    Gui, CompanionOSD:Destroy
+    SetTimer, HideCompanionOSD, Off
+
+    if (!EnableCompanionOSD)
+        return
+
+    IsPriority := false
+    if (InStr(Text, "Error") || InStr(Text, "错误") || InStr(Text, "未选中")
+        || InStr(Text, "无需") || InStr(Text, "不存在") || InStr(Text, "超时")
+        || InStr(Text, "失败")) {
+        CompanionFile := "companion_question.png"
+        IsPriority := true
+    } else if (InStr(Text, "正在") || InStr(Text, "稍候") || InStr(Text, "⏳")) {
+        CompanionFile := "companion_busy.png"
+        IsPriority := true
+    } else {
+        CompanionFile := "companion_success.png"
+    }
+
+    if (!IsPriority) {
+        if (CompanionChance <= 0)
+            return
+
+        CooldownMs := CompanionCooldown * 1000
+        if (LastCompanionTick > 0 && A_TickCount - LastCompanionTick < CooldownMs)
+            return
+
+        Random, CompanionRoll, 1, 100
+        if (CompanionRoll > CompanionChance)
+            return
+    }
+
+    CompanionPath := GetTempPath(CompanionFile)
+    if (!FileExist(CompanionPath))
+        return
+
+    LastCompanionTick := A_TickCount
+    ; 使用文字 OSD 的同一个 DisplayTime，并由文字 OSD 的淡出定时器统一关闭。
+    ShowCompanionOSD(CompanionPath, DisplayTime, true)
+}
+
+ShowCompanionOSD(ImagePath, DisplayTime, SyncWithText := false) {
+    ImageSize := 180
+    Gui, CompanionOSD:Destroy
+    Gui, CompanionOSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhCompanionOSD +E0x20
+    Gui, CompanionOSD:Margin, 0, 0
+    Gui, CompanionOSD:Color, 010203
+    Gui, CompanionOSD:Add, Picture, x0 y0 w%ImageSize% h%ImageSize% BackgroundTrans, %ImagePath%
+
+    SysGet, CompanionScreenW, 0
+    SysGet, CompanionScreenH, 1
+    CompanionX := 45
+    CompanionY := Round(CompanionScreenH * 0.88) - ImageSize - 8
+    if (CompanionY < 0)
+        CompanionY := 0
+
+    Gui, CompanionOSD:Show, NoActivate x%CompanionX% y%CompanionY% w%ImageSize% h%ImageSize%
+    WinSet, TransColor, 010203 255, ahk_id %hCompanionOSD%
+
+    SetTimer, HideCompanionOSD, Off
+    ; 托盘手动预览使用独立定时器；自动表情由文字 OSD 定时器同步关闭。
+    if (!SyncWithText && DisplayTime > 0)
+        SetTimer, HideCompanionOSD, -%DisplayTime%
 }
 
 ; =======================================================
