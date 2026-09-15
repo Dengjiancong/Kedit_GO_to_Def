@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30-Meme.v002 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v003 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v18.30-Meme.v002"
+Global CurrentVersion := "v18.30-Meme.v003"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -54,11 +54,19 @@ IniRead, EnableOSD,      %IniFile%, Settings, EnableOSD, 1
 IniRead, EnableCompanionOSD, %IniFile%, Settings, EnableCompanionOSD, 0
 IniRead, CompanionChance, %IniFile%, Settings, CompanionChance, 15
 IniRead, CompanionCooldown, %IniFile%, Settings, CompanionCooldown, 15
+IniRead, EnableCompanionAnimation, %IniFile%, Settings, EnableCompanionAnimation, 0
 if (CompanionChance != 15 && CompanionChance != 25 && CompanionChance != 50 && CompanionChance != 100)
     CompanionChance := 15
 if (CompanionCooldown < 1)
     CompanionCooldown := 15
 Global LastSuccessCompanionTick := 0
+Global CompanionAnimationFrames := []
+Global CompanionAnimationCache := {}
+Global CompanionAnimationFrameCount := 0
+Global CompanionAnimationActive := false
+Global CompanionAnimationStartTick := 0
+Global CompanionAnimationLastFrame := -1
+Global SmartClickBurstTicks := []
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -93,6 +101,9 @@ UpdateCompanionChanceMenu()
 Menu, CompanionPreviewMenu, Add, 成功表情, PreviewCompanionSuccess
 Menu, CompanionPreviewMenu, Add, 疑惑表情, PreviewCompanionQuestion
 Menu, CompanionPreviewMenu, Add, 处理中表情, PreviewCompanionBusy
+Menu, CompanionPreviewMenu, Add, 亚托莉猫猫动画, PreviewAtriCatAnimation
+Menu, CompanionPreviewMenu, Add, Alt+F 搜索动画, PreviewAltFAnimation
+Menu, CompanionPreviewMenu, Add, 中键四连击动画, PreviewSmartClickBurstAnimation
 
 Menu, Tray, Add, 开启屏幕操作提示 (OSD), ToggleOSD
 if (EnableOSD = 1)
@@ -105,9 +116,15 @@ if (EnableCompanionOSD = 1)
 else
     Menu, Tray, Uncheck, 开启陪伴表情 (OSD)
 Menu, Tray, Add, 表情出现频率, :CompanionChanceMenu
+Menu, Tray, Add, 启用亚托莉猫猫动画, ToggleCompanionAnimation
+if (EnableCompanionAnimation = 1)
+    Menu, Tray, Check, 成功提示使用亚托莉猫猫动画
+else
+    Menu, Tray, Uncheck, 成功提示使用亚托莉猫猫动画
 Menu, Tray, Add, 预览陪伴表情, :CompanionPreviewMenu
 Menu, Tray, Add, 恢复默认快捷键设置, RestoreDefaults
 Menu, Tray, Add  ; 分隔线
+Menu, Tray, Add, 启动 MSTSC 监控, LaunchMSTSCMonitor
 Menu, Tray, Add, 检查更新, CheckForUpdate
 Menu, Tray, Add, 关于 Kedit 助手, ShowAboutGui
 Menu, Tray, Add  ; 分隔线
@@ -189,6 +206,12 @@ PreinstallAssets:
     GetTempPath("companion_success.png")
     GetTempPath("companion_question.png")
     GetTempPath("companion_busy.png")
+    ; 默认关闭动画时不解压 30 帧；启用后预热，首次播放更顺畅。
+    if (EnableCompanionOSD && EnableCompanionAnimation) {
+        EnsureCompanionAnimationFrames()
+        EnsureCompanionAnimationFrames("atri2")
+        EnsureCompanionAnimationFrames("atri3")
+    }
 return
 
 ; =======================================================
@@ -268,7 +291,8 @@ Label_ShiftF2:
 return
 
 Label_AltF:
-    ShowOSD("Find in Files")
+    ; frames3 一轮为 44×30ms，提示稍长于一轮，确保末尾画面也能看到。
+    ShowOSD("Find in Files", 1500, "atri3")
     Send !tn
 return
 
@@ -425,6 +449,9 @@ Label_SmartClick:
     ; 1. 提升线程优先级，确保中间不被其他定时器打断
     Critical
 
+    ; 4 次中键快捷键触发落在同一个 6 秒窗口内时，给本次提示指定专属动画。
+    SmartClickCompanionCue := RegisterSmartClickBurst(A_TickCount) ? "atri2" : ""
+
     ; 2. 【核心回答】开启输入阻断
     ; 这会屏蔽键盘和鼠标的物理输入，防止您在脚本执行期间的微操作干扰逻辑
     BlockInput, On
@@ -445,19 +472,19 @@ Label_SmartClick:
 
         if (InStr(winTitle, "Boya_patterns") or InStr(winTitle, "Boya2_patterns2"))
         {
-            ShowOSD("Smart: Up x 3")
+            ShowOSD("Smart: Up x 3", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 3}
         }
         else if !(InStr(winTitle, ".kpl"))
         {
-            ShowOSD("Smart: Up x 2")
+            ShowOSD("Smart: Up x 2", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 2}
         }
         else if (InStr(winTitle, ".kpl"))
         {
-            ShowOSD("Smart: Up x 1")
+            ShowOSD("Smart: Up x 1", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 1}
         }
@@ -469,7 +496,7 @@ Label_SmartClick:
         if (InStr(winTitle, ".kpl"))
         {
             SendInput {RButton}
-            ShowOSD("Smart: Double (Up 1)")
+            ShowOSD("Smart: Double (Up 1)", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 1}
             ProcessKeditWindow(winTitle, delay)
@@ -477,7 +504,7 @@ Label_SmartClick:
         else
         {
             SendInput {RButton}
-            ShowOSD("Smart: Double (Up 3)")
+            ShowOSD("Smart: Double (Up 3)", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 3}
             ProcessKeditWindow(winTitle, delay)
@@ -487,6 +514,22 @@ Label_SmartClick:
     ; 4. 解除输入阻断，恢复正常控制
     BlockInput, Off
 return
+
+RegisterSmartClickBurst(CurrentTick, RequiredClicks := 4, WindowMs := 6000) {
+    global SmartClickBurstTicks
+    RecentTicks := []
+    for _, Tick in SmartClickBurstTicks {
+        if (CurrentTick >= Tick && CurrentTick - Tick <= WindowMs)
+            RecentTicks.Push(Tick)
+    }
+    RecentTicks.Push(CurrentTick)
+    if (RecentTicks.Length() >= RequiredClicks) {
+        SmartClickBurstTicks := []
+        return true
+    }
+    SmartClickBurstTicks := RecentTicks
+    return false
+}
 
 ; [新增代码] =======================================================
 ; 普通选择模拟列块插入 (完美修复 Tab 制表符对齐错位问题)
@@ -1032,6 +1075,342 @@ GetTempPath(FileName) {
     else if (FileName = "companion_busy.png") {
         FileInstall, osd_assets\companion_busy.png, %TargetPath%, 1
     }
+    else if (FileName = "MSTSC_Monitor.exe") {
+        FileInstall, MSTSC_Monitor.exe, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_00.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_00.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_01.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_01.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_02.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_02.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_03.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_03.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_04.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_04.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_05.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_05.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_06.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_06.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_07.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_07.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_08.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_08.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_09.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_09.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_10.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_10.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_11.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_11.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_12.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_12.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_13.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_13.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_14.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_14.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_15.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_15.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_16.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_16.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_17.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_17.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_18.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_18.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_19.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_19.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_20.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_20.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_21.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_21.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_22.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_22.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_23.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_23.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_24.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_24.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_25.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_25.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_26.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_26.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_27.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_27.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_28.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_28.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_29.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_29.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_00.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_00.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_01.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_01.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_02.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_02.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_03.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_03.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_04.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_04.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_05.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_05.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_06.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_06.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_07.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_07.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_08.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_08.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_09.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_09.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_10.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_10.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_11.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_11.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_12.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_12.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_13.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_13.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_14.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_14.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_15.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_15.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_16.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_16.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_17.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_17.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_18.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_18.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_19.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_19.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_20.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_20.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_21.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_21.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_22.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_22.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_23.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_23.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_24.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_24.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_25.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_25.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_26.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_26.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_27.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_27.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_28.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_28.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_29.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_29.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_30.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_30.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_31.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_31.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_32.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_32.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_33.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_33.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_34.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_34.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_35.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_35.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_36.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_36.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_00.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_00.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_01.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_01.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_02.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_02.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_03.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_03.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_04.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_04.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_05.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_05.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_06.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_06.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_07.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_07.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_08.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_08.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_09.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_09.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_10.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_10.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_11.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_11.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_12.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_12.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_13.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_13.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_14.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_14.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_15.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_15.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_16.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_16.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_17.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_17.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_18.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_18.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_19.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_19.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_20.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_20.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_21.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_21.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_22.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_22.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_23.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_23.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_24.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_24.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_25.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_25.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_26.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_26.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_27.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_27.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_28.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_28.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_29.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_29.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_30.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_30.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_31.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_31.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_32.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_32.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_33.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_33.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_34.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_34.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_35.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_35.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_36.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_36.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_37.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_37.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_38.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_38.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_39.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_39.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_40.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_40.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_41.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_41.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_42.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_42.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_43.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_43.png, %TargetPath%, 1
+    }
 
     ; 2. 庞大的静态资源：仅在不存在时释放，节省启动时间
     else {
@@ -1335,6 +1714,29 @@ ChangeQuickOpenSettings(CurrentKey, CurrentPath) {
 ; =======================================================
 ; 自动更新逻辑模块
 ; =======================================================
+LaunchMSTSCMonitor:
+    ; 监控程序是独立软件：菜单只负责启动，不在 Kedit 退出时结束它。
+    Process, Exist, MSTSC_Monitor.exe
+    if (ErrorLevel) {
+        ShowOSD("MSTSC 监控已在运行", 1200, "noCompanion")
+        return
+    }
+
+    MonitorPath := GetTempPath("MSTSC_Monitor.exe")
+    if (!FileExist(MonitorPath)) {
+        MsgBox, 16, 启动失败, MSTSC_Monitor.exe 未能释放到临时目录。
+        return
+    }
+
+    MonitorDir := A_Temp . "\Kedit_Media"
+    Run, "%MonitorPath%", %MonitorDir%, UseErrorLevel, MonitorPID
+    if (ErrorLevel) {
+        MsgBox, 16, 启动失败, 无法启动 MSTSC_Monitor.exe。
+        return
+    }
+    ShowOSD("MSTSC 监控已启动", 1200, "noCompanion")
+return
+
 CheckForUpdate:
     if (IsCheckingUpdate)
         return
@@ -1879,11 +2281,11 @@ ToggleOSD:
     EnableOSD := !EnableOSD
     if (EnableOSD) {
         Menu, Tray, Check, 开启屏幕操作提示 (OSD)
-        ShowOSD("屏幕提示已开启")
+        ShowOSD("屏幕提示已开启", 1200, "noCompanion")
     } else {
         Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
-        Gui, CompanionOSD:Destroy
-        ShowOSD("屏幕提示已关闭")
+        StopCompanionAnimation()
+        ShowOSD("屏幕提示已关闭", 1200, "noCompanion")
     }
     IniWrite, %EnableOSD%, %IniFile%, Settings, EnableOSD
 return
@@ -1892,13 +2294,29 @@ ToggleCompanionOSD:
     EnableCompanionOSD := !EnableCompanionOSD
     if (EnableCompanionOSD) {
         Menu, Tray, Check, 开启陪伴表情 (OSD)
-        ShowOSD("陪伴表情已开启")
+        ShowOSD("陪伴表情已开启", 1200, "noCompanion")
     } else {
         Menu, Tray, Uncheck, 开启陪伴表情 (OSD)
-        Gui, CompanionOSD:Destroy
-        ShowOSD("陪伴表情已关闭")
+        StopCompanionAnimation()
+        ShowOSD("陪伴表情已关闭", 1200, "noCompanion")
     }
     IniWrite, %EnableCompanionOSD%, %IniFile%, Settings, EnableCompanionOSD
+return
+
+ToggleCompanionAnimation:
+    EnableCompanionAnimation := !EnableCompanionAnimation
+    if (EnableCompanionAnimation) {
+        Menu, Tray, Check, 成功提示使用亚托莉猫猫动画
+        EnsureCompanionAnimationFrames()
+        EnsureCompanionAnimationFrames("atri2")
+        EnsureCompanionAnimationFrames("atri3")
+    } else {
+        Menu, Tray, Uncheck, 成功提示使用亚托莉猫猫动画
+        StopCompanionAnimation()
+    }
+    IniWrite, %EnableCompanionAnimation%, %IniFile%, Settings, EnableCompanionAnimation
+    ShowOSD(EnableCompanionAnimation ? "亚托莉猫猫动画已开启" : "亚托莉猫猫动画已关闭"
+        , 1200, "noCompanion")
 return
 
 SetCompanionChance15:
@@ -1929,8 +2347,32 @@ PreviewCompanionBusy:
     ShowCompanionOSD(GetTempPath("companion_busy.png"), 2500)
 return
 
+PreviewAtriCatAnimation:
+    StartCompanionAnimation(2500, false)
+return
+
+PreviewAltFAnimation:
+    StartCompanionAnimation(2500, false, "atri3")
+return
+
+PreviewSmartClickBurstAnimation:
+    StartCompanionAnimation(2500, false, "atri2")
+return
+
 HideCompanionOSD:
-    Gui, CompanionOSD:Destroy
+    StopCompanionAnimation()
+return
+
+AdvanceCompanionAnimation:
+    if (!CompanionAnimationActive)
+        return
+
+    ; 按实际经过时间定位帧，而不是按定时器触发次数累加，避免播放逐渐变慢。
+    FrameIndex := Mod(Floor((A_TickCount - CompanionAnimationStartTick) / 30), CompanionAnimationFrameCount)
+    if (FrameIndex != CompanionAnimationLastFrame) {
+        GuiControl, CompanionOSD:, CompanionPicture, % CompanionAnimationFrames[FrameIndex + 1]
+        CompanionAnimationLastFrame := FrameIndex
+    }
 return
 
 SetCompanionChance(NewChance) {
@@ -1938,7 +2380,7 @@ SetCompanionChance(NewChance) {
     CompanionChance := NewChance
     IniWrite, %CompanionChance%, %IniFile%, Settings, CompanionChance
     UpdateCompanionChanceMenu()
-    ShowOSD("表情出现频率: " . CompanionChance . "%")
+    ShowOSD("表情出现频率: " . CompanionChance . "%", 1200, "noCompanion")
 }
 
 UpdateCompanionChanceMenu() {
@@ -1961,12 +2403,12 @@ UpdateCompanionChanceMenu() {
 ; =======================================================
 ; OSD (On-Screen Display) 操作反馈系统 (支持自定义时长)
 ; =======================================================
-ShowOSD(Text, DisplayTime := 1200) {  ; ★ 新增了 DisplayTime 参数，默认 1200ms
+ShowOSD(Text, DisplayTime := 1200, CompanionCue := "") {  ; 可指定某个快捷键的专属动画
     Global EnableOSD
     if (!EnableOSD)
         return
 
-    MaybeShowCompanion(Text, DisplayTime)
+    MaybeShowCompanion(Text, DisplayTime, CompanionCue)
 
     Gui, OSD:Destroy
     Gui, OSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhOSD +E0x20
@@ -1999,16 +2441,21 @@ ShowOSD(Text, DisplayTime := 1200) {  ; ★ 新增了 DisplayTime 参数，默�
 
     FadeOutOSD:
     Gui, OSD:Destroy
-    Gui, CompanionOSD:Destroy
+    StopCompanionAnimation()
     return
 }
 
-MaybeShowCompanion(Text, DisplayTime) {
-    global EnableCompanionOSD, CompanionChance, CompanionCooldown, LastSuccessCompanionTick
+MaybeShowCompanion(Text, DisplayTime, CompanionCue := "") {
+    global EnableCompanionOSD, EnableCompanionAnimation, CompanionChance
+        , CompanionCooldown, LastSuccessCompanionTick
 
     ; 新提示到来时先清除旧表情，避免“处理中”的常驻图片残留。
-    Gui, CompanionOSD:Destroy
+    StopCompanionAnimation()
     SetTimer, HideCompanionOSD, Off
+
+    ; 菜单设置反馈不算成功提示，避免刚开启后立刻占用 15 秒冷却。
+    if (CompanionCue = "noCompanion")
+        return
 
     if (!EnableCompanionOSD)
         return
@@ -2027,13 +2474,25 @@ MaybeShowCompanion(Text, DisplayTime) {
             return
 
         ; “每次”档不受冷却限制；其他档仅统计成功表情的上次出现时间。
-        if (IsSuccessCompanionCoolingDown(CompanionChance, CompanionCooldown
+        ; 中键四连击的专属动画跳过普通成功表情冷却，但仍接受概率筛选。
+        BypassCooldown := (CompanionCue = "atri2" && EnableCompanionAnimation)
+        if (!BypassCooldown && IsSuccessCompanionCoolingDown(CompanionChance, CompanionCooldown
             , LastSuccessCompanionTick, A_TickCount))
             return
 
         Random, CompanionRoll, 1, 100
         if (CompanionRoll > CompanionChance)
             return
+    }
+
+    AnimationKind := (CompanionCue = "atri2" || CompanionCue = "atri3")
+        ? CompanionCue : "atri"
+    if (FeedbackType = "success" && EnableCompanionAnimation
+        && EnsureCompanionAnimationFrames(AnimationKind)) {
+        if (StartCompanionAnimation(DisplayTime, true, AnimationKind)) {
+            LastSuccessCompanionTick := A_TickCount
+            return
+        }
     }
 
     CompanionPath := GetTempPath(CompanionFile)
@@ -2066,9 +2525,84 @@ IsSuccessCompanionCoolingDown(Chance, CooldownSeconds, LastTick, CurrentTick) {
     return CurrentTick - LastTick < CooldownSeconds * 1000
 }
 
+EnsureCompanionAnimationFrames(AnimationKind := "atri") {
+    global CompanionAnimationCache
+    if (CompanionAnimationCache.HasKey(AnimationKind))
+        return true
+
+    if (AnimationKind = "atri") {
+        FrameCount := 30
+        FilePrefix := "atri_cat_"
+    } else if (AnimationKind = "atri2") {
+        FrameCount := 37
+        FilePrefix := "my_cat2_"
+    } else if (AnimationKind = "atri3") {
+        FrameCount := 44
+        FilePrefix := "my_cat3_"
+    } else {
+        return false
+    }
+
+    FramePaths := []
+    Loop, %FrameCount% {
+        FrameNumber := A_Index - 1
+        FileName := FilePrefix . (FrameNumber < 10 ? "0" : "") . FrameNumber . ".png"
+        FramePath := GetTempPath(FileName)
+        if (!FileExist(FramePath))
+            return false
+        FramePaths.Push(FramePath)
+    }
+
+    CompanionAnimationCache[AnimationKind] := FramePaths
+    return true
+}
+
+StopCompanionAnimation() {
+    global CompanionAnimationActive, CompanionAnimationLastFrame
+    SetTimer, AdvanceCompanionAnimation, Off
+    SetTimer, HideCompanionOSD, Off
+    CompanionAnimationActive := false
+    CompanionAnimationLastFrame := -1
+    Gui, CompanionOSD:Destroy
+}
+
+StartCompanionAnimation(DisplayTime, SyncWithText := false, AnimationKind := "atri") {
+    global CompanionAnimationActive, CompanionAnimationStartTick
+        , CompanionAnimationLastFrame, CompanionAnimationFrames
+        , CompanionAnimationFrameCount, CompanionAnimationCache, CompanionPicture
+    if (!EnsureCompanionAnimationFrames(AnimationKind))
+        return false
+
+    StopCompanionAnimation()
+    CompanionAnimationFrames := CompanionAnimationCache[AnimationKind]
+    CompanionAnimationFrameCount := CompanionAnimationFrames.Length()
+    ImageSize := 180
+    FirstFrame := CompanionAnimationFrames[1]
+    Gui, CompanionOSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhCompanionOSD +E0x20
+    Gui, CompanionOSD:Margin, 0, 0
+    Gui, CompanionOSD:Color, 010203
+    Gui, CompanionOSD:Add, Picture, vCompanionPicture x0 y0 w%ImageSize% h%ImageSize% BackgroundTrans, %FirstFrame%
+
+    SysGet, CompanionScreenH, 1
+    CompanionX := 45
+    CompanionY := Round(CompanionScreenH * 0.88) - ImageSize - 8
+    if (CompanionY < 0)
+        CompanionY := 0
+    Gui, CompanionOSD:Show, NoActivate x%CompanionX% y%CompanionY% w%ImageSize% h%ImageSize%
+    WinSet, TransColor, 010203 255, ahk_id %hCompanionOSD%
+
+    CompanionAnimationStartTick := A_TickCount
+    CompanionAnimationLastFrame := 0
+    CompanionAnimationActive := true
+    SetTimer, AdvanceCompanionAnimation, 10
+    if (!SyncWithText && DisplayTime > 0)
+        SetTimer, HideCompanionOSD, -%DisplayTime%
+    return true
+}
+
 ShowCompanionOSD(ImagePath, DisplayTime, SyncWithText := false) {
     ImageSize := 180
-    Gui, CompanionOSD:Destroy
+    StopCompanionAnimation()
     Gui, CompanionOSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhCompanionOSD +E0x20
     Gui, CompanionOSD:Margin, 0, 0
     Gui, CompanionOSD:Color, 010203
