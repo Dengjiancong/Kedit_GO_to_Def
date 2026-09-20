@@ -1,0 +1,4 @@
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'Convert-GifToPngFrames.ps1' `
+  -InputGif 'Image_1775882564849_263.gif' `
+  -OutputDirectory 'D:\Hobby\kedit_go_to_def\Kedit_GO_to_Def_ver_VibeCodeing_test\tools\my_frames' `
+  -Prefix 'my_cat' -Size 180

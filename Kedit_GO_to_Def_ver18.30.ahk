@@ -67,6 +67,7 @@ Global CompanionAnimationActive := false
 Global CompanionAnimationStartTick := 0
 Global CompanionAnimationLastFrame := -1
 Global SmartClickBurstTicks := []
+Global HotkeysSuspended := false
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -90,7 +91,8 @@ Menu, Tray, Add, 设置: VS 生成/Ctrl+B (默认F7), SetKey_VS_Build
 ; --- Kedit 以外的设置入口
 Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 设置: 默认 F8 (运行Py脚本), SetKey_RunPy
-Menu, Tray, Add, 设置: 快速打开 (键位与路径), SetQuickOpen_All
+Menu, Tray, Add, 设置: 快速打开路径/目标 (键位与路径), SetQuickOpen_All
+Menu, Tray, Add, Pause：屏蔽/恢复快捷键, ToggleManagedHotkeys
 
 ; OSD 开关菜单项
 Menu, CompanionChanceMenu, Add, 低频（15％）, SetCompanionChance15
@@ -105,6 +107,7 @@ Menu, CompanionPreviewMenu, Add, 亚托莉猫猫动画, PreviewAtriCatAnimation
 Menu, CompanionPreviewMenu, Add, Alt+F 搜索动画, PreviewAltFAnimation
 Menu, CompanionPreviewMenu, Add, 中键四连击动画, PreviewSmartClickBurstAnimation
 
+Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 开启屏幕操作提示 (OSD), ToggleOSD
 if (EnableOSD = 1)
     Menu, Tray, Check, 开启屏幕操作提示 (OSD)
@@ -118,9 +121,9 @@ else
 Menu, Tray, Add, 表情出现频率, :CompanionChanceMenu
 Menu, Tray, Add, 启用亚托莉猫猫动画, ToggleCompanionAnimation
 if (EnableCompanionAnimation = 1)
-    Menu, Tray, Check, 成功提示使用亚托莉猫猫动画
+    Menu, Tray, Check, 启用亚托莉猫猫动画
 else
-    Menu, Tray, Uncheck, 成功提示使用亚托莉猫猫动画
+    Menu, Tray, Uncheck, 启用亚托莉猫猫动画
 Menu, Tray, Add, 预览陪伴表情, :CompanionPreviewMenu
 Menu, Tray, Add, 恢复默认快捷键设置, RestoreDefaults
 Menu, Tray, Add  ; 分隔线
@@ -904,11 +907,13 @@ ProcessKeditWindow(winTitle, delay)
 
 UpdateHotkeys() {
     global
+    HotkeyState := HotkeysSuspended ? "Off" : "On"
     ; --- [新增代码] 第一组：全局快捷键 ---
     Hotkey, IfWinActive
+    Hotkey, Pause, ToggleManagedHotkeys, On
     try {
         ; 注册 Ctrl+Q (快速打开目录)
-        Hotkey, %Key_CtrlQ%, Label_CtrlQ, On
+        Hotkey, %Key_CtrlQ%, Label_CtrlQ, %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 无法注册全局快捷键 (%Key_CtrlQ%)
     }
@@ -916,16 +921,16 @@ UpdateHotkeys() {
     ; --- [新增代码] 第二组：Kedit 专用快捷键 ---
     Hotkey, IfWinActive, ahk_exe kedit.exe
     try {
-        Hotkey, %Key_GoToDef%,    Label_GoToDef,    On
-        Hotkey, %Key_ShiftF2%,    Label_ShiftF2,    On
-        Hotkey, %Key_AltF%,       Label_AltF,       On
-        Hotkey, %Key_CtrlW%, 	  Label_CtrlW, 		On
-        Hotkey, %Key_AltA%,       Label_AltA,       On ; <--- 注册新快捷键 [cite: 23]
-        Hotkey, %Key_ColumnInsert%, Label_ColumnInsert, On ; [新增代码]
-        Hotkey, %Key_SmartClick%, Label_SmartClick, On
-        Hotkey, %Key_ToggleComment%, ProcessCommentToggle, On
-        Hotkey, %Key_SpacesToTabs%, Label_SpacesToTabs, On
-        Hotkey, %Key_FindClipboard%, Label_FindClipboard, On
+        Hotkey, %Key_GoToDef%,    Label_GoToDef,    %HotkeyState%
+        Hotkey, %Key_ShiftF2%,    Label_ShiftF2,    %HotkeyState%
+        Hotkey, %Key_AltF%,       Label_AltF,       %HotkeyState%
+        Hotkey, %Key_CtrlW%, 	  Label_CtrlW, 		%HotkeyState%
+        Hotkey, %Key_AltA%,       Label_AltA,       %HotkeyState% ; <--- 注册新快捷键 [cite: 23]
+        Hotkey, %Key_ColumnInsert%, Label_ColumnInsert, %HotkeyState% ; [新增代码]
+        Hotkey, %Key_SmartClick%, Label_SmartClick, %HotkeyState%
+        Hotkey, %Key_ToggleComment%, ProcessCommentToggle, %HotkeyState%
+        Hotkey, %Key_SpacesToTabs%, Label_SpacesToTabs, %HotkeyState%
+        Hotkey, %Key_FindClipboard%, Label_FindClipboard, %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 加载快捷键失败。
     }
@@ -933,7 +938,7 @@ UpdateHotkeys() {
     ; --- [新增代码] 第三组：资源管理器专用快捷键 ---
     Hotkey, IfWinActive, ahk_class CabinetWClass
     try {
-        Hotkey, %Key_RunPy%,      Label_RunPy,      On
+        Hotkey, %Key_RunPy%,      Label_RunPy,      %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 无法注册资源管理器快捷键 (%Key_RunPy%)
     }
@@ -942,17 +947,29 @@ UpdateHotkeys() {
     Hotkey, IfWinActive, ahk_exe devenv.exe
     try {
         ; [修改] 使用变量 Key_VS_Peek
-        Hotkey, %Key_VS_Peek%, Label_VS_PeekDef, On
+        Hotkey, %Key_VS_Peek%, Label_VS_PeekDef, %HotkeyState%
 
         ; [修改] 使用变量 Key_VS_Back
-        Hotkey, %Key_VS_Back%, Label_VS_NavigateBack, On
+        Hotkey, %Key_VS_Back%, Label_VS_NavigateBack, %HotkeyState%
 
         ; [修改] 使用变量 Key_VS_Build
-        Hotkey, %Key_VS_Build%, Label_VS_SendCtrlB, On
+        Hotkey, %Key_VS_Build%, Label_VS_SendCtrlB, %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键 (%Key_RunPy%)
     }
 }
+
+ToggleManagedHotkeys:
+    HotkeysSuspended := !HotkeysSuspended
+    UpdateHotkeys()
+    if (HotkeysSuspended) {
+        Menu, Tray, Check, Pause：屏蔽/恢复快捷键
+        ShowOSD("快捷键已屏蔽", 1200, "noCompanion")
+    } else {
+        Menu, Tray, Uncheck, Pause：屏蔽/恢复快捷键
+        ShowOSD("快捷键已恢复", 1200, "noCompanion")
+    }
+return
 
 ; [新增代码] =======================================================
 ; Ctrl+Q 快速打开逻辑 (支持文件和文件夹)
@@ -2306,12 +2323,12 @@ return
 ToggleCompanionAnimation:
     EnableCompanionAnimation := !EnableCompanionAnimation
     if (EnableCompanionAnimation) {
-        Menu, Tray, Check, 成功提示使用亚托莉猫猫动画
+        Menu, Tray, Check, 启用亚托莉猫猫动画
         EnsureCompanionAnimationFrames()
         EnsureCompanionAnimationFrames("atri2")
         EnsureCompanionAnimationFrames("atri3")
     } else {
-        Menu, Tray, Uncheck, 成功提示使用亚托莉猫猫动画
+        Menu, Tray, Uncheck, 启用亚托莉猫猫动画
         StopCompanionAnimation()
     }
     IniWrite, %EnableCompanionAnimation%, %IniFile%, Settings, EnableCompanionAnimation
