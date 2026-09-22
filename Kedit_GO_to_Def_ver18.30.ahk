@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30-Meme.v003 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v005 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v18.30-Meme.v003"
+Global CurrentVersion := "v18.30-Meme.v005"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -43,6 +43,7 @@ IniRead, Key_FindClipboard, %IniFile%, Hotkeys, FindClipboard, F1 ; 查找剪贴
 IniRead, Key_VS_Peek,    %IniFile%, Hotkeys, VS_Peek,    MButton
 IniRead, Key_VS_Back,    %IniFile%, Hotkeys, VS_Back,    ^b
 IniRead, Key_VS_Build,   %IniFile%, Hotkeys, VS_Build,   F7
+IniRead, Key_VS_ToggleComment, %IniFile%, Hotkeys, VS_ToggleComment, ^/
 
 ; --- Kedit以外的快捷键设置
 IniRead, Key_RunPy,      %IniFile%, Hotkeys, RunPy,      F8
@@ -87,6 +88,7 @@ Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 设置: VS 预览定义 (默认中键), SetKey_VS_Peek
 Menu, Tray, Add, 设置: VS 回退 (默认Ctrl+B), SetKey_VS_Back
 Menu, Tray, Add, 设置: VS 生成/Ctrl+B (默认F7), SetKey_VS_Build
+Menu, Tray, Add, 设置: VS 注释/取消注释 (默认Ctrl+/), SetKey_VS_ToggleComment
 
 ; --- Kedit 以外的设置入口
 Menu, Tray, Add  ; 分隔线
@@ -263,6 +265,7 @@ RestoreDefaults:
     Key_ToggleComment := "^/"  ; <--- 恢复默认值
     Key_SpacesToTabs := "^\"
     Key_FindClipboard := "F1"
+    Key_VS_ToggleComment := "^/"
 
     IniWrite, %Key_GoToDef%,    %IniFile%, Hotkeys, GoToDef
     IniWrite, %Key_ShiftF2%,    %IniFile%, Hotkeys, ShiftF2
@@ -275,6 +278,7 @@ RestoreDefaults:
     IniWrite, %Key_ToggleComment%, %IniFile%, Hotkeys, ToggleComment ; <--- 写入 INI
     IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
+    IniWrite, %Key_VS_ToggleComment%, %IniFile%, Hotkeys, VS_ToggleComment
 
     UpdateHotkeys()
     MsgBox, 64, 成功, 所有快捷键已恢复为默认设置！
@@ -878,6 +882,51 @@ Label_VS_SendCtrlB:
     SendInput ^b
 return
 
+Label_VS_ToggleComment:
+    ; 只读取原始选区，不移动光标或重建选区，避免操作时出现闪烁。
+    if (VSCommentBusy)
+        return
+    VSCommentBusy := true
+
+    VSComment_ClipSaved := ClipboardAll
+    Clipboard := ""
+    SendInput, ^c
+    ClipWait, 0.5
+
+    VSComment_SelectedText := ErrorLevel ? "" : Clipboard
+
+    ; 恢复用户剪贴板，避免快捷键改变剪贴板内容。
+    Clipboard := VSComment_ClipSaved
+    VSComment_ClipSaved := ""
+
+    VSComment_Uncomment := VSSelectionNeedsUncomment(VSComment_SelectedText)
+
+    if (VSComment_Uncomment) {
+        ShowOSD("VS: Uncomment Selection")
+        SendInput, ^k
+        Sleep, 40
+        SendInput, ^u
+    } else {
+        ShowOSD("VS: Comment Selection")
+        SendInput, ^k
+        Sleep, 40
+        SendInput, ^c
+    }
+    VSCommentBusy := false
+return
+
+VSSelectionNeedsUncomment(Text) {
+    ; VS 注释后，第一行的 // 可能位于原选区左侧；第二行通常仍能带出 //。
+    ; 按前两行判断，避免移动选区，也只认 //，不处理块注释。
+    Lines := StrSplit(Text, "`n", "`r")
+    FirstLine := (Lines.MaxIndex() >= 1) ? LTrim(Lines[1], " `t") : ""
+    SecondLine := (Lines.MaxIndex() >= 2) ? LTrim(Lines[2], " `t") : ""
+
+    FirstHasComment := RegExMatch(FirstLine, "^//")
+    SecondHasComment := RegExMatch(SecondLine, "^//")
+    return (FirstHasComment || SecondHasComment)
+}
+
 ProcessKeditWindow(winTitle, delay)
 {
     ; 【优化建议】
@@ -954,6 +1003,7 @@ UpdateHotkeys() {
 
         ; [修改] 使用变量 Key_VS_Build
         Hotkey, %Key_VS_Build%, Label_VS_SendCtrlB, %HotkeyState%
+        Hotkey, %Key_VS_ToggleComment%, Label_VS_ToggleComment, %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键 (%Key_RunPy%)
     }
@@ -1063,6 +1113,10 @@ return
 
 SetKey_VS_Build:
     ChangeHotkey("VS_Build", "VS 生成/旧Ctrl+B替换`n(功能: 发送原版 Ctrl+B)", Key_VS_Build)
+return
+
+SetKey_VS_ToggleComment:
+    ChangeHotkey("VS_ToggleComment", "VS 注释/取消注释 (智能切换)`n(默认 Ctrl+/；调用 VS 原生 Ctrl+K,Ctrl+C/U)", Key_VS_ToggleComment)
 return
 
 ; =======================================================
