@@ -16,7 +16,7 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30-Meme.v005 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v006 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
@@ -56,6 +56,9 @@ IniRead, EnableCompanionOSD, %IniFile%, Settings, EnableCompanionOSD, 0
 IniRead, CompanionChance, %IniFile%, Settings, CompanionChance, 15
 IniRead, CompanionCooldown, %IniFile%, Settings, CompanionCooldown, 15
 IniRead, EnableCompanionAnimation, %IniFile%, Settings, EnableCompanionAnimation, 0
+IniRead, VSDefinitionAction, %IniFile%, Settings, VSDefinitionAction, GoTo
+if (VSDefinitionAction != "GoTo" && VSDefinitionAction != "Peek")
+    VSDefinitionAction := "GoTo"
 if (CompanionChance != 15 && CompanionChance != 25 && CompanionChance != 50 && CompanionChance != 100)
     CompanionChance := 15
 if (CompanionCooldown < 1)
@@ -85,7 +88,7 @@ Menu, Tray, Add, 设置: 默认 中键 (跳转至定义), SetKey_SmartClick
 
 ; --- Visual Studio 的设置入口
 Menu, Tray, Add  ; 分隔线
-Menu, Tray, Add, 设置: VS 预览定义 (默认中键), SetKey_VS_Peek
+Menu, Tray, Add, 设置: VS 跳转/预览定义 (默认中键), SetKey_VS_Peek
 Menu, Tray, Add, 设置: VS 回退 (默认Ctrl+B), SetKey_VS_Back
 Menu, Tray, Add, 设置: VS 生成/Ctrl+B (默认F7), SetKey_VS_Build
 Menu, Tray, Add, 设置: VS 注释/取消注释 (默认Ctrl+/), SetKey_VS_ToggleComment
@@ -266,6 +269,7 @@ RestoreDefaults:
     Key_SpacesToTabs := "^\"
     Key_FindClipboard := "F1"
     Key_VS_ToggleComment := "^/"
+    VSDefinitionAction := "GoTo"
 
     IniWrite, %Key_GoToDef%,    %IniFile%, Hotkeys, GoToDef
     IniWrite, %Key_ShiftF2%,    %IniFile%, Hotkeys, ShiftF2
@@ -279,6 +283,7 @@ RestoreDefaults:
     IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
     IniWrite, %Key_VS_ToggleComment%, %IniFile%, Hotkeys, VS_ToggleComment
+    IniWrite, %VSDefinitionAction%, %IniFile%, Settings, VSDefinitionAction
 
     UpdateHotkeys()
     MsgBox, 64, 成功, 所有快捷键已恢复为默认设置！
@@ -858,16 +863,19 @@ return
 ; =======================================================
 ; Visual Studio 专用逻辑
 ; =======================================================
-Label_VS_PeekDef:
-    ShowOSD("VS: Peek Definition")
+Label_VS_DefinitionAction:
+    ShowOSD(VSDefinitionAction = "GoTo" ? "VS: Go To Definition" : "VS: Peek Definition")
     ; 1. 先发送左键点击，将光标定位到鼠标指向的单词上
     SendInput {LButton}
 
-    ; 2. 稍微等待一下 (50毫秒)，确保 VS 有时间把光标移过去
+    ; 2. 稍微等待一下，确保 VS 有时间把光标移过去
     Sleep, 2
 
-    ; 3. 发送 Alt + F12 调出预览窗口
-    SendInput !{F12}
+    ; 3. 按设置执行跳转定义或预览定义
+    if (VSDefinitionAction = "GoTo")
+        SendInput {F12}
+    else
+        SendInput !{F12}
 return
 
 Label_VS_NavigateBack:
@@ -996,7 +1004,7 @@ UpdateHotkeys() {
     Hotkey, IfWinActive, ahk_exe devenv.exe
     try {
         ; [修改] 使用变量 Key_VS_Peek
-        Hotkey, %Key_VS_Peek%, Label_VS_PeekDef, %HotkeyState%
+        Hotkey, %Key_VS_Peek%, Label_VS_DefinitionAction, %HotkeyState%
 
         ; [修改] 使用变量 Key_VS_Back
         Hotkey, %Key_VS_Back%, Label_VS_NavigateBack, %HotkeyState%
@@ -1104,7 +1112,7 @@ return
 ; Visual Studio 快捷键设置入口
 ; =======================================================
 SetKey_VS_Peek:
-    ChangeHotkey("VS_Peek", "VS 中键替换`n(功能: 选中单词并 Alt+F12 预览定义)", Key_VS_Peek)
+    ChangeHotkey("VS_Peek", "VS 定义操作快捷键`n(默认中键；动作可选 F12 或 Alt+F12)", Key_VS_Peek, VSDefinitionAction)
 return
 
 SetKey_VS_Back:
@@ -1537,7 +1545,7 @@ PlayMpvInGui(Hwnd, VideoPath) {
 ; =======================================================
 ; 通用修改函数
 ; =======================================================
-ChangeHotkey(KeyName, DisplayText, CurrentKey) {
+ChangeHotkey(KeyName, DisplayText, CurrentKey, CurrentAction := "") {
     global
     Gui, Destroy
     Gui, -MinimizeBox
@@ -1546,7 +1554,8 @@ ChangeHotkey(KeyName, DisplayText, CurrentKey) {
     Gui, Color, White
 
     SideW := 760
-    SideH := 430
+    IsVSDefinition := (KeyName = "VS_Peek")
+    SideH := IsVSDefinition ? 500 : 430
 
     SidebarPath := GetTempPath("side.mp4")
     XStart := 20
@@ -1563,6 +1572,19 @@ ChangeHotkey(KeyName, DisplayText, CurrentKey) {
     Gui, Add, Text, x+5 yp cBlue, %CurrentKey%
     Gui, Font
     Gui, Add, Text, x%XStart% y+10 h2 w300 0x10
+
+    if (IsVSDefinition) {
+        Gui, Font, Bold cBlue
+        Gui, Add, Text, x%XStart% y+15 h20, 2. 定义动作
+        Gui, Font, Norm cDefault
+        Gui, Add, Radio, vVSDefinitionChoice x%XStart% y+8, 跳转到定义 (F12)
+        Gui, Add, Radio, x%XStart% y+5, 预览定义 (Alt+F12)
+        if (CurrentAction = "Peek")
+            GuiControl,, VSDefinitionChoice, 2
+        else
+            GuiControl,, VSDefinitionChoice, 1
+    }
+
     Gui, Add, Text, x%XStart% y+10, 方法A - 键盘录入 (不支持鼠标键):
     Gui, Add, Hotkey, vNewHotkey Limit1 x%XStart% y+5, %CurrentKey%
     Gui, Add, Text, x%XStart% y+15, 方法B - 手动输入代码 (鼠标/组合键):
@@ -1611,12 +1633,17 @@ ChangeHotkey(KeyName, DisplayText, CurrentKey) {
         return
     }
     OldKey := Key_%CurrentEditingKey%
-    Hotkey, IfWinActive, ahk_exe kedit.exe
+    HotkeyContext := (InStr(CurrentEditingKey, "VS_") = 1) ? "ahk_exe devenv.exe" : "ahk_exe kedit.exe"
+    Hotkey, IfWinActive, %HotkeyContext%
     try {
         Hotkey, %OldKey%, Off
     }
     Key_%CurrentEditingKey% := FinalKey
     IniWrite, %FinalKey%, %IniFile%, Hotkeys, %CurrentEditingKey%
+    if (CurrentEditingKey = "VS_Peek") {
+        VSDefinitionAction := (VSDefinitionChoice = 2) ? "Peek" : "GoTo"
+        IniWrite, %VSDefinitionAction%, %IniFile%, Settings, VSDefinitionAction
+    }
     UpdateHotkeys()
     Gui, Destroy
     MsgBox, 64, 成功, %KeyName% 已更新为: %FinalKey%
