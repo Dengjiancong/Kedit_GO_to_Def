@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30-Meme.v006 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v007 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v18.30-Meme.v006"
+Global CurrentVersion := "v18.30-Meme.v007"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -875,6 +875,14 @@ Label_VS_DefinitionAction:
         return
     }
 
+    ; 中键模式下只接管代码文本编辑区；标签页等区域保留 VS 原生中键行为。
+    ; A_Cursor 在 VS 编辑器中为 IBeam，在文档标签页通常为 Arrow。
+    ; 这里先把非 IBeam 区域的中键原样交还给 VS，保留“中键关闭标签页”等原生行为。
+    if (Key_VS_Peek = "MButton" && !VS_IsCodeEditorAtMouse()) {
+        SendInput {MButton}
+        return
+    }
+
     ; 如果 VS 尚未激活，先激活鼠标指向的 VS 实例，再进行一次定位点击。
     VS_RootHwnd := DllCall("GetAncestor", "Ptr", VS_MouseHwnd, "UInt", 2, "Ptr")
     if (!WinActive("ahk_exe devenv.exe")) {
@@ -897,6 +905,13 @@ Label_VS_DefinitionAction:
     else
         SendInput !{F12}
 return
+
+; 判断中键是否落在 VS 的代码编辑区。
+; 目前使用鼠标指针形状作为区域判断：这是 AHK 在不依赖 VS 扩展/API
+; 的情况下最稳定、兼容性最好的方式。标签页、工具栏和滚动条不会是 IBeam。
+VS_IsCodeEditorAtMouse() {
+    return (A_Cursor = "IBeam")
+}
 
 Label_VS_NavigateBack:
     ShowOSD("VS: Navigate Back")
