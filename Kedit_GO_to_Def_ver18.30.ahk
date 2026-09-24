@@ -22,7 +22,7 @@
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v18.30-Meme.v005"
+Global CurrentVersion := "v18.30-Meme.v006"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -864,12 +864,32 @@ return
 ; Visual Studio 专用逻辑
 ; =======================================================
 Label_VS_DefinitionAction:
+    ; 中键默认需要支持“鼠标指向后台 VS 窗口”的场景。
+    ; 先判断鼠标下方的窗口，避免在其他窗口中吞掉原生中键。
+    MouseGetPos,,, VS_MouseHwnd
+    WinGet, VS_MouseProcess, ProcessName, ahk_id %VS_MouseHwnd%
+    if (VS_MouseProcess != "devenv.exe") {
+        ; 该标签在全局中键模式下运行时，非 VS 窗口恢复原生中键。
+        if (Key_VS_Peek = "MButton")
+            SendInput {MButton}
+        return
+    }
+
+    ; 如果 VS 尚未激活，先激活鼠标指向的 VS 实例，再进行一次定位点击。
+    VS_RootHwnd := DllCall("GetAncestor", "Ptr", VS_MouseHwnd, "UInt", 2, "Ptr")
+    if (!WinActive("ahk_exe devenv.exe")) {
+        WinActivate, ahk_id %VS_RootHwnd%
+        WinWaitActive, ahk_id %VS_RootHwnd%,, 0.2
+        if (ErrorLevel)
+            return
+    }
+
     ShowOSD(VSDefinitionAction = "GoTo" ? "VS: Go To Definition" : "VS: Peek Definition")
     ; 1. 先发送左键点击，将光标定位到鼠标指向的单词上
     SendInput {LButton}
 
     ; 2. 稍微等待一下，确保 VS 有时间把光标移过去
-    Sleep, 2
+    ; Sleep, 2
 
     ; 3. 按设置执行跳转定义或预览定义
     if (VSDefinitionAction = "GoTo")
@@ -1001,12 +1021,23 @@ UpdateHotkeys() {
     }
 
     ; [新增代码] Visual Studio 专用区域 (devenv.exe)
+    ; 默认中键需要全局监听，才能在 VS 未激活时根据鼠标下方窗口接管一次点击。
+    Hotkey, IfWinActive
+    Hotkey, $MButton, Label_VS_DefinitionAction, Off
     Hotkey, IfWinActive, ahk_exe devenv.exe
+    Hotkey, MButton, Label_VS_DefinitionAction, Off
     try {
         ; [修改] 使用变量 Key_VS_Peek
-        Hotkey, %Key_VS_Peek%, Label_VS_DefinitionAction, %HotkeyState%
+        if (Key_VS_Peek = "MButton") {
+            Hotkey, IfWinActive
+            Hotkey, $MButton, Label_VS_DefinitionAction, %HotkeyState%
+        } else {
+            Hotkey, IfWinActive, ahk_exe devenv.exe
+            Hotkey, %Key_VS_Peek%, Label_VS_DefinitionAction, %HotkeyState%
+        }
 
         ; [修改] 使用变量 Key_VS_Back
+        Hotkey, IfWinActive, ahk_exe devenv.exe
         Hotkey, %Key_VS_Back%, Label_VS_NavigateBack, %HotkeyState%
 
         ; [修改] 使用变量 Key_VS_Build
