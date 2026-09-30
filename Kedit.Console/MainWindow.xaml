@@ -71,6 +71,7 @@
                          FontSize="14" Foreground="White" TextWrapping="Wrap" Margin="0,9,0,0"/>
             </StackPanel>
           </Border>
+          <TextBlock x:Name="PipeStatus" Text="正在等待 Kedit 主程序连接..." FontSize="13" Foreground="#BFD8EF" Margin="4,18,0,0"/>
         </StackPanel>
         <TextBlock Grid.Row="2" Text="Kedit Console  ·  Phase 1" FontSize="13" Foreground="#C1D4E8"/>
       </Grid>

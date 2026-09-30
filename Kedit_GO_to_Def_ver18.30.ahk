@@ -1998,6 +1998,21 @@ LaunchKeditConsole:
         MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
         return
     }
+    SetTimer, SendConsoleState, -1000
+return
+
+SendConsoleState:
+    ; Phase 2：通过本机命名管道向 WPF 中控发送只读状态请求。
+    try {
+        ConsolePipe := FileOpen("\\\\.\\pipe\\Kedit.Console", "rw")
+        if (IsObject(ConsolePipe)) {
+            ConsolePipe.WriteLine("{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1}")
+            ConsolePipe.ReadLine()
+            ConsolePipe.Close()
+        }
+    } catch e {
+        ; 中控尚未启动完成时静默忽略，下一次打开中控会再次尝试。
+    }
 return
 
 AutoCheckForUpdateInitial:

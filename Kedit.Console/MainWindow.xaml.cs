@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using System.IO.Pipes;
+using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -8,11 +11,53 @@ namespace Kedit.Console
 {
     public partial class MainWindow : Window
     {
+        private readonly CancellationTokenSource pipeCancellation = new CancellationTokenSource();
+        private Thread pipeThread;
+
         public MainWindow()
         {
             InitializeComponent();
+            StartPipeServer();
             Loaded += MainWindow_Loaded;
             Closed += MainWindow_Closed;
+        }
+
+        private void StartPipeServer()
+        {
+            pipeThread = new Thread(PipeServerLoop) { IsBackground = true };
+            pipeThread.Start();
+        }
+
+        private void PipeServerLoop()
+        {
+            while (!pipeCancellation.IsCancellationRequested)
+            {
+                try
+                {
+                    using (var server = new NamedPipeServerStream(
+                        "Kedit.Console", PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
+                        PipeOptions.None))
+                    {
+                        server.WaitForConnection();
+                        using (var reader = new StreamReader(server, Encoding.UTF8, false, 1024, true))
+                        using (var writer = new StreamWriter(server, new UTF8Encoding(false), 1024, true) { AutoFlush = true })
+                        {
+                            string request = reader.ReadLine() ?? "";
+                            string command = request.IndexOf("get_state", StringComparison.OrdinalIgnoreCase) >= 0
+                                ? "get_state" : "unknown";
+                            string response = "{\"ok\":true,\"command\":\"" + command + "\",\"version\":\"0.1.0\"}";
+                            writer.WriteLine(response);
+                            Dispatcher.BeginInvoke(new Action(() =>
+                                PipeStatus.Text = "已连接 Kedit 主程序 · " + command));
+                        }
+                    }
+                }
+                catch
+                {
+                    if (!pipeCancellation.IsCancellationRequested)
+                        Thread.Sleep(200);
+                }
+            }
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -88,6 +133,7 @@ namespace Kedit.Console
 
         private void MainWindow_Closed(object sender, EventArgs e)
         {
+            pipeCancellation.Cancel();
             BackgroundVideo.Stop();
         }
     }
