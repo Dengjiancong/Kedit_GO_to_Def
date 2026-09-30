@@ -163,7 +163,7 @@ Global CheckStartTime := 0
 Global WaitingGuiShown := false
 Global CheckerPID := 0
 Global RetryCount := 0
-Global MaxRetries := 5
+Global MaxRetries := 2
 
 ; ★ MPV 进程管理数组
 Global MPV_PIDs := {}
@@ -2025,7 +2025,7 @@ LaunchVersionChecker:
                 else
                     whr.SetProxy(2, Mode)
                 whr.Send()
-                whr.WaitForResponse(10)
+            whr.WaitForResponse(5)
                 if (whr.Status == 200) {
                     FileAppend, `% whr.ResponseText, `%SavePath`%
                     SourceName := URLIndex = 1 ? "gitea" : "github"
@@ -2055,12 +2055,13 @@ LaunchVersionChecker:
 return
 
 MonitorVersionCheck:
-    if (!WaitingGuiShown && (A_TickCount - CheckStartTime > 2000)) {
+    if (!UpdateCheckSilent && !WaitingGuiShown && (A_TickCount - CheckStartTime > 2000)) {
         WaitingGuiShown := true
         GoSub, ShowConnectingGui
     }
 
-    if (A_TickCount - CheckStartTime > 3000) {
+    ; 子进程最多尝试 2 个来源 × 4 种连接方式，每次等待 5 秒。
+    if (A_TickCount - CheckStartTime > 50000) {
         SetTimer, MonitorVersionCheck, Off
         RetryCount++
         if (RetryCount < MaxRetries) {
@@ -2134,10 +2135,10 @@ ExtractJsonString(JsonText, KeyName) {
 }
 
 IsVersionNewer(Candidate, Installed) {
-    Candidate := RegExReplace(Candidate, "i)[^0-9.].*$", "")
-    Installed := RegExReplace(Installed, "i)[^0-9.].*$", "")
-    CandidateParts := StrSplit(Candidate, ".")
-    InstalledParts := StrSplit(Installed, ".")
+    CandidateParts := ParseKeditVersion(Candidate)
+    InstalledParts := ParseKeditVersion(Installed)
+    if (!CandidateParts || !InstalledParts)
+        return false
     Loop, 4 {
         CandidatePart := CandidateParts[A_Index] + 0
         InstalledPart := InstalledParts[A_Index] + 0
@@ -2147,6 +2148,14 @@ IsVersionNewer(Candidate, Installed) {
             return false
     }
     return false
+}
+
+ParseKeditVersion(Version) {
+    if (!RegExMatch(Version, "i)^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-Meme\.v(\d+))?$", Match))
+        return false
+    ; 历史版本 v18.30-Meme.v009 与 Release v18.30.0 共存。
+    ; Meme 修订号作为第 4 段比较，三段式 Release 的该段为 0。
+    return [Match1 + 0, Match2 + 0, Match3 + 0, Match4 + 0]
 }
 
 CloseWaitGui:
