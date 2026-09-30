@@ -2003,7 +2003,8 @@ LaunchKeditConsole:
     }
 
     ConsoleVideoPath := GetTempPath("side.mp4")
-    Run, "%ConsolePath%" "%ConsoleVideoPath%" "%A_ScriptHwnd%", , UseErrorLevel, KeditConsolePID
+    ConsoleHwnd := A_ScriptHwnd + 0
+    Run, "%ConsolePath%" "%ConsoleVideoPath%" "%ConsoleHwnd%", , UseErrorLevel, KeditConsolePID
     if (ErrorLevel) {
         MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
         return

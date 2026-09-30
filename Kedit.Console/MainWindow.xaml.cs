@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Pipes;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -77,8 +78,15 @@ namespace Kedit.Console
         {
             var args = Environment.GetCommandLineArgs();
             long hwndValue;
-            if (args.Length >= 3 && long.TryParse(args[2], out hwndValue))
-                ahkWindow = new IntPtr(hwndValue);
+            if (args.Length >= 3)
+            {
+                string hwndText = args[2].Trim();
+                if (long.TryParse(hwndText, NumberStyles.Integer, CultureInfo.InvariantCulture, out hwndValue))
+                    ahkWindow = new IntPtr(hwndValue);
+                else if (hwndText.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                    && long.TryParse(hwndText.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out hwndValue))
+                    ahkWindow = new IntPtr(hwndValue);
+            }
             string videoPath = args.Length >= 2 ? args[1] : FindDefaultVideo();
             if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
                 return;
@@ -96,7 +104,8 @@ namespace Kedit.Console
 
         private void ApplyAhkState(string request, string command)
         {
-            PipeStatus.Text = "已连接 Kedit 主程序 · " + command;
+            PipeStatus.Text = "已连接 Kedit 主程序 · " + command
+                + (ahkWindow == IntPtr.Zero ? "（设置通道未建立）" : "（设置通道已建立）");
             if (command != "get_state")
                 return;
 
