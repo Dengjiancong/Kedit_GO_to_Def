@@ -2059,6 +2059,7 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
     if (!DataPtr || DataSize < 2)
         return 0
     Command := StrGet(DataPtr, "UTF-16")
+    AppendConsoleCommandLog("received: " . Command)
 
     if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {
         EnableAutoUpdateCheck := Match1 + 0
@@ -2072,6 +2073,7 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
             SetTimer, AutoCheckForUpdateInitial, Off
             SetTimer, AutoCheckForUpdate, Off
         }
+        AppendConsoleCommandLog("applied auto_update=" . EnableAutoUpdateCheck)
         return 1
     }
 
@@ -2084,6 +2086,7 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
             Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
             Gui, OSD:Destroy
         }
+        AppendConsoleCommandLog("applied osd=" . EnableOSD)
         return 1
     }
 
@@ -2098,9 +2101,15 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
         Key_%KeyName% := NewKey
         IniWrite, %NewKey%, %IniFile%, Hotkeys, %KeyName%
         UpdateHotkeys()
+        AppendConsoleCommandLog("applied hotkey " . KeyName . "=" . NewKey)
         return 1
     }
     return 0
+}
+
+AppendConsoleCommandLog(Message) {
+    LogPath := A_Temp . "\Kedit_Media\ConsoleCommand.log"
+    FileAppend, %A_Now% %A_MSec% %Message%`n, %LogPath%
 }
 
 AutoCheckForUpdateInitial:
