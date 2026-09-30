@@ -2,7 +2,8 @@
 param(
     [string]$SourceScript = 'Kedit_GO_to_Def_ver18.30.ahk',
     [string]$OutputDirectory,
-    [string]$CompilerPath = 'C:\Program Files\AutoHotkey\Compiler\Ahk2Exe.exe'
+    [string]$CompilerPath = 'C:\Program Files\AutoHotkey\Compiler\Ahk2Exe.exe',
+    [string]$MsBuildPath = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,8 +12,10 @@ $source = Get-Item -LiteralPath (Join-Path $projectRoot $SourceScript) -ErrorAct
 $baseExe = Join-Path $projectRoot 'AutoHotkey.exe'
 $iconPath = Join-Path $projectRoot 'sikadi.ico'
 $monitorPath = Join-Path $projectRoot 'MSTSC_Monitor.exe'
+$consoleProject = Join-Path $projectRoot 'Kedit.Console\Kedit.Console.csproj'
+$consoleExe = Join-Path $projectRoot 'Kedit.Console\bin\Release\Kedit.Console.exe'
 
-foreach ($required in @($baseExe, $iconPath, $monitorPath, $CompilerPath)) {
+foreach ($required in @($baseExe, $iconPath, $monitorPath, $CompilerPath, $MsBuildPath, $consoleProject)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Required build file is missing: $required"
     }
@@ -44,6 +47,12 @@ if (Get-Process -Name $outputProcessName -ErrorAction SilentlyContinue) {
 Write-Host "Building $version from $($source.Name)"
 Push-Location -LiteralPath $projectRoot
 try {
+    Write-Host 'Building Kedit.Console (Release)...'
+    & $MsBuildPath $consoleProject '/t:Rebuild' '/p:Configuration=Release' '/v:minimal'
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $consoleExe -PathType Leaf)) {
+        throw 'Kedit.Console Release build failed; AHK package was not created.'
+    }
+
     $syntaxArgs = '/ErrorStdOut /iLib NUL "{0}"' -f $source.FullName
     $syntaxProcess = Start-Process -FilePath $baseExe -ArgumentList $syntaxArgs `
         -WorkingDirectory $projectRoot -WindowStyle Hidden -Wait -PassThru
@@ -72,5 +81,6 @@ $output = Get-Item -LiteralPath $outputPath
     Output = $output.FullName
     OutputBytes = $output.Length
     OutputSHA256 = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash
+    ConsoleSHA256 = (Get-FileHash -LiteralPath $consoleExe -Algorithm SHA256).Hash
     MonitorSHA256 = (Get-FileHash -LiteralPath $monitorPath -Algorithm SHA256).Hash
 }

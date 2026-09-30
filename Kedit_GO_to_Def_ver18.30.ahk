@@ -1275,6 +1275,9 @@ GetTempPath(FileName) {
     else if (FileName = "btn_yellow.png") {
         FileInstall, btn_yellow.png, %TargetPath%, 1
     }
+    else if (FileName = "Kedit.Console.exe") {
+        FileInstall, Kedit.Console\bin\Release\Kedit.Console.exe, %TargetPath%, 1
+    }
     else if (FileName = "companion_success.png") {
         FileInstall, osd_assets\companion_success.png, %TargetPath%, 1
     }
@@ -1982,7 +1985,10 @@ ToggleAutoUpdateCheck:
 return
 
 LaunchKeditConsole:
-    ConsolePath := A_ScriptDir . "\Kedit.Console\bin\Release\Kedit.Console.exe"
+    if (A_IsCompiled)
+        ConsolePath := GetTempPath("Kedit.Console.exe")
+    else
+        ConsolePath := A_ScriptDir . "\Kedit.Console\bin\Release\Kedit.Console.exe"
     if (!FileExist(ConsolePath)) {
         MsgBox, 48, Kedit 中控, 尚未找到 WPF 中控程序。`n请先构建:`n%ConsolePath%
         return
@@ -2005,7 +2011,7 @@ return
 SendConsoleState:
     ; Phase 2：通过本机命名管道向 WPF 中控发送只读状态请求。
     try {
-        ConsolePipe := FileOpen("\\\\.\\pipe\\Kedit.Console", "rw")
+        ConsolePipe := FileOpen("\\.\pipe\Kedit.Console", "rw")
         if (IsObject(ConsolePipe)) {
             ConsolePipe.WriteLine("{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_redo"":""" . Key_VS_Redo . """}")
             ConsolePipe.ReadLine()
@@ -2022,10 +2028,10 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
         , Key_VS_BookmarkPrevious, Key_VS_Redo
 
     DataSize := NumGet(lParam, A_PtrSize, "UInt")
-    DataPtr := NumGet(lParam, A_PtrSize + 8, "Ptr")
+    DataPtr := NumGet(lParam, A_PtrSize * 2, "Ptr")
     if (!DataPtr || DataSize < 2)
         return 0
-    Command := StrGet(DataPtr, Floor(DataSize / 2), "UTF-16")
+    Command := StrGet(DataPtr, "UTF-16")
 
     if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {
         EnableAutoUpdateCheck := Match1 + 0

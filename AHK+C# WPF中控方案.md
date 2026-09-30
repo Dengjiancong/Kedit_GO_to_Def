@@ -22,7 +22,7 @@
   '.\Kedit.Console\Kedit.Console.csproj' /t:Build /p:Configuration=Release
 ```
 
-开发运行时，AHK 查找 `Kedit.Console/bin/Release/Kedit.Console.exe`。正式分发时把 `Kedit.Console.exe` 放在主程序同目录。若尚未构建，中控菜单会提示构建路径。
+开发运行未编译的 AHK 脚本时，中控入口查找 `Kedit.Console/bin/Release/Kedit.Console.exe`。运行 `Build-Kedit.cmd` 时先构建 WPF Release，再由 AHK 的 `FileInstall` 将中控 EXE 嵌入主程序；打包后的程序在点击托盘“打开 Kedit 中控”时释放到 `%TEMP%\Kedit_Media\Kedit.Console.exe` 并启动。只需分发打包后的主程序 EXE，不需要另附中控 EXE。AHK 的原设置、更新和关于窗口仍会打开旧界面；只有托盘的中控入口打开 WPF。
 
 验收：可从托盘打开、拖动和关闭中控；视频加载时窗口可拖动，圆角和阴影正常；视频缺失时仍能显示窗口；AHK 热键与托盘功能继续工作。
 
