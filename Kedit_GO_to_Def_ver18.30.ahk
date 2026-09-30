@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30-Meme.v008 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v009 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v18.30-Meme.v008"
+Global CurrentVersion := "v18.30-Meme.v009"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -76,6 +76,8 @@ Global CompanionAnimationStartTick := 0
 Global CompanionAnimationLastFrame := -1
 Global SmartClickBurstTicks := []
 Global HotkeysSuspended := false
+Global SilentUpdateCheck := false
+Global UpdateCheckSilent := false
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -184,6 +186,8 @@ if (!extensionsModified) {
 
 ; 脚本启动后 300ms 开始后台预释放资源，避免开界面时才触发 FileInstall 的 I/O 卡顿
 SetTimer, PreinstallAssets, -300
+SetTimer, AutoCheckForUpdateInitial, -30000
+SetTimer, AutoCheckForUpdate, 21600000
 return
 
 ; =======================================================
@@ -1951,9 +1955,17 @@ LaunchMSTSCMonitor:
     ShowOSD("MSTSC 监控已启动", 1200, "noCompanion")
 return
 
+AutoCheckForUpdateInitial:
+AutoCheckForUpdate:
+    SilentUpdateCheck := true
+    Gosub, CheckForUpdate
+    SilentUpdateCheck := false
+return
+
 CheckForUpdate:
     if (IsCheckingUpdate)
         return
+    UpdateCheckSilent := SilentUpdateCheck
     IsCheckingUpdate := true
     RetryCount := 0
     WaitingGuiShown := false
@@ -1962,7 +1974,8 @@ CheckForUpdate:
 return
 
 LaunchVersionChecker:
-    VersionURL := "https://raw.githubusercontent.com/Dengjiancong/Kedit_GO_to_Def/main/version.txt"
+    ; Gitea 是主要更新源；API 返回最新 Release 的完整 JSON。
+    VersionURL := "https://gitea.evadd.xyz:88/api/v1/repos/EVADD/Kedit_GO_to_Def/releases/latest"
 
     VersionFile := A_Temp . "\version_check.txt"
     StatusFile := A_Temp . "\check_status.txt"
@@ -1984,9 +1997,12 @@ LaunchVersionChecker:
     ScriptContent =
     (
     #NoTrayIcon
-    URL := "%ActualURL%"
     SavePath := "%VersionFile%"
     StatusFile := "%StatusFile%"
+
+    URLs := []
+    URLs.Push("https://gitea.evadd.xyz:88/api/v1/repos/EVADD/Kedit_GO_to_Def/releases/latest?t=%A_TickCount%")
+    URLs.Push("https://api.github.com/repos/Dengjiancong/Kedit_GO_to_Def/releases/latest?t=%A_TickCount%")
 
     Modes := []
     Modes.Push("127.0.0.1:7890")
@@ -1995,26 +2011,31 @@ LaunchVersionChecker:
     Modes.Push(0)
 
     IsSuccess := 0
-    for index, Mode in Modes {
-        try {
-            whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-            whr.Open("GET", URL, true)
-            whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-            whr.Option(9) := 2048
-            if (Mode = 0)
-                 whr.SetProxy(0)
-            else
-                whr.SetProxy(2, Mode)
-            whr.Send()
-            whr.WaitForResponse(10)
-            if (whr.Status == 200) {
-                FileAppend, `% whr.ResponseText, `%SavePath`%
-                FileAppend, success, `%StatusFile`%
-                IsSuccess := 1
-                break
+    for URLIndex, URL in URLs {
+        if (IsSuccess)
+            break
+        for index, Mode in Modes {
+            try {
+                whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+                whr.Open("GET", URL, true)
+                whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                whr.Option(9) := 2048
+                if (Mode = 0)
+                     whr.SetProxy(0)
+                else
+                    whr.SetProxy(2, Mode)
+                whr.Send()
+                whr.WaitForResponse(10)
+                if (whr.Status == 200) {
+                    FileAppend, `% whr.ResponseText, `%SavePath`%
+                    SourceName := URLIndex = 1 ? "gitea" : "github"
+                    FileAppend, `% "success|" . SourceName, `%StatusFile`%
+                    IsSuccess := 1
+                    break
+                }
+            } catch {
+                continue
             }
-        } catch {
-            continue
         }
     }
     if (!IsSuccess)
@@ -2047,10 +2068,12 @@ MonitorVersionCheck:
             return
         } else {
             GoSub, CloseWaitGui
-            MsgBox, 20, 连接超时 - 需要诊断吗?, 尝试连接 GitHub %MaxRetries% 次均无响应。`n请检查网络环境或开启代理。`n`n是否运行【网络连接诊断工具】来分析具体原因？
-            IfMsgBox, Yes
-            {
-                GoSub, LaunchNetworkDebugger
+            if (!UpdateCheckSilent) {
+                MsgBox, 20, 连接超时 - 需要诊断吗?, 尝试连接 Gitea 和 GitHub %MaxRetries% 次均无响应。`n请检查网络环境或开启代理。`n`n是否运行【网络连接诊断工具】来分析具体原因？
+                IfMsgBox, Yes
+                {
+                    GoSub, LaunchNetworkDebugger
+                }
             }
             IsCheckingUpdate := false
             return
@@ -2072,16 +2095,23 @@ MonitorVersionCheck:
             FileRead, LatestVersion, %VersionFile%
             FileDelete, %VersionFile%
             LatestVersion := Trim(LatestVersion, " `t`n`r")
+            LatestVersion := ExtractJsonString(LatestVersion, "tag_name")
 
             if (LatestVersion != "") {
-                if (LatestVersion > CurrentVersion) {
+                if (IsVersionNewer(LatestVersion, CurrentVersion)) {
                     IsNewVersion := true
+                    if (InStr(Status, "|github"))
+                        LatestDownloadURL := "https://github.com/Dengjiancong/Kedit_GO_to_Def/releases/download/" . LatestVersion . "/Kedit_GO_to_Def.exe"
+                    else
+                        LatestDownloadURL := "https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases/download/" . LatestVersion . "/Kedit_GO_to_Def.exe"
                 } else {
                     IsNewVersion := false
                 }
-                GoSub, ShowUpdateGui
+                if (IsNewVersion || !UpdateCheckSilent)
+                    GoSub, ShowUpdateGui
             } else {
-                MsgBox, 16, 错误, 获取到的版本号为空。
+                if (!UpdateCheckSilent)
+                    MsgBox, 16, 错误, 获取到的版本号为空。
             }
         } else {
             RetryCount++
@@ -2089,11 +2119,35 @@ MonitorVersionCheck:
                 GoSub, LaunchVersionChecker
                 return
             }
-            MsgBox, 16, 连接失败, 无法连接到 GitHub。
+            if (!UpdateCheckSilent)
+                MsgBox, 16, 连接失败, 无法连接到 Gitea 或 GitHub。
         }
         IsCheckingUpdate := false
     }
 return
+
+ExtractJsonString(JsonText, KeyName) {
+    Pattern := "i)""" . KeyName . """\s*:\s*""([^""]*)"""
+    if (RegExMatch(JsonText, Pattern, Match))
+        return Match1
+    return ""
+}
+
+IsVersionNewer(Candidate, Installed) {
+    Candidate := RegExReplace(Candidate, "i)[^0-9.].*$", "")
+    Installed := RegExReplace(Installed, "i)[^0-9.].*$", "")
+    CandidateParts := StrSplit(Candidate, ".")
+    InstalledParts := StrSplit(Installed, ".")
+    Loop, 4 {
+        CandidatePart := CandidateParts[A_Index] + 0
+        InstalledPart := InstalledParts[A_Index] + 0
+        if (CandidatePart > InstalledPart)
+            return true
+        if (CandidatePart < InstalledPart)
+            return false
+    }
+    return false
+}
 
 CloseWaitGui:
     Gosub, KillAllMpv
@@ -2324,7 +2378,9 @@ UpdateConfirmed:
     ; ★ 核心：释放外部下载脚本 (请确保 Kedit_Downloader_Template.ahk 存在于源码目录)
     FileInstall, Kedit_Downloader_Template.ahk, %DownloaderAhk%, 1
 
-    Run, "%InterpreterPath%" "%DownloaderAhk%"
+    if (LatestDownloadURL = "")
+        LatestDownloadURL := "https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases/latest/download/Kedit_GO_to_Def.exe"
+    Run, "%InterpreterPath%" "%DownloaderAhk%" "%LatestDownloadURL%"
     SetTimer, MonitorShadowDownload, 100
 return
 
