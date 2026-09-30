@@ -24,7 +24,7 @@
       </Setter>
     </Style>
   </Window.Resources>
-  <Border Margin="14" CornerRadius="22" Background="#101923" BorderBrush="#364F69" BorderThickness="1">
+  <Border x:Name="RootCard" Margin="14" CornerRadius="22" Background="#101923" BorderBrush="#364F69" BorderThickness="1" SizeChanged="RootCard_SizeChanged">
     <Border.Effect>
       <DropShadowEffect BlurRadius="26" ShadowDepth="4" Opacity="0.55" Color="#000000"/>
     </Border.Effect>
@@ -48,7 +48,7 @@
           </LinearGradientBrush>
         </Rectangle.Fill>
       </Rectangle>
-      <Grid Margin="42,30,42,34" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+      <Grid Margin="42,30,42,34" Background="Transparent" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
