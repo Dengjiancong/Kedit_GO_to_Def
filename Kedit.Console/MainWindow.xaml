@@ -78,6 +78,7 @@
               <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                 <CheckBox x:Name="AutoUpdateToggle" Content="自动检查更新" Foreground="White" IsEnabled="False" Checked="AutoUpdateToggle_Changed" Unchecked="AutoUpdateToggle_Changed"/>
                 <CheckBox x:Name="OsdToggle" Content="屏幕操作提示" Foreground="White" IsEnabled="False" Margin="22,0,0,0" Checked="OsdToggle_Changed" Unchecked="OsdToggle_Changed"/>
+                <Button Content="Visual Studio 书签设置" Click="OpenBookmarkWindow_Click" Margin="22,0,0,0" Padding="8,2"/>
               </StackPanel>
               <TextBlock x:Name="HotkeyStatus" Text="快捷键：等待 AHK 状态..." FontSize="12" Foreground="#D8E6F5" Margin="0,10,0,0" TextWrapping="Wrap"/>
               <Grid Margin="0,12,0,0">

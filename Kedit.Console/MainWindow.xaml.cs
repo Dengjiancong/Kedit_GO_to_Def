@@ -174,6 +174,15 @@ namespace Kedit.Console
             PipeStatus.Text = "快捷键设置已发送";
         }
 
+        private void OpenBookmarkWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new BookmarkWindow(BookmarkToggleInput.Text, BookmarkNextInput.Text, BookmarkPreviousInput.Text)
+            {
+                Owner = this
+            };
+            window.ShowDialog();
+        }
+
         private void HotkeyInput_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl || e.Key == Key.LeftAlt || e.Key == Key.RightAlt

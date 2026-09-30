@@ -42,6 +42,33 @@
 
 如果 WPF `MediaElement` 对目标视频编码支持不足，优先把素材转为 Windows 常见的 H.264/AAC MP4；仍不能满足需求时再评估 LibVLCSharp 或 mpv 的 WPF 承载方式。不要重新使用独立 mpv 子窗口覆盖 WPF 的圆角区域。
 
+## 阶段三补充：快捷键专属控制页面（当前样板）
+
+中控不把所有快捷键长期堆在同一页。主窗口作为功能入口，按分类显示快捷键卡片；点击卡片后进入对应的专属控制页面。每个页面可以配置独立演示视频、快捷键录入、功能说明、启用状态、保存和恢复默认按钮。
+
+推荐结构：
+
+```text
+MainWindow
+ ├─ HomePage                 主中控和功能卡片
+ ├─ GoToDefinitionPage      定义/跳转
+ ├─ VisualStudioBookmarkPage Visual Studio 书签
+ ├─ TextEditingPage         文本编辑
+ └─ SettingsPage             更新、OSD 和其他设置
+```
+
+视频按功能单独存放，例如：
+
+```text
+Kedit_Media\shortcuts\
+ ├─ go_to_definition.mp4
+ ├─ vs_bookmark.mp4
+ ├─ vs_bookmark_next.mp4
+ └─ vs_redo.mp4
+```
+
+当前先实现 Visual Studio 书签专属页面作为完整样板，包含书签设置/取消、下一个书签、上一个书签三个快捷键的录入与保存，并预留 `vs_bookmark.mp4` 视频位置。样板验证通过后，再按同一页面结构扩展其他快捷键分类。
+
 ## 阶段四：发布集成
 
 构建脚本同时构建 AHK 主程序和 WPF 中控。发布包需要包含两者，并明确目录结构。将版本号、下载和回滚策略写入现有《方案+版本维护手册.md》。GitHub 先发布，Gitea 镜像同一版本与同一文件。
