@@ -2019,6 +2019,7 @@ SendConsoleState:
         ConsolePipe := FileOpen("\\.\pipe\Kedit.Console", "rw")
         if (IsObject(ConsolePipe)) {
             ConsolePipe.WriteLine("{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_redo"":""" . Key_VS_Redo . """}")
+            ConsolePipe.Flush()
             ConsolePipe.ReadLine()
             ConsolePipe.Close()
             SetTimer, SendConsoleState, Off
