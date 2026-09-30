@@ -81,6 +81,7 @@ Global SilentUpdateCheck := false
 Global UpdateCheckSilent := false
 Global ConsoleStateAttempts := 0
 OnMessage(0x4A, "ReceiveConsoleCommand")
+SetTimer, PollConsoleCommand, 500
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -2105,6 +2106,64 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
         return 1
     }
     return 0
+}
+
+PollConsoleCommand:
+    CommandPath := A_Temp . "\Kedit_Media\KeditConsoleCommand.txt"
+    if (!FileExist(CommandPath))
+        return
+    FileRead, PendingCommand, %CommandPath%
+    FileDelete, %CommandPath%
+    PendingCommand := Trim(PendingCommand, "`r`n`t ")
+    if (PendingCommand != "")
+        ReceiveConsoleTextCommand(PendingCommand)
+return
+
+ReceiveConsoleTextCommand(Command) {
+    global EnableAutoUpdateCheck, EnableOSD, IniFile
+        , Key_GoToDef, Key_VS_BookmarkToggle, Key_VS_BookmarkNext
+        , Key_VS_BookmarkPrevious, Key_VS_Redo
+    AppendConsoleCommandLog("file received: " . Command)
+    if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {
+        EnableAutoUpdateCheck := Match1 + 0
+        IniWrite, %EnableAutoUpdateCheck%, %IniFile%, Settings, EnableAutoUpdateCheck
+        if (EnableAutoUpdateCheck) {
+            Menu, Tray, Check, 自动检查更新
+            SetTimer, AutoCheckForUpdateInitial, -30000
+            SetTimer, AutoCheckForUpdate, 21600000
+        } else {
+            Menu, Tray, Uncheck, 自动检查更新
+            SetTimer, AutoCheckForUpdateInitial, Off
+            SetTimer, AutoCheckForUpdate, Off
+        }
+        AppendConsoleCommandLog("file applied auto_update=" . EnableAutoUpdateCheck)
+        return
+    }
+    if (RegExMatch(Command, "^set_osd=(0|1)$", Match)) {
+        EnableOSD := Match1 + 0
+        IniWrite, %EnableOSD%, %IniFile%, Settings, EnableOSD
+        if (EnableOSD)
+            Menu, Tray, Check, 开启屏幕操作提示 (OSD)
+        else {
+            Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
+            Gui, OSD:Destroy
+        }
+        AppendConsoleCommandLog("file applied osd=" . EnableOSD)
+        return
+    }
+    if (RegExMatch(Command, "^set_hotkey\|([A-Za-z0-9_]+)\|(.+)$", Match)) {
+        KeyName := Match1
+        NewKey := Match2
+        Allowed := (KeyName = "GoToDef" || KeyName = "VS_BookmarkToggle"
+            || KeyName = "VS_BookmarkNext" || KeyName = "VS_BookmarkPrevious"
+            || KeyName = "VS_Redo")
+        if (!Allowed || NewKey = "")
+            return
+        Key_%KeyName% := NewKey
+        IniWrite, %NewKey%, %IniFile%, Hotkeys, %KeyName%
+        UpdateHotkeys()
+        AppendConsoleCommandLog("file applied hotkey " . KeyName . "=" . NewKey)
+    }
 }
 
 AppendConsoleCommandLog(Message) {

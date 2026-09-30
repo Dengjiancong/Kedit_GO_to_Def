@@ -174,9 +174,24 @@ namespace Kedit.Console
 
         private void SendCommandToAhk(string command)
         {
+            try
+            {
+                string commandDirectory = Path.Combine(Path.GetTempPath(), "Kedit_Media");
+                Directory.CreateDirectory(commandDirectory);
+                string commandPath = Path.Combine(commandDirectory, "KeditConsoleCommand.txt");
+                string tempPath = commandPath + ".tmp";
+                File.WriteAllText(tempPath, command, new UTF8Encoding(false));
+                if (File.Exists(commandPath)) File.Delete(commandPath);
+                File.Move(tempPath, commandPath);
+            }
+            catch
+            {
+                PipeStatus.Text = "设置写入失败";
+                return;
+            }
             if (ahkWindow == IntPtr.Zero)
             {
-                PipeStatus.Text = "未找到 AHK 主程序窗口";
+                PipeStatus.Text = "设置已写入，等待 AHK 应用";
                 return;
             }
 
