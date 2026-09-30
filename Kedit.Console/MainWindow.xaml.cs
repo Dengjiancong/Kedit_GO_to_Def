@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows;
@@ -13,6 +14,19 @@ namespace Kedit.Console
     {
         private readonly CancellationTokenSource pipeCancellation = new CancellationTokenSource();
         private Thread pipeThread;
+        private IntPtr ahkWindow = IntPtr.Zero;
+        private bool applyingState;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct CopyDataStruct
+        {
+            public IntPtr dwData;
+            public int cbData;
+            public IntPtr lpData;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, ref CopyDataStruct lParam);
 
         public MainWindow()
         {
@@ -47,8 +61,7 @@ namespace Kedit.Console
                                 ? "get_state" : "unknown";
                             string response = "{\"ok\":true,\"command\":\"" + command + "\",\"version\":\"0.1.0\"}";
                             writer.WriteLine(response);
-                            Dispatcher.BeginInvoke(new Action(() =>
-                                PipeStatus.Text = "已连接 Kedit 主程序 · " + command));
+                            Dispatcher.BeginInvoke(new Action(() => ApplyAhkState(request, command)));
                         }
                     }
                 }
@@ -63,6 +76,9 @@ namespace Kedit.Console
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             var args = Environment.GetCommandLineArgs();
+            long hwndValue;
+            if (args.Length >= 3 && long.TryParse(args[2], out hwndValue))
+                ahkWindow = new IntPtr(hwndValue);
             string videoPath = args.Length >= 2 ? args[1] : FindDefaultVideo();
             if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
                 return;
@@ -75,6 +91,95 @@ namespace Kedit.Console
             catch
             {
                 BackgroundVideo.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void ApplyAhkState(string request, string command)
+        {
+            PipeStatus.Text = "已连接 Kedit 主程序 · " + command;
+            if (command != "get_state")
+                return;
+
+            applyingState = true;
+            AutoUpdateToggle.IsEnabled = true;
+            OsdToggle.IsEnabled = true;
+            AutoUpdateToggle.IsChecked = ReadJsonBool(request, "auto_update");
+            OsdToggle.IsChecked = ReadJsonBool(request, "osd");
+            HotkeyStatus.Text = "快捷键：定义 " + ReadJsonString(request, "go_to_def")
+                + " · 书签 " + ReadJsonString(request, "vs_bookmark_toggle")
+                + " · 下一个 " + ReadJsonString(request, "vs_bookmark_next")
+                + " · 上一个 " + ReadJsonString(request, "vs_bookmark_previous")
+                + " · 重做 " + ReadJsonString(request, "vs_redo");
+            GoToDefInput.Text = ReadJsonString(request, "go_to_def");
+            BookmarkToggleInput.Text = ReadJsonString(request, "vs_bookmark_toggle");
+            BookmarkNextInput.Text = ReadJsonString(request, "vs_bookmark_next");
+            BookmarkPreviousInput.Text = ReadJsonString(request, "vs_bookmark_previous");
+            RedoInput.Text = ReadJsonString(request, "vs_redo");
+            applyingState = false;
+        }
+
+        private static bool ReadJsonBool(string json, string key)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(json,
+                "\\\"" + key + "\\\"\\s*:\\s*\\\"?(0|1|true|false)\\\"?",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success && (match.Groups[1].Value == "1" ||
+                match.Groups[1].Value.Equals("true", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string ReadJsonString(string json, string key)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(json,
+                "\\\"" + key + "\\\"\\s*:\\s*\\\"([^\\\"]*)\\\"",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success ? match.Groups[1].Value : "未读取";
+        }
+
+        private void AutoUpdateToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!applyingState && AutoUpdateToggle.IsEnabled)
+                SendCommandToAhk("set_auto_update=" + (AutoUpdateToggle.IsChecked == true ? "1" : "0"));
+        }
+
+        private void OsdToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!applyingState && OsdToggle.IsEnabled)
+                SendCommandToAhk("set_osd=" + (OsdToggle.IsChecked == true ? "1" : "0"));
+        }
+
+        private void SaveHotkeys_Click(object sender, RoutedEventArgs e)
+        {
+            SendCommandToAhk("set_hotkey|GoToDef|" + GoToDefInput.Text.Trim());
+            SendCommandToAhk("set_hotkey|VS_BookmarkToggle|" + BookmarkToggleInput.Text.Trim());
+            SendCommandToAhk("set_hotkey|VS_BookmarkNext|" + BookmarkNextInput.Text.Trim());
+            SendCommandToAhk("set_hotkey|VS_BookmarkPrevious|" + BookmarkPreviousInput.Text.Trim());
+            SendCommandToAhk("set_hotkey|VS_Redo|" + RedoInput.Text.Trim());
+            PipeStatus.Text = "快捷键设置已发送";
+        }
+
+        private void SendCommandToAhk(string command)
+        {
+            if (ahkWindow == IntPtr.Zero)
+            {
+                PipeStatus.Text = "未找到 AHK 主程序窗口";
+                return;
+            }
+
+            IntPtr data = Marshal.StringToHGlobalUni(command);
+            try
+            {
+                var copy = new CopyDataStruct
+                {
+                    dwData = IntPtr.Zero,
+                    cbData = (command.Length + 1) * 2,
+                    lpData = data
+                };
+                SendMessage(ahkWindow, 0x4A, IntPtr.Zero, ref copy);
+                PipeStatus.Text = "已发送设置：" + command;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(data);
             }
         }
 

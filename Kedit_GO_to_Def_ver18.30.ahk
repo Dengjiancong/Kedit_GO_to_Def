@@ -79,6 +79,7 @@ Global SmartClickBurstTicks := []
 Global HotkeysSuspended := false
 Global SilentUpdateCheck := false
 Global UpdateCheckSilent := false
+OnMessage(0x4A, "ReceiveConsoleCommand")
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -1993,7 +1994,7 @@ LaunchKeditConsole:
     }
 
     ConsoleVideoPath := GetTempPath("side.mp4")
-    Run, "%ConsolePath%" "%ConsoleVideoPath%", , UseErrorLevel, KeditConsolePID
+    Run, "%ConsolePath%" "%ConsoleVideoPath%" "%A_ScriptHwnd%", , UseErrorLevel, KeditConsolePID
     if (ErrorLevel) {
         MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
         return
@@ -2006,7 +2007,7 @@ SendConsoleState:
     try {
         ConsolePipe := FileOpen("\\\\.\\pipe\\Kedit.Console", "rw")
         if (IsObject(ConsolePipe)) {
-            ConsolePipe.WriteLine("{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1}")
+            ConsolePipe.WriteLine("{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_redo"":""" . Key_VS_Redo . """}")
             ConsolePipe.ReadLine()
             ConsolePipe.Close()
         }
@@ -2014,6 +2015,60 @@ SendConsoleState:
         ; 中控尚未启动完成时静默忽略，下一次打开中控会再次尝试。
     }
 return
+
+ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
+    global EnableAutoUpdateCheck, EnableOSD, IniFile
+        , Key_GoToDef, Key_VS_BookmarkToggle, Key_VS_BookmarkNext
+        , Key_VS_BookmarkPrevious, Key_VS_Redo
+
+    DataSize := NumGet(lParam, A_PtrSize, "UInt")
+    DataPtr := NumGet(lParam, A_PtrSize + 8, "Ptr")
+    if (!DataPtr || DataSize < 2)
+        return 0
+    Command := StrGet(DataPtr, Floor(DataSize / 2), "UTF-16")
+
+    if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {
+        EnableAutoUpdateCheck := Match1 + 0
+        IniWrite, %EnableAutoUpdateCheck%, %IniFile%, Settings, EnableAutoUpdateCheck
+        if (EnableAutoUpdateCheck) {
+            Menu, Tray, Check, 自动检查更新
+            SetTimer, AutoCheckForUpdateInitial, -30000
+            SetTimer, AutoCheckForUpdate, 21600000
+        } else {
+            Menu, Tray, Uncheck, 自动检查更新
+            SetTimer, AutoCheckForUpdateInitial, Off
+            SetTimer, AutoCheckForUpdate, Off
+        }
+        return 1
+    }
+
+    if (RegExMatch(Command, "^set_osd=(0|1)$", Match)) {
+        EnableOSD := Match1 + 0
+        IniWrite, %EnableOSD%, %IniFile%, Settings, EnableOSD
+        if (EnableOSD)
+            Menu, Tray, Check, 开启屏幕操作提示 (OSD)
+        else {
+            Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
+            Gui, OSD:Destroy
+        }
+        return 1
+    }
+
+    if (RegExMatch(Command, "^set_hotkey\|([A-Za-z0-9_]+)\|(.+)$", Match)) {
+        KeyName := Match1
+        NewKey := Match2
+        Allowed := (KeyName = "GoToDef" || KeyName = "VS_BookmarkToggle"
+            || KeyName = "VS_BookmarkNext" || KeyName = "VS_BookmarkPrevious"
+            || KeyName = "VS_Redo")
+        if (!Allowed || NewKey = "")
+            return 0
+        Key_%KeyName% := NewKey
+        IniWrite, %NewKey%, %IniFile%, Hotkeys, %KeyName%
+        UpdateHotkeys()
+        return 1
+    }
+    return 0
+}
 
 AutoCheckForUpdateInitial:
 AutoCheckForUpdate:

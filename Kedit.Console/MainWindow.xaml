@@ -72,8 +72,33 @@
             </StackPanel>
           </Border>
           <TextBlock x:Name="PipeStatus" Text="正在等待 Kedit 主程序连接..." FontSize="13" Foreground="#BFD8EF" Margin="4,18,0,0"/>
+          <Border Background="#66122335" CornerRadius="13" Padding="16,12" Margin="0,18,0,0">
+            <StackPanel>
+              <TextBlock Text="快速设置" FontSize="15" FontWeight="SemiBold" Foreground="#FFDD38"/>
+              <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <CheckBox x:Name="AutoUpdateToggle" Content="自动检查更新" Foreground="White" IsEnabled="False" Checked="AutoUpdateToggle_Changed" Unchecked="AutoUpdateToggle_Changed"/>
+                <CheckBox x:Name="OsdToggle" Content="屏幕操作提示" Foreground="White" IsEnabled="False" Margin="22,0,0,0" Checked="OsdToggle_Changed" Unchecked="OsdToggle_Changed"/>
+              </StackPanel>
+              <TextBlock x:Name="HotkeyStatus" Text="快捷键：等待 AHK 状态..." FontSize="12" Foreground="#D8E6F5" Margin="0,10,0,0" TextWrapping="Wrap"/>
+              <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="110"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="110"/></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                <TextBlock Text="定义" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
+                <TextBox x:Name="GoToDefInput" Grid.Column="1" Margin="0,0,14,5" Padding="4,2"/>
+                <TextBlock Text="书签" Grid.Column="2" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
+                <TextBox x:Name="BookmarkToggleInput" Grid.Column="3" Margin="0,0,0,5" Padding="4,2"/>
+                <TextBlock Text="下一个" Grid.Row="1" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
+                <TextBox x:Name="BookmarkNextInput" Grid.Row="1" Grid.Column="1" Margin="0,0,14,5" Padding="4,2"/>
+                <TextBlock Text="上一个" Grid.Row="1" Grid.Column="2" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
+                <TextBox x:Name="BookmarkPreviousInput" Grid.Row="1" Grid.Column="3" Margin="0,0,0,5" Padding="4,2"/>
+                <TextBlock Text="重做" Grid.Row="2" Foreground="White" VerticalAlignment="Center"/>
+                <TextBox x:Name="RedoInput" Grid.Row="2" Grid.Column="1" Margin="0,0,14,0" Padding="4,2"/>
+                <Button Grid.Row="2" Grid.Column="3" Content="保存快捷键" Click="SaveHotkeys_Click" Padding="8,3"/>
+              </Grid>
+            </StackPanel>
+          </Border>
         </StackPanel>
-        <TextBlock Grid.Row="2" Text="Kedit Console  ·  Phase 1" FontSize="13" Foreground="#C1D4E8"/>
+        <TextBlock Grid.Row="2" Text="Kedit Console  ·  Phase 2" FontSize="13" Foreground="#C1D4E8"/>
       </Grid>
     </Grid>
   </Border>
