@@ -2,7 +2,7 @@
 param(
     [string]$SourceScript = 'Kedit_GO_to_Def_ver18.30.ahk',
     [string]$OutputDirectory,
-    [string]$CompilerPath = 'C:\Program Files\AutoHotkey\Compiler\Ahk2Exe.exe'
+    [string]$CompilerPath = 'E:\APP\AutoHotkey\Compiler\Ahk2Exe.exe'
 )
 
 $ErrorActionPreference = 'Stop'
