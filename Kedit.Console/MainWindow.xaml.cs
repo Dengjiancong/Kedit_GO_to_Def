@@ -183,6 +183,7 @@ namespace Kedit.Console
                 File.WriteAllText(tempPath, command, new UTF8Encoding(false));
                 if (File.Exists(commandPath)) File.Delete(commandPath);
                 File.Move(tempPath, commandPath);
+                PipeStatus.Text = "设置已写入，等待 AHK 应用";
             }
             catch
             {
@@ -191,7 +192,6 @@ namespace Kedit.Console
             }
             if (ahkWindow == IntPtr.Zero)
             {
-                PipeStatus.Text = "设置已写入，等待 AHK 应用";
                 return;
             }
 
@@ -205,9 +205,8 @@ namespace Kedit.Console
                     lpData = data
                 };
                 IntPtr result = SendMessage(ahkWindow, 0x4A, IntPtr.Zero, ref copy);
-                PipeStatus.Text = result == IntPtr.Zero
-                    ? "发送失败：AHK 未确认命令"
-                    : "已发送设置：" + command;
+                if (result != IntPtr.Zero)
+                    PipeStatus.Text = "已发送设置：" + command;
             }
             finally
             {
