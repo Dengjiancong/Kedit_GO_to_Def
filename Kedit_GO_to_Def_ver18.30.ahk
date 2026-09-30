@@ -79,6 +79,7 @@ Global SmartClickBurstTicks := []
 Global HotkeysSuspended := false
 Global SilentUpdateCheck := false
 Global UpdateCheckSilent := false
+Global ConsoleStateAttempts := 0
 OnMessage(0x4A, "ReceiveConsoleCommand")
 
 ; --- 2. 设置托盘菜单 ---
@@ -1996,6 +1997,8 @@ LaunchKeditConsole:
 
     if WinExist("ahk_exe Kedit.Console.exe") {
         WinActivate
+        ConsoleStateAttempts := 0
+        SetTimer, SendConsoleState, 500
         return
     }
 
@@ -2005,20 +2008,28 @@ LaunchKeditConsole:
         MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
         return
     }
-    SetTimer, SendConsoleState, -1000
+    ConsoleStateAttempts := 0
+    SetTimer, SendConsoleState, 500
 return
 
 SendConsoleState:
     ; Phase 2：通过本机命名管道向 WPF 中控发送只读状态请求。
+    ConsoleStateAttempts++
     try {
         ConsolePipe := FileOpen("\\.\pipe\Kedit.Console", "rw")
         if (IsObject(ConsolePipe)) {
             ConsolePipe.WriteLine("{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_redo"":""" . Key_VS_Redo . """}")
             ConsolePipe.ReadLine()
             ConsolePipe.Close()
+            SetTimer, SendConsoleState, Off
+            ConsoleStateAttempts := 0
         }
     } catch e {
         ; 中控尚未启动完成时静默忽略，下一次打开中控会再次尝试。
+    }
+    if (ConsoleStateAttempts >= 20) {
+        SetTimer, SendConsoleState, Off
+        ConsoleStateAttempts := 0
     }
 return
 
