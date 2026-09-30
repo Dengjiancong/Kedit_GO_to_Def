@@ -2015,24 +2015,38 @@ return
 SendConsoleState:
     ; Phase 2：通过本机命名管道向 WPF 中控发送只读状态请求。
     ConsoleStateAttempts++
-    try {
-        ConsolePipe := FileOpen("\\.\pipe\Kedit.Console", "rw")
-        if (IsObject(ConsolePipe)) {
-            ConsolePipe.WriteLine("{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_redo"":""" . Key_VS_Redo . """}")
-            ConsolePipe.Flush()
-            ConsolePipe.ReadLine()
-            ConsolePipe.Close()
+    ConsoleRequest := "{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_redo"":""" . Key_VS_Redo . """}`n"
+    PipeHandle := DllCall("CreateFile", "Str", "\\.\pipe\Kedit.Console", "UInt", 0xC0000000
+        , "UInt", 0, "Ptr", 0, "UInt", 3, "UInt", 0, "Ptr", 0, "Ptr")
+    if (PipeHandle != -1 && PipeHandle != 0) {
+        RequestBytes := StrPut(ConsoleRequest, "UTF-8")
+        VarSetCapacity(RequestBuffer, RequestBytes, 0)
+        StrPut(ConsoleRequest, &RequestBuffer, RequestBytes, "UTF-8")
+        WriteOk := DllCall("WriteFile", "Ptr", PipeHandle, "Ptr", &RequestBuffer
+            , "UInt", RequestBytes - 1, "UInt*", BytesWritten, "Ptr", 0)
+        VarSetCapacity(ResponseBuffer, 1024, 0)
+        DllCall("ReadFile", "Ptr", PipeHandle, "Ptr", &ResponseBuffer, "UInt", 1023
+            , "UInt*", BytesRead, "Ptr", 0)
+        DllCall("CloseHandle", "Ptr", PipeHandle)
+        if (WriteOk && BytesWritten > 0) {
             SetTimer, SendConsoleState, Off
             ConsoleStateAttempts := 0
+        } else {
+            AppendConsolePipeLog("WriteFile failed, error=" . DllCall("GetLastError"))
         }
-    } catch e {
-        ; 中控尚未启动完成时静默忽略，下一次打开中控会再次尝试。
+    } else {
+        AppendConsolePipeLog("CreateFile failed, error=" . DllCall("GetLastError"))
     }
     if (ConsoleStateAttempts >= 20) {
         SetTimer, SendConsoleState, Off
         ConsoleStateAttempts := 0
     }
 return
+
+AppendConsolePipeLog(Message) {
+    LogPath := A_Temp . "\Kedit_Media\ConsolePipe.log"
+    FileAppend, %A_Now% %A_MSec% %Message%`n, %LogPath%
+}
 
 ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
     global EnableAutoUpdateCheck, EnableOSD, IniFile
