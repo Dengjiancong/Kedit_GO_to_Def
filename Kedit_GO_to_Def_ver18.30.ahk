@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30-Meme.v007 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v008 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v18.30-Meme.v007"
+Global CurrentVersion := "v18.30-Meme.v008"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -44,6 +44,10 @@ IniRead, Key_VS_Peek,    %IniFile%, Hotkeys, VS_Peek,    MButton
 IniRead, Key_VS_Back,    %IniFile%, Hotkeys, VS_Back,    ^b
 IniRead, Key_VS_Build,   %IniFile%, Hotkeys, VS_Build,   F7
 IniRead, Key_VS_ToggleComment, %IniFile%, Hotkeys, VS_ToggleComment, ^/
+IniRead, Key_VS_BookmarkToggle, %IniFile%, Hotkeys, VS_BookmarkToggle, ^F2
+IniRead, Key_VS_BookmarkNext, %IniFile%, Hotkeys, VS_BookmarkNext, F2
+IniRead, Key_VS_BookmarkPrevious, %IniFile%, Hotkeys, VS_BookmarkPrevious, +F2
+IniRead, Key_VS_Redo, %IniFile%, Hotkeys, VS_Redo, ^y
 
 ; --- Kedit以外的快捷键设置
 IniRead, Key_RunPy,      %IniFile%, Hotkeys, RunPy,      F8
@@ -92,6 +96,10 @@ Menu, Tray, Add, 设置: VS 跳转/预览定义 (默认中键), SetKey_VS_Peek
 Menu, Tray, Add, 设置: VS 回退 (默认Ctrl+B), SetKey_VS_Back
 Menu, Tray, Add, 设置: VS 生成/Ctrl+B (默认F7), SetKey_VS_Build
 Menu, Tray, Add, 设置: VS 注释/取消注释 (默认Ctrl+/), SetKey_VS_ToggleComment
+Menu, Tray, Add, 设置: VS 建立书签 (默认Ctrl+F2), SetKey_VS_BookmarkToggle
+Menu, Tray, Add, 设置: VS 下一个书签 (默认F2), SetKey_VS_BookmarkNext
+Menu, Tray, Add, 设置: VS 上一个书签 (默认Shift+F2), SetKey_VS_BookmarkPrevious
+Menu, Tray, Add, 设置: VS 重做 (默认Ctrl+Y), SetKey_VS_Redo
 
 ; --- Kedit 以外的设置入口
 Menu, Tray, Add  ; 分隔线
@@ -257,6 +265,14 @@ RestoreDefaults:
         Hotkey, %Key_RunPy%, Off
     }
 
+    Hotkey, IfWinActive, ahk_exe devenv.exe
+    try {
+        Hotkey, %Key_VS_BookmarkToggle%, Off
+        Hotkey, %Key_VS_BookmarkNext%, Off
+        Hotkey, %Key_VS_BookmarkPrevious%, Off
+        Hotkey, %Key_VS_Redo%, Off
+    }
+
     Key_GoToDef    := "XButton1"
     Key_ShiftF2    := "XButton2"
     Key_AltF       := "!f"
@@ -269,6 +285,10 @@ RestoreDefaults:
     Key_SpacesToTabs := "^\"
     Key_FindClipboard := "F1"
     Key_VS_ToggleComment := "^/"
+    Key_VS_BookmarkToggle := "^F2"
+    Key_VS_BookmarkNext := "F2"
+    Key_VS_BookmarkPrevious := "+F2"
+    Key_VS_Redo := "^y"
     VSDefinitionAction := "GoTo"
 
     IniWrite, %Key_GoToDef%,    %IniFile%, Hotkeys, GoToDef
@@ -283,6 +303,10 @@ RestoreDefaults:
     IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
     IniWrite, %Key_VS_ToggleComment%, %IniFile%, Hotkeys, VS_ToggleComment
+    IniWrite, %Key_VS_BookmarkToggle%, %IniFile%, Hotkeys, VS_BookmarkToggle
+    IniWrite, %Key_VS_BookmarkNext%, %IniFile%, Hotkeys, VS_BookmarkNext
+    IniWrite, %Key_VS_BookmarkPrevious%, %IniFile%, Hotkeys, VS_BookmarkPrevious
+    IniWrite, %Key_VS_Redo%, %IniFile%, Hotkeys, VS_Redo
     IniWrite, %VSDefinitionAction%, %IniFile%, Settings, VSDefinitionAction
 
     UpdateHotkeys()
@@ -925,6 +949,32 @@ Label_VS_SendCtrlB:
     SendInput ^b
 return
 
+Label_VS_BookmarkToggle:
+    ShowOSD("VS: Toggle Bookmark")
+    SendInput ^k
+    Sleep, 50
+    SendInput ^k
+return
+
+Label_VS_BookmarkNext:
+    ShowOSD("VS: Next Bookmark")
+    SendInput ^k
+    Sleep, 50
+    SendInput ^p
+return
+
+Label_VS_BookmarkPrevious:
+    ShowOSD("VS: Previous Bookmark")
+    SendInput ^k
+    Sleep, 50
+    SendInput ^n
+return
+
+Label_VS_Redo:
+    ShowOSD("VS: Redo")
+    SendInput ^+z
+return
+
 Label_VS_ToggleComment:
     ; 只读取原始选区，不移动光标或重建选区，避免操作时出现闪烁。
     if (VSCommentBusy)
@@ -1058,8 +1108,12 @@ UpdateHotkeys() {
         ; [修改] 使用变量 Key_VS_Build
         Hotkey, %Key_VS_Build%, Label_VS_SendCtrlB, %HotkeyState%
         Hotkey, %Key_VS_ToggleComment%, Label_VS_ToggleComment, %HotkeyState%
+        Hotkey, %Key_VS_BookmarkToggle%, Label_VS_BookmarkToggle, %HotkeyState%
+        Hotkey, %Key_VS_BookmarkNext%, Label_VS_BookmarkNext, %HotkeyState%
+        Hotkey, %Key_VS_BookmarkPrevious%, Label_VS_BookmarkPrevious, %HotkeyState%
+        Hotkey, %Key_VS_Redo%, Label_VS_Redo, %HotkeyState%
     } catch e {
-        MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键 (%Key_RunPy%)
+        MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键。
     }
 }
 
@@ -1171,6 +1225,22 @@ return
 
 SetKey_VS_ToggleComment:
     ChangeHotkey("VS_ToggleComment", "VS 注释/取消注释 (智能切换)`n(默认 Ctrl+/；调用 VS 原生 Ctrl+K,Ctrl+C/U)", Key_VS_ToggleComment)
+return
+
+SetKey_VS_BookmarkToggle:
+    ChangeHotkey("VS_BookmarkToggle", "VS 建立/取消书签`n(发送 Ctrl+K, Ctrl+K；默认 Ctrl+F2)", Key_VS_BookmarkToggle)
+return
+
+SetKey_VS_BookmarkNext:
+    ChangeHotkey("VS_BookmarkNext", "VS 下一个书签`n(发送 Ctrl+K, Ctrl+P；默认 F2)", Key_VS_BookmarkNext)
+return
+
+SetKey_VS_BookmarkPrevious:
+    ChangeHotkey("VS_BookmarkPrevious", "VS 上一个书签`n(发送 Ctrl+K, Ctrl+N；默认 Shift+F2)", Key_VS_BookmarkPrevious)
+return
+
+SetKey_VS_Redo:
+    ChangeHotkey("VS_Redo", "VS 重做`n(发送 Ctrl+Shift+Z；默认 Ctrl+Y)", Key_VS_Redo)
 return
 
 ; =======================================================
