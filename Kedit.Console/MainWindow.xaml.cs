@@ -28,6 +28,10 @@ namespace Kedit.Console
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, ref CopyDataStruct lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool IsWindow(IntPtr hWnd);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
         public MainWindow()
         {
@@ -87,6 +91,8 @@ namespace Kedit.Console
                     && long.TryParse(hwndText.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out hwndValue))
                     ahkWindow = new IntPtr(hwndValue);
             }
+            if (!IsWindow(ahkWindow))
+                ahkWindow = FindWindow("AutoHotkey", null);
             string videoPath = args.Length >= 2 ? args[1] : FindDefaultVideo();
             if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
                 return;
@@ -183,8 +189,10 @@ namespace Kedit.Console
                     cbData = (command.Length + 1) * 2,
                     lpData = data
                 };
-                SendMessage(ahkWindow, 0x4A, IntPtr.Zero, ref copy);
-                PipeStatus.Text = "已发送设置：" + command;
+                IntPtr result = SendMessage(ahkWindow, 0x4A, IntPtr.Zero, ref copy);
+                PipeStatus.Text = result == IntPtr.Zero
+                    ? "发送失败：AHK 未确认命令"
+                    : "已发送设置：" + command;
             }
             finally
             {
