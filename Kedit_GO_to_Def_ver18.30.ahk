@@ -2114,9 +2114,12 @@ PollConsoleCommand:
         return
     FileRead, PendingCommand, %CommandPath%
     FileDelete, %CommandPath%
-    PendingCommand := Trim(PendingCommand, "`r`n`t ")
-    if (PendingCommand != "")
-        ReceiveConsoleTextCommand(PendingCommand)
+    Loop, Parse, PendingCommand, `n, `r
+    {
+        OneCommand := Trim(A_LoopField, "`r`n`t ")
+        if (OneCommand != "")
+            ReceiveConsoleTextCommand(OneCommand)
+    }
 return
 
 ReceiveConsoleTextCommand(Command) {

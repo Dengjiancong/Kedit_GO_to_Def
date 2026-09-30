@@ -84,15 +84,15 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="110"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="110"/></Grid.ColumnDefinitions>
                 <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
                 <TextBlock Text="定义" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
-                <TextBox x:Name="GoToDefInput" Grid.Column="1" Margin="0,0,14,5" Padding="4,2"/>
+                <TextBox x:Name="GoToDefInput" Grid.Column="1" Margin="0,0,14,5" Padding="4,2" PreviewKeyDown="HotkeyInput_PreviewKeyDown"/>
                 <TextBlock Text="书签" Grid.Column="2" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
-                <TextBox x:Name="BookmarkToggleInput" Grid.Column="3" Margin="0,0,0,5" Padding="4,2"/>
+                <TextBox x:Name="BookmarkToggleInput" Grid.Column="3" Margin="0,0,0,5" Padding="4,2" PreviewKeyDown="HotkeyInput_PreviewKeyDown"/>
                 <TextBlock Text="下一个" Grid.Row="1" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
-                <TextBox x:Name="BookmarkNextInput" Grid.Row="1" Grid.Column="1" Margin="0,0,14,5" Padding="4,2"/>
+                <TextBox x:Name="BookmarkNextInput" Grid.Row="1" Grid.Column="1" Margin="0,0,14,5" Padding="4,2" PreviewKeyDown="HotkeyInput_PreviewKeyDown"/>
                 <TextBlock Text="上一个" Grid.Row="1" Grid.Column="2" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,5"/>
-                <TextBox x:Name="BookmarkPreviousInput" Grid.Row="1" Grid.Column="3" Margin="0,0,0,5" Padding="4,2"/>
+                <TextBox x:Name="BookmarkPreviousInput" Grid.Row="1" Grid.Column="3" Margin="0,0,0,5" Padding="4,2" PreviewKeyDown="HotkeyInput_PreviewKeyDown"/>
                 <TextBlock Text="重做" Grid.Row="2" Foreground="White" VerticalAlignment="Center"/>
-                <TextBox x:Name="RedoInput" Grid.Row="2" Grid.Column="1" Margin="0,0,14,0" Padding="4,2"/>
+                <TextBox x:Name="RedoInput" Grid.Row="2" Grid.Column="1" Margin="0,0,14,0" Padding="4,2" PreviewKeyDown="HotkeyInput_PreviewKeyDown"/>
                 <Button Grid.Row="2" Grid.Column="3" Content="保存快捷键" Click="SaveHotkeys_Click" Padding="8,3"/>
               </Grid>
             </StackPanel>

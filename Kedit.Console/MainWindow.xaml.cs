@@ -164,12 +164,48 @@ namespace Kedit.Console
 
         private void SaveHotkeys_Click(object sender, RoutedEventArgs e)
         {
-            SendCommandToAhk("set_hotkey|GoToDef|" + GoToDefInput.Text.Trim());
-            SendCommandToAhk("set_hotkey|VS_BookmarkToggle|" + BookmarkToggleInput.Text.Trim());
-            SendCommandToAhk("set_hotkey|VS_BookmarkNext|" + BookmarkNextInput.Text.Trim());
-            SendCommandToAhk("set_hotkey|VS_BookmarkPrevious|" + BookmarkPreviousInput.Text.Trim());
-            SendCommandToAhk("set_hotkey|VS_Redo|" + RedoInput.Text.Trim());
+            SendCommandToAhk(string.Join("\n", new[] {
+                "set_hotkey|GoToDef|" + GoToDefInput.Text.Trim(),
+                "set_hotkey|VS_BookmarkToggle|" + BookmarkToggleInput.Text.Trim(),
+                "set_hotkey|VS_BookmarkNext|" + BookmarkNextInput.Text.Trim(),
+                "set_hotkey|VS_BookmarkPrevious|" + BookmarkPreviousInput.Text.Trim(),
+                "set_hotkey|VS_Redo|" + RedoInput.Text.Trim()
+            }));
             PipeStatus.Text = "快捷键设置已发送";
+        }
+
+        private void HotkeyInput_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl || e.Key == Key.LeftAlt || e.Key == Key.RightAlt
+                || e.Key == Key.LeftShift || e.Key == Key.RightShift || e.Key == Key.LWin || e.Key == Key.RWin)
+                return;
+            string hotkey = "";
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) hotkey += "^";
+            if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) hotkey += "!";
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) hotkey += "+";
+            if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0) hotkey += "#";
+            hotkey += KeyToAhkName(e.Key);
+            var box = sender as System.Windows.Controls.TextBox;
+            if (box != null)
+                box.Text = hotkey;
+            e.Handled = true;
+        }
+
+        private static string KeyToAhkName(Key key)
+        {
+            if (key >= Key.F1 && key <= Key.F24) return key.ToString();
+            if (key >= Key.A && key <= Key.Z) return key.ToString().ToLowerInvariant();
+            if (key >= Key.D0 && key <= Key.D9) return key.ToString().Substring(1);
+            if (key == Key.Space) return "Space";
+            if (key == Key.Enter) return "Enter";
+            if (key == Key.Escape) return "Esc";
+            if (key == Key.Tab) return "Tab";
+            if (key == Key.Back) return "Backspace";
+            if (key == Key.Delete) return "Delete";
+            if (key == Key.Insert) return "Insert";
+            if (key == Key.Home || key == Key.End || key == Key.PageUp || key == Key.PageDown)
+                return key.ToString();
+            return key.ToString();
         }
 
         private void SendCommandToAhk(string command)
