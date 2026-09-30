@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v18.30 FileInstall + OSD)
+; Kedit 助手 - 终极完整版 (v18.30-Meme.v009 FileInstall + OSD)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "18.30"
+Global CurrentVersion := "v18.30-Meme.v009"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -43,6 +43,11 @@ IniRead, Key_FindClipboard, %IniFile%, Hotkeys, FindClipboard, F1 ; 查找剪贴
 IniRead, Key_VS_Peek,    %IniFile%, Hotkeys, VS_Peek,    MButton
 IniRead, Key_VS_Back,    %IniFile%, Hotkeys, VS_Back,    ^b
 IniRead, Key_VS_Build,   %IniFile%, Hotkeys, VS_Build,   F7
+IniRead, Key_VS_ToggleComment, %IniFile%, Hotkeys, VS_ToggleComment, ^/
+IniRead, Key_VS_BookmarkToggle, %IniFile%, Hotkeys, VS_BookmarkToggle, ^F2
+IniRead, Key_VS_BookmarkNext, %IniFile%, Hotkeys, VS_BookmarkNext, F2
+IniRead, Key_VS_BookmarkPrevious, %IniFile%, Hotkeys, VS_BookmarkPrevious, +F2
+IniRead, Key_VS_Redo, %IniFile%, Hotkeys, VS_Redo, ^y
 
 ; --- Kedit以外的快捷键设置
 IniRead, Key_RunPy,      %IniFile%, Hotkeys, RunPy,      F8
@@ -51,6 +56,28 @@ IniRead, Path_QuickOpen, %IniFile%, Settings, QuickPath, Z:\misc\testing\ATE\K2
 
 ; 读取 OSD 开关设置 (默认开启 = 1)
 IniRead, EnableOSD,      %IniFile%, Settings, EnableOSD, 1
+IniRead, EnableCompanionOSD, %IniFile%, Settings, EnableCompanionOSD, 0
+IniRead, CompanionChance, %IniFile%, Settings, CompanionChance, 15
+IniRead, CompanionCooldown, %IniFile%, Settings, CompanionCooldown, 15
+IniRead, EnableCompanionAnimation, %IniFile%, Settings, EnableCompanionAnimation, 0
+IniRead, VSDefinitionAction, %IniFile%, Settings, VSDefinitionAction, GoTo
+if (VSDefinitionAction != "GoTo" && VSDefinitionAction != "Peek")
+    VSDefinitionAction := "GoTo"
+if (CompanionChance != 15 && CompanionChance != 25 && CompanionChance != 50 && CompanionChance != 100)
+    CompanionChance := 15
+if (CompanionCooldown < 1)
+    CompanionCooldown := 15
+Global LastSuccessCompanionTick := 0
+Global CompanionAnimationFrames := []
+Global CompanionAnimationCache := {}
+Global CompanionAnimationFrameCount := 0
+Global CompanionAnimationActive := false
+Global CompanionAnimationStartTick := 0
+Global CompanionAnimationLastFrame := -1
+Global SmartClickBurstTicks := []
+Global HotkeysSuspended := false
+Global SilentUpdateCheck := false
+Global UpdateCheckSilent := false
 
 ; --- 2. 设置托盘菜单 ---
 Menu, Tray, NoStandard
@@ -67,23 +94,55 @@ Menu, Tray, Add, 设置: 默认 中键 (跳转至定义), SetKey_SmartClick
 
 ; --- Visual Studio 的设置入口
 Menu, Tray, Add  ; 分隔线
-Menu, Tray, Add, 设置: VS 预览定义 (默认中键), SetKey_VS_Peek
+Menu, Tray, Add, 设置: VS 跳转/预览定义 (默认中键), SetKey_VS_Peek
 Menu, Tray, Add, 设置: VS 回退 (默认Ctrl+B), SetKey_VS_Back
 Menu, Tray, Add, 设置: VS 生成/Ctrl+B (默认F7), SetKey_VS_Build
+Menu, Tray, Add, 设置: VS 注释/取消注释 (默认Ctrl+/), SetKey_VS_ToggleComment
+Menu, Tray, Add, 设置: VS 建立书签 (默认Ctrl+F2), SetKey_VS_BookmarkToggle
+Menu, Tray, Add, 设置: VS 下一个书签 (默认F2), SetKey_VS_BookmarkNext
+Menu, Tray, Add, 设置: VS 上一个书签 (默认Shift+F2), SetKey_VS_BookmarkPrevious
+Menu, Tray, Add, 设置: VS 重做 (默认Ctrl+Y), SetKey_VS_Redo
 
 ; --- Kedit 以外的设置入口
 Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 设置: 默认 F8 (运行Py脚本), SetKey_RunPy
-Menu, Tray, Add, 设置: 快速打开 (键位与路径), SetQuickOpen_All
+Menu, Tray, Add, 设置: 快速打开路径/目标 (键位与路径), SetQuickOpen_All
+Menu, Tray, Add, Pause：屏蔽/恢复快捷键, ToggleManagedHotkeys
 
 ; OSD 开关菜单项
+Menu, CompanionChanceMenu, Add, 低频（15％）, SetCompanionChance15
+Menu, CompanionChanceMenu, Add, 标准（25％）, SetCompanionChance25
+Menu, CompanionChanceMenu, Add, 较多（50％）, SetCompanionChance50
+Menu, CompanionChanceMenu, Add, 每次（100％）, SetCompanionChance100
+UpdateCompanionChanceMenu()
+Menu, CompanionPreviewMenu, Add, 成功表情, PreviewCompanionSuccess
+Menu, CompanionPreviewMenu, Add, 疑惑表情, PreviewCompanionQuestion
+Menu, CompanionPreviewMenu, Add, 处理中表情, PreviewCompanionBusy
+Menu, CompanionPreviewMenu, Add, 亚托莉猫猫动画, PreviewAtriCatAnimation
+Menu, CompanionPreviewMenu, Add, Alt+F 搜索动画, PreviewAltFAnimation
+Menu, CompanionPreviewMenu, Add, 中键四连击动画, PreviewSmartClickBurstAnimation
+
+Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 开启屏幕操作提示 (OSD), ToggleOSD
 if (EnableOSD = 1)
     Menu, Tray, Check, 开启屏幕操作提示 (OSD)
 else
     Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
+Menu, Tray, Add, 开启陪伴表情 (OSD), ToggleCompanionOSD
+if (EnableCompanionOSD = 1)
+    Menu, Tray, Check, 开启陪伴表情 (OSD)
+else
+    Menu, Tray, Uncheck, 开启陪伴表情 (OSD)
+Menu, Tray, Add, 表情出现频率, :CompanionChanceMenu
+Menu, Tray, Add, 启用亚托莉猫猫动画, ToggleCompanionAnimation
+if (EnableCompanionAnimation = 1)
+    Menu, Tray, Check, 启用亚托莉猫猫动画
+else
+    Menu, Tray, Uncheck, 启用亚托莉猫猫动画
+Menu, Tray, Add, 预览陪伴表情, :CompanionPreviewMenu
 Menu, Tray, Add, 恢复默认快捷键设置, RestoreDefaults
 Menu, Tray, Add  ; 分隔线
+Menu, Tray, Add, 启动 MSTSC 监控, LaunchMSTSCMonitor
 Menu, Tray, Add, 检查更新, CheckForUpdate
 Menu, Tray, Add, 关于 Kedit 助手, ShowAboutGui
 Menu, Tray, Add  ; 分隔线
@@ -104,7 +163,7 @@ Global CheckStartTime := 0
 Global WaitingGuiShown := false
 Global CheckerPID := 0
 Global RetryCount := 0
-Global MaxRetries := 5
+Global MaxRetries := 2
 
 ; ★ MPV 进程管理数组
 Global MPV_PIDs := {}
@@ -127,6 +186,8 @@ if (!extensionsModified) {
 
 ; 脚本启动后 300ms 开始后台预释放资源，避免开界面时才触发 FileInstall 的 I/O 卡顿
 SetTimer, PreinstallAssets, -300
+SetTimer, AutoCheckForUpdateInitial, -30000
+SetTimer, AutoCheckForUpdate, 21600000
 return
 
 ; =======================================================
@@ -162,6 +223,15 @@ PreinstallAssets:
     GetTempPath("latest_bg.mp4")
     GetTempPath("logo.png")
     GetTempPath("btn_yellow.png")
+    GetTempPath("companion_success.png")
+    GetTempPath("companion_question.png")
+    GetTempPath("companion_busy.png")
+    ; 默认关闭动画时不解压 30 帧；启用后预热，首次播放更顺畅。
+    if (EnableCompanionOSD && EnableCompanionAnimation) {
+        EnsureCompanionAnimationFrames()
+        EnsureCompanionAnimationFrames("atri2")
+        EnsureCompanionAnimationFrames("atri3")
+    }
 return
 
 ; =======================================================
@@ -199,6 +269,14 @@ RestoreDefaults:
         Hotkey, %Key_RunPy%, Off
     }
 
+    Hotkey, IfWinActive, ahk_exe devenv.exe
+    try {
+        Hotkey, %Key_VS_BookmarkToggle%, Off
+        Hotkey, %Key_VS_BookmarkNext%, Off
+        Hotkey, %Key_VS_BookmarkPrevious%, Off
+        Hotkey, %Key_VS_Redo%, Off
+    }
+
     Key_GoToDef    := "XButton1"
     Key_ShiftF2    := "XButton2"
     Key_AltF       := "!f"
@@ -210,6 +288,12 @@ RestoreDefaults:
     Key_ToggleComment := "^/"  ; <--- 恢复默认值
     Key_SpacesToTabs := "^\"
     Key_FindClipboard := "F1"
+    Key_VS_ToggleComment := "^/"
+    Key_VS_BookmarkToggle := "^F2"
+    Key_VS_BookmarkNext := "F2"
+    Key_VS_BookmarkPrevious := "+F2"
+    Key_VS_Redo := "^y"
+    VSDefinitionAction := "GoTo"
 
     IniWrite, %Key_GoToDef%,    %IniFile%, Hotkeys, GoToDef
     IniWrite, %Key_ShiftF2%,    %IniFile%, Hotkeys, ShiftF2
@@ -222,6 +306,12 @@ RestoreDefaults:
     IniWrite, %Key_ToggleComment%, %IniFile%, Hotkeys, ToggleComment ; <--- 写入 INI
     IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
+    IniWrite, %Key_VS_ToggleComment%, %IniFile%, Hotkeys, VS_ToggleComment
+    IniWrite, %Key_VS_BookmarkToggle%, %IniFile%, Hotkeys, VS_BookmarkToggle
+    IniWrite, %Key_VS_BookmarkNext%, %IniFile%, Hotkeys, VS_BookmarkNext
+    IniWrite, %Key_VS_BookmarkPrevious%, %IniFile%, Hotkeys, VS_BookmarkPrevious
+    IniWrite, %Key_VS_Redo%, %IniFile%, Hotkeys, VS_Redo
+    IniWrite, %VSDefinitionAction%, %IniFile%, Settings, VSDefinitionAction
 
     UpdateHotkeys()
     MsgBox, 64, 成功, 所有快捷键已恢复为默认设置！
@@ -241,7 +331,8 @@ Label_ShiftF2:
 return
 
 Label_AltF:
-    ShowOSD("Find in Files")
+    ; frames3 一轮为 44×30ms，提示稍长于一轮，确保末尾画面也能看到。
+    ShowOSD("Find in Files", 1500, "atri3")
     Send !tn
 return
 
@@ -398,6 +489,9 @@ Label_SmartClick:
     ; 1. 提升线程优先级，确保中间不被其他定时器打断
     Critical
 
+    ; 4 次中键快捷键触发落在同一个 6 秒窗口内时，给本次提示指定专属动画。
+    SmartClickCompanionCue := RegisterSmartClickBurst(A_TickCount) ? "atri2" : ""
+
     ; 2. 【核心回答】开启输入阻断
     ; 这会屏蔽键盘和鼠标的物理输入，防止您在脚本执行期间的微操作干扰逻辑
     BlockInput, On
@@ -418,19 +512,19 @@ Label_SmartClick:
 
         if (InStr(winTitle, "Boya_patterns") or InStr(winTitle, "Boya2_patterns2"))
         {
-            ShowOSD("Smart: Up x 3")
+            ShowOSD("Smart: Up x 3", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 3}
         }
         else if !(InStr(winTitle, ".kpl"))
         {
-            ShowOSD("Smart: Up x 2")
+            ShowOSD("Smart: Up x 2", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 2}
         }
         else if (InStr(winTitle, ".kpl"))
         {
-            ShowOSD("Smart: Up x 1")
+            ShowOSD("Smart: Up x 1", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 1}
         }
@@ -442,7 +536,7 @@ Label_SmartClick:
         if (InStr(winTitle, ".kpl"))
         {
             SendInput {RButton}
-            ShowOSD("Smart: Double (Up 1)")
+            ShowOSD("Smart: Double (Up 1)", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 1}
             ProcessKeditWindow(winTitle, delay)
@@ -450,7 +544,7 @@ Label_SmartClick:
         else
         {
             SendInput {RButton}
-            ShowOSD("Smart: Double (Up 3)")
+            ShowOSD("Smart: Double (Up 3)", 1200, SmartClickCompanionCue)
             Sleep, delay
             SendInput {Up 3}
             ProcessKeditWindow(winTitle, delay)
@@ -460,6 +554,22 @@ Label_SmartClick:
     ; 4. 解除输入阻断，恢复正常控制
     BlockInput, Off
 return
+
+RegisterSmartClickBurst(CurrentTick, RequiredClicks := 4, WindowMs := 6000) {
+    global SmartClickBurstTicks
+    RecentTicks := []
+    for _, Tick in SmartClickBurstTicks {
+        if (CurrentTick >= Tick && CurrentTick - Tick <= WindowMs)
+            RecentTicks.Push(Tick)
+    }
+    RecentTicks.Push(CurrentTick)
+    if (RecentTicks.Length() >= RequiredClicks) {
+        SmartClickBurstTicks := []
+        return true
+    }
+    SmartClickBurstTicks := RecentTicks
+    return false
+}
 
 ; [新增代码] =======================================================
 ; 普通选择模拟列块插入 (完美修复 Tab 制表符对齐错位问题)
@@ -781,17 +891,55 @@ return
 ; =======================================================
 ; Visual Studio 专用逻辑
 ; =======================================================
-Label_VS_PeekDef:
-    ShowOSD("VS: Peek Definition")
+Label_VS_DefinitionAction:
+    ; 中键默认需要支持“鼠标指向后台 VS 窗口”的场景。
+    ; 先判断鼠标下方的窗口，避免在其他窗口中吞掉原生中键。
+    MouseGetPos,,, VS_MouseHwnd
+    WinGet, VS_MouseProcess, ProcessName, ahk_id %VS_MouseHwnd%
+    if (VS_MouseProcess != "devenv.exe") {
+        ; 该标签在全局中键模式下运行时，非 VS 窗口恢复原生中键。
+        if (Key_VS_Peek = "MButton")
+            SendInput {MButton}
+        return
+    }
+
+    ; 中键模式下只接管代码文本编辑区；标签页等区域保留 VS 原生中键行为。
+    ; A_Cursor 在 VS 编辑器中为 IBeam，在文档标签页通常为 Arrow。
+    ; 这里先把非 IBeam 区域的中键原样交还给 VS，保留“中键关闭标签页”等原生行为。
+    if (Key_VS_Peek = "MButton" && !VS_IsCodeEditorAtMouse()) {
+        SendInput {MButton}
+        return
+    }
+
+    ; 如果 VS 尚未激活，先激活鼠标指向的 VS 实例，再进行一次定位点击。
+    VS_RootHwnd := DllCall("GetAncestor", "Ptr", VS_MouseHwnd, "UInt", 2, "Ptr")
+    if (!WinActive("ahk_exe devenv.exe")) {
+        WinActivate, ahk_id %VS_RootHwnd%
+        WinWaitActive, ahk_id %VS_RootHwnd%,, 0.2
+        if (ErrorLevel)
+            return
+    }
+
+    ShowOSD(VSDefinitionAction = "GoTo" ? "VS: Go To Definition" : "VS: Peek Definition")
     ; 1. 先发送左键点击，将光标定位到鼠标指向的单词上
     SendInput {LButton}
 
-    ; 2. 稍微等待一下 (50毫秒)，确保 VS 有时间把光标移过去
-    Sleep, 2
+    ; 2. 稍微等待一下，确保 VS 有时间把光标移过去
+    ; Sleep, 2
 
-    ; 3. 发送 Alt + F12 调出预览窗口
-    SendInput !{F12}
+    ; 3. 按设置执行跳转定义或预览定义
+    if (VSDefinitionAction = "GoTo")
+        SendInput {F12}
+    else
+        SendInput !{F12}
 return
+
+; 判断中键是否落在 VS 的代码编辑区。
+; 目前使用鼠标指针形状作为区域判断：这是 AHK 在不依赖 VS 扩展/API
+; 的情况下最稳定、兼容性最好的方式。标签页、工具栏和滚动条不会是 IBeam。
+VS_IsCodeEditorAtMouse() {
+    return (A_Cursor = "IBeam")
+}
 
 Label_VS_NavigateBack:
     ShowOSD("VS: Navigate Back")
@@ -804,6 +952,77 @@ Label_VS_SendCtrlB:
     ; 发送 Ctrl + B (触发 VS 原生的生成或其他功能)
     SendInput ^b
 return
+
+Label_VS_BookmarkToggle:
+    ShowOSD("VS: Toggle Bookmark")
+    SendInput ^k
+    Sleep, 50
+    SendInput ^k
+return
+
+Label_VS_BookmarkNext:
+    ShowOSD("VS: Next Bookmark")
+    SendInput ^k
+    Sleep, 50
+    SendInput ^p
+return
+
+Label_VS_BookmarkPrevious:
+    ShowOSD("VS: Previous Bookmark")
+    SendInput ^k
+    Sleep, 50
+    SendInput ^n
+return
+
+Label_VS_Redo:
+    ShowOSD("VS: Redo")
+    SendInput ^+z
+return
+
+Label_VS_ToggleComment:
+    ; 只读取原始选区，不移动光标或重建选区，避免操作时出现闪烁。
+    if (VSCommentBusy)
+        return
+    VSCommentBusy := true
+
+    VSComment_ClipSaved := ClipboardAll
+    Clipboard := ""
+    SendInput, ^c
+    ClipWait, 0.5
+
+    VSComment_SelectedText := ErrorLevel ? "" : Clipboard
+
+    ; 恢复用户剪贴板，避免快捷键改变剪贴板内容。
+    Clipboard := VSComment_ClipSaved
+    VSComment_ClipSaved := ""
+
+    VSComment_Uncomment := VSSelectionNeedsUncomment(VSComment_SelectedText)
+
+    if (VSComment_Uncomment) {
+        ShowOSD("VS: Uncomment Selection")
+        SendInput, ^k
+        Sleep, 40
+        SendInput, ^u
+    } else {
+        ShowOSD("VS: Comment Selection")
+        SendInput, ^k
+        Sleep, 40
+        SendInput, ^c
+    }
+    VSCommentBusy := false
+return
+
+VSSelectionNeedsUncomment(Text) {
+    ; VS 注释后，第一行的 // 可能位于原选区左侧；第二行通常仍能带出 //。
+    ; 按前两行判断，避免移动选区，也只认 //，不处理块注释。
+    Lines := StrSplit(Text, "`n", "`r")
+    FirstLine := (Lines.MaxIndex() >= 1) ? LTrim(Lines[1], " `t") : ""
+    SecondLine := (Lines.MaxIndex() >= 2) ? LTrim(Lines[2], " `t") : ""
+
+    FirstHasComment := RegExMatch(FirstLine, "^//")
+    SecondHasComment := RegExMatch(SecondLine, "^//")
+    return (FirstHasComment || SecondHasComment)
+}
 
 ProcessKeditWindow(winTitle, delay)
 {
@@ -834,11 +1053,13 @@ ProcessKeditWindow(winTitle, delay)
 
 UpdateHotkeys() {
     global
+    HotkeyState := HotkeysSuspended ? "Off" : "On"
     ; --- [新增代码] 第一组：全局快捷键 ---
     Hotkey, IfWinActive
+    Hotkey, Pause, ToggleManagedHotkeys, On
     try {
         ; 注册 Ctrl+Q (快速打开目录)
-        Hotkey, %Key_CtrlQ%, Label_CtrlQ, On
+        Hotkey, %Key_CtrlQ%, Label_CtrlQ, %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 无法注册全局快捷键 (%Key_CtrlQ%)
     }
@@ -846,16 +1067,16 @@ UpdateHotkeys() {
     ; --- [新增代码] 第二组：Kedit 专用快捷键 ---
     Hotkey, IfWinActive, ahk_exe kedit.exe
     try {
-        Hotkey, %Key_GoToDef%,    Label_GoToDef,    On
-        Hotkey, %Key_ShiftF2%,    Label_ShiftF2,    On
-        Hotkey, %Key_AltF%,       Label_AltF,       On
-        Hotkey, %Key_CtrlW%, 	  Label_CtrlW, 		On
-        Hotkey, %Key_AltA%,       Label_AltA,       On ; <--- 注册新快捷键 [cite: 23]
-        Hotkey, %Key_ColumnInsert%, Label_ColumnInsert, On ; [新增代码]
-        Hotkey, %Key_SmartClick%, Label_SmartClick, On
-        Hotkey, %Key_ToggleComment%, ProcessCommentToggle, On
-        Hotkey, %Key_SpacesToTabs%, Label_SpacesToTabs, On
-        Hotkey, %Key_FindClipboard%, Label_FindClipboard, On
+        Hotkey, %Key_GoToDef%,    Label_GoToDef,    %HotkeyState%
+        Hotkey, %Key_ShiftF2%,    Label_ShiftF2,    %HotkeyState%
+        Hotkey, %Key_AltF%,       Label_AltF,       %HotkeyState%
+        Hotkey, %Key_CtrlW%, 	  Label_CtrlW, 		%HotkeyState%
+        Hotkey, %Key_AltA%,       Label_AltA,       %HotkeyState% ; <--- 注册新快捷键 [cite: 23]
+        Hotkey, %Key_ColumnInsert%, Label_ColumnInsert, %HotkeyState% ; [新增代码]
+        Hotkey, %Key_SmartClick%, Label_SmartClick, %HotkeyState%
+        Hotkey, %Key_ToggleComment%, ProcessCommentToggle, %HotkeyState%
+        Hotkey, %Key_SpacesToTabs%, Label_SpacesToTabs, %HotkeyState%
+        Hotkey, %Key_FindClipboard%, Label_FindClipboard, %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 加载快捷键失败。
     }
@@ -863,26 +1084,54 @@ UpdateHotkeys() {
     ; --- [新增代码] 第三组：资源管理器专用快捷键 ---
     Hotkey, IfWinActive, ahk_class CabinetWClass
     try {
-        Hotkey, %Key_RunPy%,      Label_RunPy,      On
+        Hotkey, %Key_RunPy%,      Label_RunPy,      %HotkeyState%
     } catch e {
         MsgBox, 16, 错误, 无法注册资源管理器快捷键 (%Key_RunPy%)
     }
 
     ; [新增代码] Visual Studio 专用区域 (devenv.exe)
+    ; 默认中键需要全局监听，才能在 VS 未激活时根据鼠标下方窗口接管一次点击。
+    Hotkey, IfWinActive
+    Hotkey, $MButton, Label_VS_DefinitionAction, Off
     Hotkey, IfWinActive, ahk_exe devenv.exe
+    Hotkey, MButton, Label_VS_DefinitionAction, Off
     try {
         ; [修改] 使用变量 Key_VS_Peek
-        Hotkey, %Key_VS_Peek%, Label_VS_PeekDef, On
+        if (Key_VS_Peek = "MButton") {
+            Hotkey, IfWinActive
+            Hotkey, $MButton, Label_VS_DefinitionAction, %HotkeyState%
+        } else {
+            Hotkey, IfWinActive, ahk_exe devenv.exe
+            Hotkey, %Key_VS_Peek%, Label_VS_DefinitionAction, %HotkeyState%
+        }
 
         ; [修改] 使用变量 Key_VS_Back
-        Hotkey, %Key_VS_Back%, Label_VS_NavigateBack, On
+        Hotkey, IfWinActive, ahk_exe devenv.exe
+        Hotkey, %Key_VS_Back%, Label_VS_NavigateBack, %HotkeyState%
 
         ; [修改] 使用变量 Key_VS_Build
-        Hotkey, %Key_VS_Build%, Label_VS_SendCtrlB, On
+        Hotkey, %Key_VS_Build%, Label_VS_SendCtrlB, %HotkeyState%
+        Hotkey, %Key_VS_ToggleComment%, Label_VS_ToggleComment, %HotkeyState%
+        Hotkey, %Key_VS_BookmarkToggle%, Label_VS_BookmarkToggle, %HotkeyState%
+        Hotkey, %Key_VS_BookmarkNext%, Label_VS_BookmarkNext, %HotkeyState%
+        Hotkey, %Key_VS_BookmarkPrevious%, Label_VS_BookmarkPrevious, %HotkeyState%
+        Hotkey, %Key_VS_Redo%, Label_VS_Redo, %HotkeyState%
     } catch e {
-        MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键 (%Key_RunPy%)
+        MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键。
     }
 }
+
+ToggleManagedHotkeys:
+    HotkeysSuspended := !HotkeysSuspended
+    UpdateHotkeys()
+    if (HotkeysSuspended) {
+        Menu, Tray, Check, Pause：屏蔽/恢复快捷键
+        ShowOSD("快捷键已屏蔽", 1200, "noCompanion")
+    } else {
+        Menu, Tray, Uncheck, Pause：屏蔽/恢复快捷键
+        ShowOSD("快捷键已恢复", 1200, "noCompanion")
+    }
+return
 
 ; [新增代码] =======================================================
 ; Ctrl+Q 快速打开逻辑 (支持文件和文件夹)
@@ -967,7 +1216,7 @@ return
 ; Visual Studio 快捷键设置入口
 ; =======================================================
 SetKey_VS_Peek:
-    ChangeHotkey("VS_Peek", "VS 中键替换`n(功能: 选中单词并 Alt+F12 预览定义)", Key_VS_Peek)
+    ChangeHotkey("VS_Peek", "VS 定义操作快捷键`n(默认中键；动作可选 F12 或 Alt+F12)", Key_VS_Peek, VSDefinitionAction)
 return
 
 SetKey_VS_Back:
@@ -976,6 +1225,26 @@ return
 
 SetKey_VS_Build:
     ChangeHotkey("VS_Build", "VS 生成/旧Ctrl+B替换`n(功能: 发送原版 Ctrl+B)", Key_VS_Build)
+return
+
+SetKey_VS_ToggleComment:
+    ChangeHotkey("VS_ToggleComment", "VS 注释/取消注释 (智能切换)`n(默认 Ctrl+/；调用 VS 原生 Ctrl+K,Ctrl+C/U)", Key_VS_ToggleComment)
+return
+
+SetKey_VS_BookmarkToggle:
+    ChangeHotkey("VS_BookmarkToggle", "VS 建立/取消书签`n(发送 Ctrl+K, Ctrl+K；默认 Ctrl+F2)", Key_VS_BookmarkToggle)
+return
+
+SetKey_VS_BookmarkNext:
+    ChangeHotkey("VS_BookmarkNext", "VS 下一个书签`n(发送 Ctrl+K, Ctrl+P；默认 F2)", Key_VS_BookmarkNext)
+return
+
+SetKey_VS_BookmarkPrevious:
+    ChangeHotkey("VS_BookmarkPrevious", "VS 上一个书签`n(发送 Ctrl+K, Ctrl+N；默认 Shift+F2)", Key_VS_BookmarkPrevious)
+return
+
+SetKey_VS_Redo:
+    ChangeHotkey("VS_Redo", "VS 重做`n(发送 Ctrl+Shift+Z；默认 Ctrl+Y)", Key_VS_Redo)
 return
 
 ; =======================================================
@@ -995,6 +1264,351 @@ GetTempPath(FileName) {
     }
     else if (FileName = "btn_yellow.png") {
         FileInstall, btn_yellow.png, %TargetPath%, 1
+    }
+    else if (FileName = "companion_success.png") {
+        FileInstall, osd_assets\companion_success.png, %TargetPath%, 1
+    }
+    else if (FileName = "companion_question.png") {
+        FileInstall, osd_assets\companion_question.png, %TargetPath%, 1
+    }
+    else if (FileName = "companion_busy.png") {
+        FileInstall, osd_assets\companion_busy.png, %TargetPath%, 1
+    }
+    else if (FileName = "MSTSC_Monitor.exe") {
+        FileInstall, MSTSC_Monitor.exe, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_00.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_00.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_01.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_01.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_02.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_02.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_03.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_03.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_04.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_04.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_05.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_05.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_06.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_06.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_07.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_07.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_08.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_08.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_09.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_09.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_10.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_10.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_11.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_11.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_12.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_12.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_13.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_13.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_14.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_14.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_15.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_15.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_16.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_16.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_17.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_17.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_18.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_18.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_19.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_19.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_20.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_20.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_21.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_21.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_22.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_22.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_23.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_23.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_24.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_24.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_25.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_25.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_26.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_26.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_27.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_27.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_28.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_28.png, %TargetPath%, 1
+    }
+    else if (FileName = "atri_cat_29.png") {
+        FileInstall, osd_assets\atri_cat_frames\atri_cat_29.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_00.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_00.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_01.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_01.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_02.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_02.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_03.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_03.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_04.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_04.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_05.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_05.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_06.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_06.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_07.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_07.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_08.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_08.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_09.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_09.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_10.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_10.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_11.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_11.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_12.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_12.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_13.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_13.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_14.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_14.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_15.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_15.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_16.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_16.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_17.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_17.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_18.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_18.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_19.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_19.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_20.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_20.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_21.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_21.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_22.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_22.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_23.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_23.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_24.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_24.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_25.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_25.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_26.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_26.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_27.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_27.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_28.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_28.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_29.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_29.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_30.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_30.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_31.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_31.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_32.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_32.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_33.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_33.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_34.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_34.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_35.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_35.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat2_36.png") {
+        FileInstall, osd_assets\atri_cat_frames2\my_cat_36.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_00.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_00.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_01.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_01.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_02.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_02.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_03.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_03.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_04.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_04.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_05.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_05.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_06.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_06.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_07.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_07.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_08.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_08.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_09.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_09.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_10.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_10.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_11.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_11.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_12.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_12.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_13.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_13.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_14.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_14.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_15.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_15.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_16.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_16.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_17.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_17.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_18.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_18.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_19.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_19.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_20.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_20.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_21.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_21.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_22.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_22.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_23.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_23.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_24.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_24.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_25.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_25.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_26.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_26.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_27.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_27.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_28.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_28.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_29.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_29.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_30.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_30.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_31.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_31.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_32.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_32.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_33.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_33.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_34.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_34.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_35.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_35.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_36.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_36.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_37.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_37.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_38.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_38.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_39.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_39.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_40.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_40.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_41.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_41.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_42.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_42.png, %TargetPath%, 1
+    }
+    else if (FileName = "my_cat3_43.png") {
+        FileInstall, osd_assets\atri_cat_frames3\my_cat_43.png, %TargetPath%, 1
     }
 
     ; 2. 庞大的静态资源：仅在不存在时释放，节省启动时间
@@ -1051,7 +1665,7 @@ PlayMpvInGui(Hwnd, VideoPath) {
 ; =======================================================
 ; 通用修改函数
 ; =======================================================
-ChangeHotkey(KeyName, DisplayText, CurrentKey) {
+ChangeHotkey(KeyName, DisplayText, CurrentKey, CurrentAction := "") {
     global
     Gui, Destroy
     Gui, -MinimizeBox
@@ -1060,7 +1674,8 @@ ChangeHotkey(KeyName, DisplayText, CurrentKey) {
     Gui, Color, White
 
     SideW := 760
-    SideH := 430
+    IsVSDefinition := (KeyName = "VS_Peek")
+    SideH := IsVSDefinition ? 500 : 430
 
     SidebarPath := GetTempPath("side.mp4")
     XStart := 20
@@ -1077,6 +1692,19 @@ ChangeHotkey(KeyName, DisplayText, CurrentKey) {
     Gui, Add, Text, x+5 yp cBlue, %CurrentKey%
     Gui, Font
     Gui, Add, Text, x%XStart% y+10 h2 w300 0x10
+
+    if (IsVSDefinition) {
+        Gui, Font, Bold cBlue
+        Gui, Add, Text, x%XStart% y+15 h20, 2. 定义动作
+        Gui, Font, Norm cDefault
+        Gui, Add, Radio, vVSDefinitionChoice x%XStart% y+8, 跳转到定义 (F12)
+        Gui, Add, Radio, x%XStart% y+5, 预览定义 (Alt+F12)
+        if (CurrentAction = "Peek")
+            GuiControl,, VSDefinitionChoice, 2
+        else
+            GuiControl,, VSDefinitionChoice, 1
+    }
+
     Gui, Add, Text, x%XStart% y+10, 方法A - 键盘录入 (不支持鼠标键):
     Gui, Add, Hotkey, vNewHotkey Limit1 x%XStart% y+5, %CurrentKey%
     Gui, Add, Text, x%XStart% y+15, 方法B - 手动输入代码 (鼠标/组合键):
@@ -1125,12 +1753,17 @@ ChangeHotkey(KeyName, DisplayText, CurrentKey) {
         return
     }
     OldKey := Key_%CurrentEditingKey%
-    Hotkey, IfWinActive, ahk_exe kedit.exe
+    HotkeyContext := (InStr(CurrentEditingKey, "VS_") = 1) ? "ahk_exe devenv.exe" : "ahk_exe kedit.exe"
+    Hotkey, IfWinActive, %HotkeyContext%
     try {
         Hotkey, %OldKey%, Off
     }
     Key_%CurrentEditingKey% := FinalKey
     IniWrite, %FinalKey%, %IniFile%, Hotkeys, %CurrentEditingKey%
+    if (CurrentEditingKey = "VS_Peek") {
+        VSDefinitionAction := (VSDefinitionChoice = 2) ? "Peek" : "GoTo"
+        IniWrite, %VSDefinitionAction%, %IniFile%, Settings, VSDefinitionAction
+    }
     UpdateHotkeys()
     Gui, Destroy
     MsgBox, 64, 成功, %KeyName% 已更新为: %FinalKey%
@@ -1299,9 +1932,40 @@ ChangeQuickOpenSettings(CurrentKey, CurrentPath) {
 ; =======================================================
 ; 自动更新逻辑模块
 ; =======================================================
+LaunchMSTSCMonitor:
+    ; 监控程序是独立软件：菜单只负责启动，不在 Kedit 退出时结束它。
+    Process, Exist, MSTSC_Monitor.exe
+    if (ErrorLevel) {
+        ShowOSD("MSTSC 监控已在运行", 1200, "noCompanion")
+        return
+    }
+
+    MonitorPath := GetTempPath("MSTSC_Monitor.exe")
+    if (!FileExist(MonitorPath)) {
+        MsgBox, 16, 启动失败, MSTSC_Monitor.exe 未能释放到临时目录。
+        return
+    }
+
+    MonitorDir := A_Temp . "\Kedit_Media"
+    Run, "%MonitorPath%", %MonitorDir%, UseErrorLevel, MonitorPID
+    if (ErrorLevel) {
+        MsgBox, 16, 启动失败, 无法启动 MSTSC_Monitor.exe。
+        return
+    }
+    ShowOSD("MSTSC 监控已启动", 1200, "noCompanion")
+return
+
+AutoCheckForUpdateInitial:
+AutoCheckForUpdate:
+    SilentUpdateCheck := true
+    Gosub, CheckForUpdate
+    SilentUpdateCheck := false
+return
+
 CheckForUpdate:
     if (IsCheckingUpdate)
         return
+    UpdateCheckSilent := SilentUpdateCheck
     IsCheckingUpdate := true
     RetryCount := 0
     WaitingGuiShown := false
@@ -1310,7 +1974,8 @@ CheckForUpdate:
 return
 
 LaunchVersionChecker:
-    VersionURL := "https://raw.githubusercontent.com/Dengjiancong/Kedit_GO_to_Def/main/version.txt"
+    ; Gitea 是主要更新源；API 返回最新 Release 的完整 JSON。
+    VersionURL := "https://gitea.evadd.xyz:88/api/v1/repos/EVADD/Kedit_GO_to_Def/releases/latest"
 
     VersionFile := A_Temp . "\version_check.txt"
     StatusFile := A_Temp . "\check_status.txt"
@@ -1332,9 +1997,12 @@ LaunchVersionChecker:
     ScriptContent =
     (
     #NoTrayIcon
-    URL := "%ActualURL%"
     SavePath := "%VersionFile%"
     StatusFile := "%StatusFile%"
+
+    URLs := []
+    URLs.Push("https://gitea.evadd.xyz:88/api/v1/repos/EVADD/Kedit_GO_to_Def/releases/latest?t=%A_TickCount%")
+    URLs.Push("https://api.github.com/repos/Dengjiancong/Kedit_GO_to_Def/releases/latest?t=%A_TickCount%")
 
     Modes := []
     Modes.Push("127.0.0.1:7890")
@@ -1343,26 +2011,31 @@ LaunchVersionChecker:
     Modes.Push(0)
 
     IsSuccess := 0
-    for index, Mode in Modes {
-        try {
-            whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-            whr.Open("GET", URL, true)
-            whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-            whr.Option(9) := 2048
-            if (Mode = 0)
-                 whr.SetProxy(0)
-            else
-                whr.SetProxy(2, Mode)
-            whr.Send()
-            whr.WaitForResponse(10)
-            if (whr.Status == 200) {
-                FileAppend, `% whr.ResponseText, `%SavePath`%
-                FileAppend, success, `%StatusFile`%
-                IsSuccess := 1
-                break
+    for URLIndex, URL in URLs {
+        if (IsSuccess)
+            break
+        for index, Mode in Modes {
+            try {
+                whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+                whr.Open("GET", URL, true)
+                whr.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                whr.Option(9) := 2048
+                if (Mode = 0)
+                     whr.SetProxy(0)
+                else
+                    whr.SetProxy(2, Mode)
+                whr.Send()
+            whr.WaitForResponse(5)
+                if (whr.Status == 200) {
+                    FileAppend, `% whr.ResponseText, `%SavePath`%
+                    SourceName := URLIndex = 1 ? "gitea" : "github"
+                    FileAppend, `% "success|" . SourceName, `%StatusFile`%
+                    IsSuccess := 1
+                    break
+                }
+            } catch {
+                continue
             }
-        } catch {
-            continue
         }
     }
     if (!IsSuccess)
@@ -1382,12 +2055,13 @@ LaunchVersionChecker:
 return
 
 MonitorVersionCheck:
-    if (!WaitingGuiShown && (A_TickCount - CheckStartTime > 2000)) {
+    if (!UpdateCheckSilent && !WaitingGuiShown && (A_TickCount - CheckStartTime > 2000)) {
         WaitingGuiShown := true
         GoSub, ShowConnectingGui
     }
 
-    if (A_TickCount - CheckStartTime > 3000) {
+    ; 子进程最多尝试 2 个来源 × 4 种连接方式，每次等待 5 秒。
+    if (A_TickCount - CheckStartTime > 50000) {
         SetTimer, MonitorVersionCheck, Off
         RetryCount++
         if (RetryCount < MaxRetries) {
@@ -1395,10 +2069,12 @@ MonitorVersionCheck:
             return
         } else {
             GoSub, CloseWaitGui
-            MsgBox, 20, 连接超时 - 需要诊断吗?, 尝试连接 GitHub %MaxRetries% 次均无响应。`n请检查网络环境或开启代理。`n`n是否运行【网络连接诊断工具】来分析具体原因？
-            IfMsgBox, Yes
-            {
-                GoSub, LaunchNetworkDebugger
+            if (!UpdateCheckSilent) {
+                MsgBox, 20, 连接超时 - 需要诊断吗?, 尝试连接 Gitea 和 GitHub %MaxRetries% 次均无响应。`n请检查网络环境或开启代理。`n`n是否运行【网络连接诊断工具】来分析具体原因？
+                IfMsgBox, Yes
+                {
+                    GoSub, LaunchNetworkDebugger
+                }
             }
             IsCheckingUpdate := false
             return
@@ -1420,16 +2096,23 @@ MonitorVersionCheck:
             FileRead, LatestVersion, %VersionFile%
             FileDelete, %VersionFile%
             LatestVersion := Trim(LatestVersion, " `t`n`r")
+            LatestVersion := ExtractJsonString(LatestVersion, "tag_name")
 
             if (LatestVersion != "") {
-                if (LatestVersion > CurrentVersion) {
+                if (IsVersionNewer(LatestVersion, CurrentVersion)) {
                     IsNewVersion := true
+                    if (InStr(Status, "|github"))
+                        LatestDownloadURL := "https://github.com/Dengjiancong/Kedit_GO_to_Def/releases/download/" . LatestVersion . "/Kedit_GO_to_Def.exe"
+                    else
+                        LatestDownloadURL := "https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases/download/" . LatestVersion . "/Kedit_GO_to_Def.exe"
                 } else {
                     IsNewVersion := false
                 }
-                GoSub, ShowUpdateGui
+                if (IsNewVersion || !UpdateCheckSilent)
+                    GoSub, ShowUpdateGui
             } else {
-                MsgBox, 16, 错误, 获取到的版本号为空。
+                if (!UpdateCheckSilent)
+                    MsgBox, 16, 错误, 获取到的版本号为空。
             }
         } else {
             RetryCount++
@@ -1437,11 +2120,43 @@ MonitorVersionCheck:
                 GoSub, LaunchVersionChecker
                 return
             }
-            MsgBox, 16, 连接失败, 无法连接到 GitHub。
+            if (!UpdateCheckSilent)
+                MsgBox, 16, 连接失败, 无法连接到 Gitea 或 GitHub。
         }
         IsCheckingUpdate := false
     }
 return
+
+ExtractJsonString(JsonText, KeyName) {
+    Pattern := "i)""" . KeyName . """\s*:\s*""([^""]*)"""
+    if (RegExMatch(JsonText, Pattern, Match))
+        return Match1
+    return ""
+}
+
+IsVersionNewer(Candidate, Installed) {
+    CandidateParts := ParseKeditVersion(Candidate)
+    InstalledParts := ParseKeditVersion(Installed)
+    if (!CandidateParts || !InstalledParts)
+        return false
+    Loop, 4 {
+        CandidatePart := CandidateParts[A_Index] + 0
+        InstalledPart := InstalledParts[A_Index] + 0
+        if (CandidatePart > InstalledPart)
+            return true
+        if (CandidatePart < InstalledPart)
+            return false
+    }
+    return false
+}
+
+ParseKeditVersion(Version) {
+    if (!RegExMatch(Version, "i)^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-Meme\.v(\d+))?$", Match))
+        return false
+    ; 历史版本 v18.30-Meme.v009 与 Release v18.30.0 共存。
+    ; Meme 修订号作为第 4 段比较，三段式 Release 的该段为 0。
+    return [Match1 + 0, Match2 + 0, Match3 + 0, Match4 + 0]
+}
 
 CloseWaitGui:
     Gosub, KillAllMpv
@@ -1672,7 +2387,9 @@ UpdateConfirmed:
     ; ★ 核心：释放外部下载脚本 (请确保 Kedit_Downloader_Template.ahk 存在于源码目录)
     FileInstall, Kedit_Downloader_Template.ahk, %DownloaderAhk%, 1
 
-    Run, "%InterpreterPath%" "%DownloaderAhk%"
+    if (LatestDownloadURL = "")
+        LatestDownloadURL := "https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases/latest/download/Kedit_GO_to_Def.exe"
+    Run, "%InterpreterPath%" "%DownloaderAhk%" "%LatestDownloadURL%"
     SetTimer, MonitorShadowDownload, 100
 return
 
@@ -1843,21 +2560,134 @@ ToggleOSD:
     EnableOSD := !EnableOSD
     if (EnableOSD) {
         Menu, Tray, Check, 开启屏幕操作提示 (OSD)
-        ShowOSD("屏幕提示已开启")
+        ShowOSD("屏幕提示已开启", 1200, "noCompanion")
     } else {
         Menu, Tray, Uncheck, 开启屏幕操作提示 (OSD)
-        ShowOSD("屏幕提示已关闭")
+        StopCompanionAnimation()
+        ShowOSD("屏幕提示已关闭", 1200, "noCompanion")
     }
     IniWrite, %EnableOSD%, %IniFile%, Settings, EnableOSD
 return
 
+ToggleCompanionOSD:
+    EnableCompanionOSD := !EnableCompanionOSD
+    if (EnableCompanionOSD) {
+        Menu, Tray, Check, 开启陪伴表情 (OSD)
+        ShowOSD("陪伴表情已开启", 1200, "noCompanion")
+    } else {
+        Menu, Tray, Uncheck, 开启陪伴表情 (OSD)
+        StopCompanionAnimation()
+        ShowOSD("陪伴表情已关闭", 1200, "noCompanion")
+    }
+    IniWrite, %EnableCompanionOSD%, %IniFile%, Settings, EnableCompanionOSD
+return
+
+ToggleCompanionAnimation:
+    EnableCompanionAnimation := !EnableCompanionAnimation
+    if (EnableCompanionAnimation) {
+        Menu, Tray, Check, 启用亚托莉猫猫动画
+        EnsureCompanionAnimationFrames()
+        EnsureCompanionAnimationFrames("atri2")
+        EnsureCompanionAnimationFrames("atri3")
+    } else {
+        Menu, Tray, Uncheck, 启用亚托莉猫猫动画
+        StopCompanionAnimation()
+    }
+    IniWrite, %EnableCompanionAnimation%, %IniFile%, Settings, EnableCompanionAnimation
+    ShowOSD(EnableCompanionAnimation ? "亚托莉猫猫动画已开启" : "亚托莉猫猫动画已关闭"
+        , 1200, "noCompanion")
+return
+
+SetCompanionChance15:
+    SetCompanionChance(15)
+return
+
+SetCompanionChance25:
+    SetCompanionChance(25)
+return
+
+SetCompanionChance50:
+    SetCompanionChance(50)
+return
+
+SetCompanionChance100:
+    SetCompanionChance(100)
+return
+
+PreviewCompanionSuccess:
+    ShowCompanionOSD(GetTempPath("companion_success.png"), 2500)
+return
+
+PreviewCompanionQuestion:
+    ShowCompanionOSD(GetTempPath("companion_question.png"), 2500)
+return
+
+PreviewCompanionBusy:
+    ShowCompanionOSD(GetTempPath("companion_busy.png"), 2500)
+return
+
+PreviewAtriCatAnimation:
+    StartCompanionAnimation(2500, false)
+return
+
+PreviewAltFAnimation:
+    StartCompanionAnimation(2500, false, "atri3")
+return
+
+PreviewSmartClickBurstAnimation:
+    StartCompanionAnimation(2500, false, "atri2")
+return
+
+HideCompanionOSD:
+    StopCompanionAnimation()
+return
+
+AdvanceCompanionAnimation:
+    if (!CompanionAnimationActive)
+        return
+
+    ; 按实际经过时间定位帧，而不是按定时器触发次数累加，避免播放逐渐变慢。
+    FrameIndex := Mod(Floor((A_TickCount - CompanionAnimationStartTick) / 30), CompanionAnimationFrameCount)
+    if (FrameIndex != CompanionAnimationLastFrame) {
+        GuiControl, CompanionOSD:, CompanionPicture, % CompanionAnimationFrames[FrameIndex + 1]
+        CompanionAnimationLastFrame := FrameIndex
+    }
+return
+
+SetCompanionChance(NewChance) {
+    global CompanionChance, IniFile
+    CompanionChance := NewChance
+    IniWrite, %CompanionChance%, %IniFile%, Settings, CompanionChance
+    UpdateCompanionChanceMenu()
+    ShowOSD("表情出现频率: " . CompanionChance . "%", 1200, "noCompanion")
+}
+
+UpdateCompanionChanceMenu() {
+    global CompanionChance
+    Menu, CompanionChanceMenu, Uncheck, 低频（15％）
+    Menu, CompanionChanceMenu, Uncheck, 标准（25％）
+    Menu, CompanionChanceMenu, Uncheck, 较多（50％）
+    Menu, CompanionChanceMenu, Uncheck, 每次（100％）
+
+    if (CompanionChance = 15)
+        Menu, CompanionChanceMenu, Check, 低频（15％）
+    else if (CompanionChance = 50)
+        Menu, CompanionChanceMenu, Check, 较多（50％）
+    else if (CompanionChance = 100)
+        Menu, CompanionChanceMenu, Check, 每次（100％）
+    else
+        Menu, CompanionChanceMenu, Check, 标准（25％）
+}
+
 ; =======================================================
 ; OSD (On-Screen Display) 操作反馈系统 (支持自定义时长)
 ; =======================================================
-ShowOSD(Text, DisplayTime := 1200) {  ; ★ 新增了 DisplayTime 参数，默认 1200ms
+ShowOSD(Text, DisplayTime := 1200, CompanionCue := "") {  ; 可指定某个快捷键的专属动画
     Global EnableOSD
     if (!EnableOSD)
         return
+
+    MaybeShowCompanion(Text, DisplayTime, CompanionCue)
 
     Gui, OSD:Destroy
     Gui, OSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhOSD +E0x20
@@ -1890,7 +2720,187 @@ ShowOSD(Text, DisplayTime := 1200) {  ; ★ 新增了 DisplayTime 参数，默�
 
     FadeOutOSD:
     Gui, OSD:Destroy
+    StopCompanionAnimation()
     return
+}
+
+MaybeShowCompanion(Text, DisplayTime, CompanionCue := "") {
+    global EnableCompanionOSD, EnableCompanionAnimation, CompanionChance
+        , CompanionCooldown, LastSuccessCompanionTick
+
+    ; 新提示到来时先清除旧表情，避免“处理中”的常驻图片残留。
+    StopCompanionAnimation()
+    SetTimer, HideCompanionOSD, Off
+
+    ; 菜单设置反馈不算成功提示，避免刚开启后立刻占用 15 秒冷却。
+    if (CompanionCue = "noCompanion")
+        return
+
+    if (!EnableCompanionOSD)
+        return
+
+    FeedbackType := ClassifyCompanionFeedback(Text)
+    if (FeedbackType = "question") {
+        CompanionFile := "companion_question.png"
+    } else if (FeedbackType = "busy") {
+        CompanionFile := "companion_busy.png"
+    } else {
+        CompanionFile := "companion_success.png"
+    }
+
+    if (FeedbackType = "success") {
+        if (CompanionChance <= 0)
+            return
+
+        ; “每次”档不受冷却限制；其他档仅统计成功表情的上次出现时间。
+        ; 中键四连击的专属动画跳过普通成功表情冷却，但仍接受概率筛选。
+        BypassCooldown := (CompanionCue = "atri2" && EnableCompanionAnimation)
+        if (!BypassCooldown && IsSuccessCompanionCoolingDown(CompanionChance, CompanionCooldown
+            , LastSuccessCompanionTick, A_TickCount))
+            return
+
+        Random, CompanionRoll, 1, 100
+        if (CompanionRoll > CompanionChance)
+            return
+    }
+
+    AnimationKind := (CompanionCue = "atri2" || CompanionCue = "atri3")
+        ? CompanionCue : "atri"
+    if (FeedbackType = "success" && EnableCompanionAnimation
+        && EnsureCompanionAnimationFrames(AnimationKind)) {
+        if (StartCompanionAnimation(DisplayTime, true, AnimationKind)) {
+            LastSuccessCompanionTick := A_TickCount
+            return
+        }
+    }
+
+    CompanionPath := GetTempPath(CompanionFile)
+    if (!FileExist(CompanionPath))
+        return
+
+    if (FeedbackType = "success")
+        LastSuccessCompanionTick := A_TickCount
+    ; 使用文字 OSD 的同一个 DisplayTime，并由文字 OSD 的淡出定时器统一关闭。
+    ShowCompanionOSD(CompanionPath, DisplayTime, true)
+}
+
+ClassifyCompanionFeedback(Text) {
+    ; 错误与无需操作优先于“正在”等进度词，避免混合提示归错类。
+    if (InStr(Text, "Error", false) || InStr(Text, "错误") || InStr(Text, "未选")
+        || InStr(Text, "无需") || InStr(Text, "不存在") || InStr(Text, "超时")
+        || InStr(Text, "失败") || InStr(Text, "请跨行选择")
+        || InStr(Text, "非 Python 文件"))
+        return "question"
+
+    if (InStr(Text, "正在") || InStr(Text, "稍候") || InStr(Text, "⏳"))
+        return "busy"
+
+    return "success"
+}
+
+IsSuccessCompanionCoolingDown(Chance, CooldownSeconds, LastTick, CurrentTick) {
+    if (Chance >= 100 || LastTick <= 0)
+        return false
+    return CurrentTick - LastTick < CooldownSeconds * 1000
+}
+
+EnsureCompanionAnimationFrames(AnimationKind := "atri") {
+    global CompanionAnimationCache
+    if (CompanionAnimationCache.HasKey(AnimationKind))
+        return true
+
+    if (AnimationKind = "atri") {
+        FrameCount := 30
+        FilePrefix := "atri_cat_"
+    } else if (AnimationKind = "atri2") {
+        FrameCount := 37
+        FilePrefix := "my_cat2_"
+    } else if (AnimationKind = "atri3") {
+        FrameCount := 44
+        FilePrefix := "my_cat3_"
+    } else {
+        return false
+    }
+
+    FramePaths := []
+    Loop, %FrameCount% {
+        FrameNumber := A_Index - 1
+        FileName := FilePrefix . (FrameNumber < 10 ? "0" : "") . FrameNumber . ".png"
+        FramePath := GetTempPath(FileName)
+        if (!FileExist(FramePath))
+            return false
+        FramePaths.Push(FramePath)
+    }
+
+    CompanionAnimationCache[AnimationKind] := FramePaths
+    return true
+}
+
+StopCompanionAnimation() {
+    global CompanionAnimationActive, CompanionAnimationLastFrame
+    SetTimer, AdvanceCompanionAnimation, Off
+    SetTimer, HideCompanionOSD, Off
+    CompanionAnimationActive := false
+    CompanionAnimationLastFrame := -1
+    Gui, CompanionOSD:Destroy
+}
+
+StartCompanionAnimation(DisplayTime, SyncWithText := false, AnimationKind := "atri") {
+    global CompanionAnimationActive, CompanionAnimationStartTick
+        , CompanionAnimationLastFrame, CompanionAnimationFrames
+        , CompanionAnimationFrameCount, CompanionAnimationCache, CompanionPicture
+    if (!EnsureCompanionAnimationFrames(AnimationKind))
+        return false
+
+    StopCompanionAnimation()
+    CompanionAnimationFrames := CompanionAnimationCache[AnimationKind]
+    CompanionAnimationFrameCount := CompanionAnimationFrames.Length()
+    ImageSize := 180
+    FirstFrame := CompanionAnimationFrames[1]
+    Gui, CompanionOSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhCompanionOSD +E0x20
+    Gui, CompanionOSD:Margin, 0, 0
+    Gui, CompanionOSD:Color, 010203
+    Gui, CompanionOSD:Add, Picture, vCompanionPicture x0 y0 w%ImageSize% h%ImageSize% BackgroundTrans, %FirstFrame%
+
+    SysGet, CompanionScreenH, 1
+    CompanionX := 45
+    CompanionY := Round(CompanionScreenH * 0.88) - ImageSize - 8
+    if (CompanionY < 0)
+        CompanionY := 0
+    Gui, CompanionOSD:Show, NoActivate x%CompanionX% y%CompanionY% w%ImageSize% h%ImageSize%
+    WinSet, TransColor, 010203 255, ahk_id %hCompanionOSD%
+
+    CompanionAnimationStartTick := A_TickCount
+    CompanionAnimationLastFrame := 0
+    CompanionAnimationActive := true
+    SetTimer, AdvanceCompanionAnimation, 10
+    if (!SyncWithText && DisplayTime > 0)
+        SetTimer, HideCompanionOSD, -%DisplayTime%
+    return true
+}
+
+ShowCompanionOSD(ImagePath, DisplayTime, SyncWithText := false) {
+    ImageSize := 180
+    StopCompanionAnimation()
+    Gui, CompanionOSD:New, +AlwaysOnTop +ToolWindow -Caption +HwndhCompanionOSD +E0x20
+    Gui, CompanionOSD:Margin, 0, 0
+    Gui, CompanionOSD:Color, 010203
+    Gui, CompanionOSD:Add, Picture, x0 y0 w%ImageSize% h%ImageSize% BackgroundTrans, %ImagePath%
+
+    SysGet, CompanionScreenW, 0
+    SysGet, CompanionScreenH, 1
+    CompanionX := 45
+    CompanionY := Round(CompanionScreenH * 0.88) - ImageSize - 8
+    if (CompanionY < 0)
+        CompanionY := 0
+
+    Gui, CompanionOSD:Show, NoActivate x%CompanionX% y%CompanionY% w%ImageSize% h%ImageSize%
+    WinSet, TransColor, 010203 255, ahk_id %hCompanionOSD%
+
+    SetTimer, HideCompanionOSD, Off
+    ; 托盘手动预览使用独立定时器；自动表情由文字 OSD 定时器同步关闭。
+    if (!SyncWithText && DisplayTime > 0)
+        SetTimer, HideCompanionOSD, -%DisplayTime%
 }
 
 ; =======================================================

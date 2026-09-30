@@ -5,7 +5,9 @@ SetBatchLines -1
 
 ; === 配置区域 ===
 ; 注意：这里我们让下载器自己计算路径，不再依赖主程序传参
-ExeURL := "https://github.com/Dengjiancong/Kedit_GO_to_Def/releases/latest/download/Kedit_GO_to_Def.exe"
+; 由主程序传入当前 Gitea Release 的附件地址。
+; 保留固定地址作为兼容回退，避免旧版主程序调用时没有参数。
+ExeURL := A_Args.Length() >= 1 ? A_Args[1] : "https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases/latest/download/Kedit_GO_to_Def.exe"
 ; Update_Temp.exe 保存到主程序目录（父进程目录）
 UpdateTempFile := A_ScriptDir . "\Update_Temp.exe" 
 ; 状态文件放在 Temp
