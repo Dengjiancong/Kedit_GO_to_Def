@@ -13,3 +13,8 @@
 !/MSTSC_Monitor.exe
 !/亚托莉猫猫Meme.gif
 !/Build-Kedit.cmd
+!/AHK+C# WPF中控方案.md
+!/Kedit.Console/
+!/Kedit.Console/**
+/Kedit.Console/bin/
+/Kedit.Console/obj/

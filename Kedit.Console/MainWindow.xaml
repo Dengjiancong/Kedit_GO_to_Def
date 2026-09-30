@@ -1,0 +1,79 @@
+<Window x:Class="Kedit.Console.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Kedit 中控" Width="1040" Height="640" MinWidth="760" MinHeight="480"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ShowInTaskbar="True">
+  <Window.Resources>
+    <Style x:Key="RoundButton" TargetType="Button">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Background" Value="#333E506B"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border Background="{TemplateBinding Background}" CornerRadius="17">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+  <Border Margin="14" CornerRadius="22" Background="#101923" BorderBrush="#364F69" BorderThickness="1">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="26" ShadowDepth="4" Opacity="0.55" Color="#000000"/>
+    </Border.Effect>
+    <Grid ClipToBounds="True">
+      <Grid.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#142A3B" Offset="0"/>
+          <GradientStop Color="#0C1421" Offset="0.55"/>
+          <GradientStop Color="#26434C" Offset="1"/>
+        </LinearGradientBrush>
+      </Grid.Background>
+      <MediaElement x:Name="BackgroundVideo" LoadedBehavior="Manual" UnloadedBehavior="Manual"
+                    Stretch="UniformToFill" Volume="0" IsHitTestVisible="False" MediaEnded="BackgroundVideo_MediaEnded"
+                    MediaFailed="BackgroundVideo_MediaFailed"/>
+      <Rectangle IsHitTestVisible="False">
+        <Rectangle.Fill>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#E5101926" Offset="0"/>
+            <GradientStop Color="#99101926" Offset="0.5"/>
+            <GradientStop Color="#50101926" Offset="1"/>
+          </LinearGradientBrush>
+        </Rectangle.Fill>
+      </Rectangle>
+      <Grid Margin="42,30,42,34" MouseLeftButtonDown="DragArea_MouseLeftButtonDown">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid>
+          <TextBlock Text="KEDIT" FontSize="25" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Style="{StaticResource RoundButton}" Content="−" Click="MinimizeButton_Click" Margin="0,0,10,0"/>
+            <Button Style="{StaticResource RoundButton}" Content="×" Click="CloseButton_Click"/>
+          </StackPanel>
+        </Grid>
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" MaxWidth="540" HorizontalAlignment="Left">
+          <TextBlock Text="Kedit 中控" FontSize="54" FontWeight="Bold" Foreground="White"/>
+          <TextBlock Text="快捷键助手 · 图形控制台" FontSize="20" Foreground="#D8E6F5" Margin="4,8,0,0"/>
+          <Border Background="#AA122335" CornerRadius="13" Padding="20,16" Margin="0,32,0,0">
+            <StackPanel>
+              <TextBlock Text="第一阶段预览" FontSize="16" FontWeight="SemiBold" Foreground="#FFDD38"/>
+              <TextBlock Text="视频背景、圆角窗口和拖动已由 WPF 承载。快捷键与设置仍由 Kedit 主程序管理。"
+                         FontSize="14" Foreground="White" TextWrapping="Wrap" Margin="0,9,0,0"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+        <TextBlock Grid.Row="2" Text="Kedit Console  ·  Phase 1" FontSize="13" Foreground="#C1D4E8"/>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

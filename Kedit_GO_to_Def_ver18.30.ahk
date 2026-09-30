@@ -56,6 +56,7 @@ IniRead, Path_QuickOpen, %IniFile%, Settings, QuickPath, Z:\misc\testing\ATE\K2
 
 ; 读取 OSD 开关设置 (默认开启 = 1)
 IniRead, EnableOSD,      %IniFile%, Settings, EnableOSD, 1
+IniRead, EnableAutoUpdateCheck, %IniFile%, Settings, EnableAutoUpdateCheck, 0
 IniRead, EnableCompanionOSD, %IniFile%, Settings, EnableCompanionOSD, 0
 IniRead, CompanionChance, %IniFile%, Settings, CompanionChance, 15
 IniRead, CompanionCooldown, %IniFile%, Settings, CompanionCooldown, 15
@@ -143,7 +144,13 @@ Menu, Tray, Add, 预览陪伴表情, :CompanionPreviewMenu
 Menu, Tray, Add, 恢复默认快捷键设置, RestoreDefaults
 Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 启动 MSTSC 监控, LaunchMSTSCMonitor
+Menu, Tray, Add, 打开 Kedit 中控, LaunchKeditConsole
 Menu, Tray, Add, 检查更新, CheckForUpdate
+Menu, Tray, Add, 自动检查更新, ToggleAutoUpdateCheck
+if (EnableAutoUpdateCheck = 1)
+    Menu, Tray, Check, 自动检查更新
+else
+    Menu, Tray, Uncheck, 自动检查更新
 Menu, Tray, Add, 关于 Kedit 助手, ShowAboutGui
 Menu, Tray, Add  ; 分隔线
 Menu, Tray, Add, 重启脚本, ReloadScript
@@ -186,8 +193,10 @@ if (!extensionsModified) {
 
 ; 脚本启动后 300ms 开始后台预释放资源，避免开界面时才触发 FileInstall 的 I/O 卡顿
 SetTimer, PreinstallAssets, -300
-SetTimer, AutoCheckForUpdateInitial, -30000
-SetTimer, AutoCheckForUpdate, 21600000
+if (EnableAutoUpdateCheck = 1) {
+    SetTimer, AutoCheckForUpdateInitial, -30000
+    SetTimer, AutoCheckForUpdate, 21600000
+}
 return
 
 ; =======================================================
@@ -1955,6 +1964,42 @@ LaunchMSTSCMonitor:
     ShowOSD("MSTSC 监控已启动", 1200, "noCompanion")
 return
 
+ToggleAutoUpdateCheck:
+    EnableAutoUpdateCheck := !EnableAutoUpdateCheck
+    IniWrite, %EnableAutoUpdateCheck%, %IniFile%, Settings, EnableAutoUpdateCheck
+    if (EnableAutoUpdateCheck) {
+        Menu, Tray, Check, 自动检查更新
+        SetTimer, AutoCheckForUpdateInitial, -30000
+        SetTimer, AutoCheckForUpdate, 21600000
+        ShowOSD("自动检查更新已开启", 1200, "noCompanion")
+    } else {
+        Menu, Tray, Uncheck, 自动检查更新
+        SetTimer, AutoCheckForUpdateInitial, Off
+        SetTimer, AutoCheckForUpdate, Off
+        ShowOSD("自动检查更新已关闭", 1200, "noCompanion")
+    }
+return
+
+LaunchKeditConsole:
+    ConsolePath := A_ScriptDir . "\Kedit.Console\bin\Release\Kedit.Console.exe"
+    if (!FileExist(ConsolePath)) {
+        MsgBox, 48, Kedit 中控, 尚未找到 WPF 中控程序。`n请先构建:`n%ConsolePath%
+        return
+    }
+
+    if WinExist("ahk_exe Kedit.Console.exe") {
+        WinActivate
+        return
+    }
+
+    ConsoleVideoPath := GetTempPath("side.mp4")
+    Run, "%ConsolePath%" "%ConsoleVideoPath%", , UseErrorLevel, KeditConsolePID
+    if (ErrorLevel) {
+        MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
+        return
+    }
+return
+
 AutoCheckForUpdateInitial:
 AutoCheckForUpdate:
     SilentUpdateCheck := true
@@ -2151,7 +2196,8 @@ IsVersionNewer(Candidate, Installed) {
 }
 
 ParseKeditVersion(Version) {
-    if (!RegExMatch(Version, "i)^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-Meme\.v(\d+))?$", Match))
+    ; 允许测试标签后缀，例如 v18.30-Meme.v100_for_test。
+    if (!RegExMatch(Version, "i)^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-Meme\.v(\d+))?(?:[_-].*)?$", Match))
         return false
     ; 历史版本 v18.30-Meme.v009 与 Release v18.30.0 共存。
     ; Meme 修订号作为第 4 段比较，三段式 Release 的该段为 0。
