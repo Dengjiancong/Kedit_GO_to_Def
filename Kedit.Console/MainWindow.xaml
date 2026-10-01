@@ -31,6 +31,16 @@
           </ControlTemplate>
         </Setter.Value>
       </Setter>
+      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#AA6C570D"/></Trigger></Style.Triggers>
+    </Style>
+    <Style x:Key="ActionButton" TargetType="Button">
+      <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#66334255"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="13,7"/><Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}" CornerRadius="14" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value></Setter>
+      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#B88C6900"/></Trigger></Style.Triggers>
+    </Style>
+    <Style x:Key="RoundedTextBox" TargetType="TextBox">
+      <Setter Property="Foreground" Value="#172433"/><Setter Property="Background" Value="#F5F7FA"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="8,7"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border Background="{TemplateBinding Background}" CornerRadius="12" Padding="{TemplateBinding Padding}"><ScrollViewer x:Name="PART_ContentHost"/></Border></ControlTemplate></Setter.Value></Setter>
     </Style>
   </Window.Resources>
   <Border x:Name="RootCard" Margin="14" CornerRadius="22" Background="#101923" BorderBrush="#364F69" BorderThickness="1" SizeChanged="RootCard_SizeChanged">
@@ -67,7 +77,7 @@
           </ScrollViewer>
           <Grid x:Name="DetailPage" Visibility="Collapsed">
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-            <Button Content="← 返回列表" Click="Back_Click" HorizontalAlignment="Left" Padding="10,5"/>
+            <Button Style="{StaticResource RoundButton}" Content="←" ToolTip="返回列表" Click="Back_Click" HorizontalAlignment="Left"/>
             <Grid Grid.Row="1" Margin="0,20,0,0">
               <Grid.ColumnDefinitions><ColumnDefinition Width="1.3*"/><ColumnDefinition Width="0.9*"/></Grid.ColumnDefinitions>
               <Border Background="#AA1A2C3E" CornerRadius="18" Padding="16" Margin="0,0,16,0" BorderBrush="#334D6478" BorderThickness="1">
@@ -86,11 +96,11 @@
                   <TextBlock x:Name="DetailTitle" Foreground="White" FontSize="22" FontWeight="Bold" TextWrapping="Wrap"/>
                   <TextBlock x:Name="DetailDescription" Foreground="#BFD8EF" TextWrapping="Wrap" Margin="0,12,0,22"/>
                   <TextBlock Text="当前快捷键" Foreground="#BFD8EF"/>
-                  <TextBox x:Name="HotkeyInput" FontSize="20" Padding="8,7" Margin="0,7,0,9" IsReadOnly="True" PreviewKeyDown="HotkeyInput_PreviewKeyDown" PreviewMouseDown="HotkeyInput_PreviewMouseDown"/>
+                  <TextBox x:Name="HotkeyInput" Style="{StaticResource RoundedTextBox}" FontSize="20" Margin="0,7,0,9" IsReadOnly="True" PreviewKeyDown="HotkeyInput_PreviewKeyDown" PreviewMouseDown="HotkeyInput_PreviewMouseDown"/>
                   <TextBlock Text="点击输入框，然后按下键盘组合键或鼠标侧键。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12"/>
                   <StackPanel Orientation="Horizontal" Margin="0,25,0,0">
-                    <Button Content="保存快捷键" Click="SaveHotkey_Click" Padding="13,7" Margin="0,0,8,0"/>
-                    <Button Content="恢复默认" Click="RestoreDefault_Click" Padding="13,7"/>
+                    <Button Style="{StaticResource ActionButton}" Content="保存快捷键" Click="SaveHotkey_Click"/>
+                    <Button Style="{StaticResource ActionButton}" Content="恢复默认" Click="RestoreDefault_Click"/>
                   </StackPanel>
                 </StackPanel>
               </Border>
