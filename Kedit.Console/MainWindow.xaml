@@ -3,10 +3,19 @@
         WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ShowInTaskbar="True" Loaded="MainWindow_Loaded">
   <Window.Resources>
     <Style x:Key="NavButton" TargetType="Button">
-      <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#283E51"/>
+      <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#66334B61"/>
       <Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="14,12"/>
       <Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Margin" Value="0,0,0,8"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border Background="{TemplateBinding Background}" CornerRadius="9" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
   </Window.Resources>
   <Border x:Name="RootCard" Margin="14" CornerRadius="22" Background="#101923" BorderBrush="#364F69" BorderThickness="1" SizeChanged="RootCard_SizeChanged">
@@ -14,7 +23,7 @@
     <Grid Background="#101923">
       <Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <MediaElement x:Name="BackgroundVideo" Grid.ColumnSpan="2" LoadedBehavior="Manual" UnloadedBehavior="Manual" Stretch="UniformToFill" Opacity="0.38" IsHitTestVisible="False"/>
-      <Border Background="#132234" Padding="22,30">
+      <Border Background="#66132234" CornerRadius="18" Margin="10" Padding="22,30" BorderBrush="#334D6478" BorderThickness="1">
         <StackPanel>
           <TextBlock Text="KEDIT" FontSize="25" FontWeight="Bold" Foreground="White" Margin="0,0,0,26"/>
           <TextBlock Text="功能分类" Foreground="#91ABC1" Margin="0,0,0,10"/>
