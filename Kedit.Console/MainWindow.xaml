@@ -6,22 +6,25 @@
       <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#66334255"/>
       <Setter Property="BorderThickness" Value="0"/><Setter Property="Width" Value="34"/><Setter Property="Height" Value="34"/>
       <Setter Property="FontSize" Value="16"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1" ScaleY="1"/></Setter.Value></Setter>
       <Setter Property="Template">
         <Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}" CornerRadius="17"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value>
       </Setter>
-      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#B88C6900"/></Trigger></Style.Triggers>
+      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#B88C6900"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="#E0A87800"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.92" ScaleY="0.92"/></Setter.Value></Setter></Trigger></Style.Triggers>
     </Style>
     <Style x:Key="ShortcutButton" TargetType="Button">
       <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#CC1B3044"/>
       <Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="16,13"/><Setter Property="Margin" Value="0,0,16,10"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1" ScaleY="1"/></Setter.Value></Setter>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}" CornerRadius="12" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border></ControlTemplate></Setter.Value></Setter>
-      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#CC6C570D"/></Trigger></Style.Triggers>
+      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#CC6C570D"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="#E0A87800"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.97" ScaleY="0.97"/></Setter.Value></Setter></Trigger></Style.Triggers>
     </Style>
     <Style x:Key="NavButton" TargetType="Button">
       <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#66334B61"/>
       <Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="14,12"/>
       <Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Margin" Value="0,0,0,8"/>
+      <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1" ScaleY="1"/></Setter.Value></Setter>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
@@ -31,12 +34,13 @@
           </ControlTemplate>
         </Setter.Value>
       </Setter>
-      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#AA6C570D"/></Trigger></Style.Triggers>
+      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#AA6C570D"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="#E0A87800"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.96" ScaleY="0.96"/></Setter.Value></Setter></Trigger></Style.Triggers>
     </Style>
     <Style x:Key="ActionButton" TargetType="Button">
       <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#66334255"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="13,7"/><Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1" ScaleY="1"/></Setter.Value></Setter>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}" CornerRadius="14" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value></Setter>
-      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#B88C6900"/></Trigger></Style.Triggers>
+      <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#B88C6900"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="#E0A87800"/><Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.94" ScaleY="0.94"/></Setter.Value></Setter></Trigger></Style.Triggers>
     </Style>
     <Style x:Key="RoundedTextBox" TargetType="TextBox">
       <Setter Property="Foreground" Value="#172433"/><Setter Property="Background" Value="#F5F7FA"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="8,7"/>
@@ -47,7 +51,7 @@
     <Border.Effect><DropShadowEffect BlurRadius="26" ShadowDepth="4" Opacity="0.55" Color="#000000"/></Border.Effect>
     <Grid Background="#101923">
       <Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <MediaElement x:Name="BackgroundVideo" Grid.ColumnSpan="2" LoadedBehavior="Manual" UnloadedBehavior="Manual" Stretch="UniformToFill" Opacity="0.45" IsHitTestVisible="False" MediaEnded="BackgroundVideo_MediaEnded"/>
+      <MediaElement x:Name="BackgroundVideo" Grid.ColumnSpan="2" LoadedBehavior="Manual" UnloadedBehavior="Manual" Stretch="UniformToFill" Opacity="0.60" IsHitTestVisible="False" MediaEnded="BackgroundVideo_MediaEnded"/>
       <Border Background="#66132234" CornerRadius="18" Margin="10" Padding="22,30" BorderBrush="#334D6478" BorderThickness="1">
         <StackPanel>
           <TextBlock Text="KEDIT" FontSize="25" FontWeight="Bold" Foreground="White" Margin="0,0,0,26"/>
@@ -72,7 +76,7 @@
           <ScrollViewer x:Name="ListPage" VerticalScrollBarVisibility="Auto">
             <StackPanel>
               <TextBlock x:Name="CategoryDescription" Foreground="#BFD8EF" FontSize="14" Margin="0,0,0,18" TextWrapping="Wrap"/>
-              <Border Background="#AA0B1726" CornerRadius="18" Padding="14" Margin="0,76,0,0" BorderBrush="#334D6478" BorderThickness="1">
+              <Border Background="#AA0B1726" CornerRadius="18" Padding="14" Margin="0,285,0,0" BorderBrush="#334D6478" BorderThickness="1">
                 <StackPanel>
                   <DockPanel Margin="4,0,4,12">
                     <TextBlock Text="快捷键功能" Foreground="#FFDD38" FontSize="15" FontWeight="SemiBold"/>
