@@ -129,7 +129,7 @@ namespace Kedit.Console
             foreach (var item in shortcuts)
             {
                 if (item.Category != newCategory) continue;
-                var button = new Button { Tag = item, Width = 350, HorizontalContentAlignment = HorizontalAlignment.Stretch, Style = (Style)FindResource("ShortcutButton") };
+                var button = new Button { Tag = item, Width = 330, HorizontalContentAlignment = HorizontalAlignment.Stretch, Style = (Style)FindResource("ShortcutButton") };
                 var row = new DockPanel();
                 row.Children.Add(new TextBlock { Text = currentKeys[item.Key] + "  ›", Foreground = Brushes.Gold, FontSize = 15, HorizontalAlignment = HorizontalAlignment.Right });
                 DockPanel.SetDock(row.Children[0], Dock.Right);
