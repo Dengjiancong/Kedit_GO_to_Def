@@ -152,7 +152,8 @@ namespace Kedit.Console
             DetailTitle.Text = item.Title;
             DetailDescription.Text = item.Description;
             HotkeyInput.Text = currentKeys[item.Key];
-            string path = Path.Combine(Path.GetTempPath(), "Kedit_Media", "shortcuts", item.VideoFile);
+            // 当前样板统一使用 update_bg.mp4；后续再按快捷键替换为独立演示视频。
+            string path = Path.Combine(Path.GetTempPath(), "Kedit_Media", "update_bg.mp4");
             VideoPathHint.Text = "演示视频：" + path;
             DemoVideo.Stop();
             DemoVideo.Source = null;

@@ -2,6 +2,14 @@
         Title="Kedit 中控" Width="1080" Height="670" MinWidth="850" MinHeight="540"
         WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ShowInTaskbar="True" Loaded="MainWindow_Loaded">
   <Window.Resources>
+    <Style x:Key="RoundButton" TargetType="Button">
+      <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#66334255"/>
+      <Setter Property="BorderThickness" Value="0"/><Setter Property="Width" Value="34"/><Setter Property="Height" Value="34"/>
+      <Setter Property="FontSize" Value="16"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}" CornerRadius="17"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value>
+      </Setter>
+    </Style>
     <Style x:Key="NavButton" TargetType="Button">
       <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#66334B61"/>
       <Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="14,12"/>
@@ -39,8 +47,8 @@
         <Grid Background="Transparent" MouseLeftButtonDown="Header_MouseLeftButtonDown">
           <TextBlock x:Name="PageTitle" Text="Kedit 快捷键" FontSize="27" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="−" Width="34" Height="32" Click="MinimizeButton_Click" Margin="0,0,8,0"/>
-            <Button Content="×" Width="34" Height="32" Click="CloseButton_Click"/>
+            <Button Style="{StaticResource RoundButton}" Content="−" Click="MinimizeButton_Click" Margin="0,0,8,0"/>
+            <Button Style="{StaticResource RoundButton}" Content="×" Click="CloseButton_Click"/>
           </StackPanel>
         </Grid>
         <Grid Grid.Row="1" Margin="0,24,0,10">
@@ -55,7 +63,7 @@
             <Button Content="← 返回列表" Click="Back_Click" HorizontalAlignment="Left" Padding="10,5"/>
             <Grid Grid.Row="1" Margin="0,20,0,0">
               <Grid.ColumnDefinitions><ColumnDefinition Width="1.3*"/><ColumnDefinition Width="0.9*"/></Grid.ColumnDefinitions>
-              <Border Background="#1A2C3E" CornerRadius="14" Padding="16" Margin="0,0,16,0">
+              <Border Background="#AA1A2C3E" CornerRadius="18" Padding="16" Margin="0,0,16,0" BorderBrush="#334D6478" BorderThickness="1">
                 <Grid>
                   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                   <TextBlock Text="演示视频" Foreground="#FFDD38" FontSize="17" FontWeight="SemiBold"/>
@@ -66,7 +74,7 @@
                   <TextBlock x:Name="VideoPathHint" Grid.Row="2" Foreground="#91ABC1" FontSize="12" TextWrapping="Wrap"/>
                 </Grid>
               </Border>
-              <Border Grid.Column="1" Background="#1A2C3E" CornerRadius="14" Padding="20">
+              <Border Grid.Column="1" Background="#AA1A2C3E" CornerRadius="18" Padding="20" BorderBrush="#334D6478" BorderThickness="1">
                 <StackPanel>
                   <TextBlock x:Name="DetailTitle" Foreground="White" FontSize="22" FontWeight="Bold" TextWrapping="Wrap"/>
                   <TextBlock x:Name="DetailDescription" Foreground="#BFD8EF" TextWrapping="Wrap" Margin="0,12,0,22"/>
