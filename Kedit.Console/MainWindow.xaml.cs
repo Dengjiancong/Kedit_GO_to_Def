@@ -129,7 +129,7 @@ namespace Kedit.Console
             foreach (var item in shortcuts)
             {
                 if (item.Category != newCategory) continue;
-                var button = new Button { Tag = item, HorizontalContentAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 0, 10), Padding = new Thickness(16, 13, 16, 13), Background = new SolidColorBrush(Color.FromRgb(27, 44, 61)), BorderThickness = new Thickness(0), Cursor = Cursors.Hand };
+                var button = new Button { Tag = item, HorizontalContentAlignment = HorizontalAlignment.Stretch, Style = (Style)FindResource("ShortcutButton") };
                 var row = new DockPanel();
                 row.Children.Add(new TextBlock { Text = currentKeys[item.Key] + "  ›", Foreground = Brushes.Gold, FontSize = 15, HorizontalAlignment = HorizontalAlignment.Right });
                 DockPanel.SetDock(row.Children[0], Dock.Right);
@@ -169,6 +169,7 @@ namespace Kedit.Console
         private void Back_Click(object sender, RoutedEventArgs e) { selected = null; ShowCategory(category); }
         private void DemoVideo_MediaEnded(object sender, RoutedEventArgs e) { DemoVideo.Position = TimeSpan.Zero; DemoVideo.Play(); }
         private void DemoVideo_MediaFailed(object sender, ExceptionRoutedEventArgs e) { VideoPlaceholder.Visibility = Visibility.Visible; }
+        private void BackgroundVideo_MediaEnded(object sender, RoutedEventArgs e) { BackgroundVideo.Position = TimeSpan.Zero; BackgroundVideo.Play(); }
 
         private void HotkeyInput_PreviewKeyDown(object sender, KeyEventArgs e)
         {
