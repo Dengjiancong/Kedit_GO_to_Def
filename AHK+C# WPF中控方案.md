@@ -44,17 +44,17 @@
 
 ## 阶段三补充：快捷键专属控制页面（当前样板）
 
-中控不把所有快捷键长期堆在同一页。主窗口作为功能入口，按分类显示快捷键卡片；点击卡片后进入对应的专属控制页面。每个页面可以配置独立演示视频、快捷键录入、功能说明、启用状态、保存和恢复默认按钮。
+中控左侧按托盘菜单分段显示分类：Kedit 快捷键、Visual Studio、其他快捷键、通用设置。右侧先显示该分类的功能列表；点击快捷键后，在同一个主窗口内切换为左侧演示视频、右侧快捷键录入和保存设置。返回列表和切换分类都不打开独立弹窗。
 
 推荐结构：
 
 ```text
 MainWindow
- ├─ HomePage                 主中控和功能卡片
- ├─ GoToDefinitionPage      定义/跳转
- ├─ VisualStudioBookmarkPage Visual Studio 书签
- ├─ TextEditingPage         文本编辑
- └─ SettingsPage             更新、OSD 和其他设置
+ ├─ 左侧分类导航
+ └─ 右侧内容区
+     ├─ 分类功能列表
+     ├─ 单项快捷键详情：左演示，右设置
+     └─ 通用设置：自动更新和 OSD 开关
 ```
 
 视频按功能单独存放，例如：
@@ -62,12 +62,13 @@ MainWindow
 ```text
 Kedit_Media\shortcuts\
  ├─ go_to_definition.mp4
- ├─ vs_bookmark.mp4
+ ├─ vs_bookmark_toggle.mp4
  ├─ vs_bookmark_next.mp4
+ ├─ vs_bookmark_previous.mp4
  └─ vs_redo.mp4
 ```
 
-当前先实现 Visual Studio 书签专属页面作为完整样板，包含书签设置/取消、下一个书签、上一个书签三个快捷键的录入与保存，并预留 `vs_bookmark.mp4` 视频位置。样板验证通过后，再按同一页面结构扩展其他快捷键分类。
+当前样板已经在同一个 `MainWindow` 内支持定义跳转、Visual Studio 三项书签和重做的单项详情与录入。演示视频从 `%TEMP%\Kedit_Media\shortcuts\` 按文件名加载；不存在时显示占位提示。“其他快捷键”分类暂时只显示说明，待样板确认后再逐项接入 AHK 状态和设置命令。原 `BookmarkWindow` 独立弹窗已移除。
 
 ## 阶段四：发布集成
 
