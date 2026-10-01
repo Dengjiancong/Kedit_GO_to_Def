@@ -47,7 +47,7 @@
     <Border.Effect><DropShadowEffect BlurRadius="26" ShadowDepth="4" Opacity="0.55" Color="#000000"/></Border.Effect>
     <Grid Background="#101923">
       <Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <MediaElement x:Name="BackgroundVideo" Grid.ColumnSpan="2" LoadedBehavior="Manual" UnloadedBehavior="Manual" Stretch="UniformToFill" Opacity="0.38" IsHitTestVisible="False" MediaEnded="BackgroundVideo_MediaEnded"/>
+      <MediaElement x:Name="BackgroundVideo" Grid.ColumnSpan="2" LoadedBehavior="Manual" UnloadedBehavior="Manual" Stretch="UniformToFill" Opacity="0.30" IsHitTestVisible="False" MediaEnded="BackgroundVideo_MediaEnded" RenderOptions.BitmapScalingMode="LowQuality"/>
       <Border Background="#66132234" CornerRadius="18" Margin="10" Padding="22,30" BorderBrush="#334D6478" BorderThickness="1">
         <StackPanel>
           <TextBlock Text="KEDIT" FontSize="25" FontWeight="Bold" Foreground="White" Margin="0,0,0,26"/>
@@ -72,7 +72,15 @@
           <ScrollViewer x:Name="ListPage" VerticalScrollBarVisibility="Auto">
             <StackPanel>
               <TextBlock x:Name="CategoryDescription" Foreground="#BFD8EF" FontSize="14" Margin="0,0,0,18" TextWrapping="Wrap"/>
-              <StackPanel x:Name="ShortcutList"/>
+              <Border Background="#AA0B1726" CornerRadius="18" Padding="14" BorderBrush="#334D6478" BorderThickness="1">
+                <StackPanel>
+                  <DockPanel Margin="4,0,4,12">
+                    <TextBlock Text="快捷键功能" Foreground="#FFDD38" FontSize="15" FontWeight="SemiBold"/>
+                    <TextBlock DockPanel.Dock="Right" Text="选择项目查看详情" Foreground="#91ABC1" FontSize="12" VerticalAlignment="Center"/>
+                  </DockPanel>
+                  <WrapPanel x:Name="ShortcutList"/>
+                </StackPanel>
+              </Border>
             </StackPanel>
           </ScrollViewer>
           <Grid x:Name="DetailPage" Visibility="Collapsed">
