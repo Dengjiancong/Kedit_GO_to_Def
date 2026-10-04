@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const PetInteractions = require("../Kedit.Console/PetWeb/pet-interactions.js");
 let now = 0;
 global.performance = { now: () => now };
-const defaults = { mouseFollow:true, headFollow:true, typingEnabled:true, typingScope:"editors", followAmount:45, followSensitivity:2, followSpeed:1.5 };
+const defaults = { mouseFollow:true, headFollow:true, typingEnabled:true, typingScope:"editors", followAmount:45, followSensitivity:2, followSpeed:1.5, scrollRate:600, scrollSeconds:5 };
 async function fixture(eyes = true, keyboard = true) {
     const ids = ["ParamAngleX","ParamAngleY","ParamExpression7","ParamExpression12","ParamExpression13","ParamExpression14","ParamExpression15","Clothes", ...(eyes ? ["ParamEyeBallX","ParamEyeBallY"] : [])];
     const values = ids.map(() => 0); values[3]=.2; values[7]=.8;
@@ -18,7 +18,7 @@ async function fixture(eyes = true, keyboard = true) {
     };
     const manager = { finished:true, isFinished() { return this.finished; } };
     const model = { internalModel:{ coreModel:core, motionManager:manager, on:(n,fn)=>{events[n]=fn;} } };
-    global.fetch = async () => ({ok:true,json:async()=>({Curves:ids.slice(2,7).map(Id=>({Target:"Parameter",Id}))})});
+    global.fetch = async () => ({ok:true,json:async()=>({Meta:{Duration:2.4},Curves:ids.slice(2,7).map(Id=>({Target:"Parameter",Id,Segments:[0,0,0,.2,0,1,.4,0,.6,20,.8,30,0,2.4,60]}))})});
     const subject = new PetInteractions(model,{FileReferences:{Motions:keyboard ? {"": [{File:"motion-keyboard.motion3.json"}]} : {}}},"https://model.kedit.local/test.model3.json",m=>messages.push(m));
     await subject.ready; subject.configure(defaults);
     const press = (count=1) => subject.receive({x:1,y:-1,presses:count});
@@ -28,7 +28,8 @@ async function fixture(eyes = true, keyboard = true) {
         subject.update(dt); base.forEach((v,i)=>{values[i]=v;}); events.beforeModelUpdate();
     };
     const advance = (ms, fps=60, heartbeat=true) => { let left=ms; while(left>.00001) {const dt=Math.min(left,1000/fps);frame(dt,heartbeat);left-=dt;} };
-    return {subject,values,core,press,advance,frame,messages,manager};
+    const typeFor = (ms,interval=80,fps=60) => { for(let t=0;t<ms;t+=interval){press();advance(Math.min(interval,ms-t),fps);} };
+    return {subject,values,core,press,advance,frame,messages,manager,typeFor};
 }
 (async()=>{
     const f=await fixture(), s=f.subject;
@@ -42,10 +43,14 @@ async function fixture(eyes = true, keyboard = true) {
     f.advance(900); assert(f.values[0]>0,"Head must follow while keyboard is retained");
     for(let i=0;i<4;i++){f.press();f.advance(400);assert.equal(s.textWeight,0,"Slow input must not reveal text");}
     for(let i=0;i<8;i++){f.press();f.advance(110);}
-    assert(s.textWeight>.5,"Fast input must reveal text");
-    const strokes=s.strokeCount; f.advance(250); assert(s.textWeight>0 && s.textWeight<1,"Text should fade instead of vanish");
-    assert(f.core.getDrawableOpacity(0)>0 && f.core.getDrawableOpacity(0)<1);assert.equal(f.core.getDrawableOpacity(1),1);
-    f.advance(250); assert.equal(s.typing,false); assert.equal(s.textWeight,0); assert.equal(s.strokeCount,strokes);
+    assert.equal(s.textWeight,0,"A short burst must not reveal text");
+    f.advance(500); f.typeFor(6400);
+    assert.equal(s.textWeight,1,"Sustained fast input must start a rolling cycle");
+    const cycle=s.cycleStart, value=s.textValue, strokes=s.strokeCount;
+    f.advance(500); assert.equal(s.typing,false); assert.equal(s.textWeight,1,"Stopping must not cut the current cycle short");
+    assert(s.textValue>value,"Text must continue moving after input stops"); assert.equal(s.cycleStart,cycle);
+    assert.equal(f.core.getDrawableOpacity(0),1);assert.equal(f.core.getDrawableOpacity(1),1);
+    f.advance(2500); assert.equal(s.textWeight,0); assert.equal(s.strokeCount,strokes);
     assert.equal(s.keyboardWeight,1); assert.equal(f.values[7],.8,"Appearance must not be reset");
     now=s.lastKey+59990; f.frame(1); assert.equal(s.keyboardWeight,1);
     f.press(); f.advance(200); assert.equal(s.keyboardWeight,1,"A new key must renew retention");
@@ -61,10 +66,29 @@ async function fixture(eyes = true, keyboard = true) {
     s.configure({...defaults,headFollow:false});f.advance(1000);assert(Math.abs(f.values[0])<.001);
     s.configure({...defaults,mouseFollow:false});f.advance(1000);assert(Math.abs(f.values[8])<.001);
     const fallback=await fixture(false,false);fallback.advance(700);assert(fallback.values[0]>0);fallback.press();fallback.advance(100);assert.equal(fallback.subject.typing,false);
+    const adjustable=await fixture(); const a=adjustable.subject;
+    a.configure({...defaults,scrollSeconds:6}); adjustable.typeFor(6500);assert.equal(a.cycleStart,null,"Six-second setting fired early");
+    adjustable.typeFor(900);assert.notEqual(a.cycleStart,null); const prior=a.cycleStart;
+    adjustable.typeFor(2500);assert(a.cycleStart>prior,"Sustained input should loop the original cycle");
+    a.configure({...defaults,scrollRate:1500,scrollSeconds:6});assert.equal(a.qualifiedSeconds,0);
+    adjustable.typeFor(3000);assert.equal(a.cycleStart,null,"New higher threshold inherited an old streak");
+    const interrupted=await fixture();interrupted.typeFor(4000);interrupted.advance(500);interrupted.typeFor(4000);
+    assert.equal(interrupted.subject.cycleStart,null,"Separated bursts must not accumulate");
+    interrupted.typeFor(2500);assert.notEqual(interrupted.subject.cycleStart,null);
+    const boundary=await fixture();boundary.typeFor(6400);
+    const end=boundary.subject.cycleStart+boundary.subject.textDuration*1000;
+    boundary.typeFor(end-now-80);boundary.advance(200);
+    assert.equal(boundary.subject.cycleStart,null,"Stopping just before the cycle boundary must not start an extra cycle");
+    const curve=PetInteractions.motionCurve([0,0,1,.1,0,.2,1,1,1]);
+    assert(Math.abs(curve(.2375)-.5)<.000001,"Bezier timing must use authored x controls");
+    assert.equal(curve(-1),0);assert.equal(curve(2),1);
+    assert.throws(()=>PetInteractions.motionCurve([0,0,9,1,1]));
     for(const fps of [30,60,90,120]){
         const g=await fixture();g.press();g.advance(250,fps);assert.equal(g.subject.typing,false);assert.equal(g.subject.keyboardWeight,1);
         g.advance(800,fps,false);assert.equal(g.subject.typing,false);
+        g.typeFor(6400,80,fps);assert.equal(g.subject.textWeight,1,"Sustained gate must work at every FPS");
+        g.advance(3000,fps);assert.equal(g.subject.textWeight,0);
         now=g.subject.lastKey+60001;g.advance(300,fps);assert.equal(g.subject.keyboardWeight,0);
     }
-    console.log("PASS: one key/one stroke, slow/fast text separation and opacity, no backlog, 60s renewal/expiry, retained-keyboard gaze, defaults/limits, pause/resume/scope/disable cleanup, appearance preservation, missing mapping and 30/60/90/120 timing.");
+    console.log("PASS: single strokes, configurable sustained speed, short/interrupted bursts rejected, authored Bezier scroll, complete final cycle, live setting changes, looping, 60s retention, gaze, lifecycle and 30/60/90/120 timing.");
 })().catch(error=>{console.error(error);process.exitCode=1;});

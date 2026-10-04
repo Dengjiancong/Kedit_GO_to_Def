@@ -30,7 +30,27 @@ namespace Kedit.Console
         public void ResetInteractions()
         {
             Settings.FollowAmount = 45; Settings.FollowSensitivity = 2; Settings.FollowSpeed = 1.5;
+            Settings.ScrollRate = 600; Settings.ScrollSeconds = 5;
             SetInteractions(true, true, true, "editors");
+        }
+        public void SetScroll(int rate, int seconds)
+        {
+            Settings.ScrollRate = Math.Max(60, Math.Min(3000, rate));
+            Settings.ScrollSeconds = Math.Max(1, Math.Min(30, seconds));
+            SetTypingMetrics(null, 0, false);
+            if (window != null) window.ApplyInteractions(false);
+            Save(); RaiseChanged();
+        }
+        private double? typingRate;
+        private double qualifyingSeconds;
+        private bool textScrolling;
+        public string TypingRateText { get { return "当前约 " + (typingRate.HasValue ? typingRate.Value.ToString("0") : "—") +
+            " 次按键／分钟 · 持续达标 " + Math.Min(qualifyingSeconds, Settings.ScrollSeconds).ToString("0.0") + " / " + Settings.ScrollSeconds +
+            " 秒" + (textScrolling ? " · 文字滚动中" : ""); } }
+        internal void SetTypingMetrics(double? rate, double seconds, bool scrolling)
+        {
+            typingRate = rate; qualifyingSeconds = seconds; textScrolling = scrolling;
+            var changed = MetricsChanged; if (changed != null) changed(this, EventArgs.Empty);
         }
         public event EventHandler MetricsChanged;
         public double? RenderFps { get; private set; }
@@ -126,7 +146,7 @@ namespace Kedit.Console
         public void SetStatus(string status) { Status = status; PetRuntime.Log(status); RaiseChanged(); }
         public void Save() { try { Settings.Save(); } catch (Exception ex) { SetStatus("设置保存失败：" + ex.Message); } }
         private void RaiseChanged() { var changed = Changed; if (changed != null) changed(this, EventArgs.Empty); }
-        private void CloseWindow() { if (window != null) { var old = window; window = null; old.Close(); } SetRenderFps(null); }
+        private void CloseWindow() { if (window != null) { var old = window; window = null; old.Close(); } SetRenderFps(null); SetTypingMetrics(null, 0, false); }
         public void Dispose() { CloseWindow(); }
     }
 }

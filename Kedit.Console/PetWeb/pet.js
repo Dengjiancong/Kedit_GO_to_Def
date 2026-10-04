@@ -94,6 +94,9 @@
         const elapsed = performance.now() - sampleStart;
         if (elapsed < 500) return;
         post({ type: "fps", limit: frameLimit, fps: renderedFrames * 1000 / elapsed });
+        if (interactions && interactions.settings && Number.isFinite(interactions.settings.scrollRate) && Number.isFinite(interactions.settings.scrollSeconds)) post({ type: "typingMetrics", rate: interactions.rate,
+            seconds: interactions.qualifiedSeconds, scrolling: interactions.cycleStart !== null,
+            scrollRate: interactions.settings.scrollRate, scrollSeconds: interactions.settings.scrollSeconds });
         resetSample();
     }, 1000);
     window.addEventListener("pagehide", () => clearInterval(statsTimer));

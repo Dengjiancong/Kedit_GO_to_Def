@@ -80,6 +80,7 @@ namespace Kedit.Console
             metricsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             metricsTimer.Tick += delegate {
                 if ((DateTime.UtcNow - lastMetrics).TotalSeconds > 4 && controller.RenderFps.HasValue) controller.SetRenderFps(null);
+                if ((DateTime.UtcNow - lastMetrics).TotalSeconds > 4) controller.SetTypingMetrics(null, 0, false);
             };
             SourceInitialized += delegate {
                 HwndSource.FromHwnd(new WindowInteropHelper(this).Handle).AddHook(WindowMessage);
@@ -164,6 +165,12 @@ namespace Kedit.Console
                     typingAvailable = false; input.Configure(false);
                     controller.SetInteractionStatus(Convert.ToString(data["text"]));
                 }
+                else if (type == "typingMetrics" && ready) {
+                    double rate = Convert.ToDouble(data["rate"]), seconds = Convert.ToDouble(data["seconds"]);
+                    if (Convert.ToInt32(data["scrollRate"]) != controller.Settings.ScrollRate || Convert.ToInt32(data["scrollSeconds"]) != controller.Settings.ScrollSeconds ||
+                        double.IsNaN(rate + seconds) || double.IsInfinity(rate + seconds) || rate < 0 || seconds < 0) return;
+                    controller.SetTypingMetrics(rate, seconds, Convert.ToBoolean(data["scrolling"]));
+                }
                 else if (type == "fps" && ready) {
                     double fps = Convert.ToDouble(data["fps"]);
                     if (Convert.ToInt32(data["limit"]) != controller.Settings.FrameLimit || double.IsNaN(fps) || double.IsInfinity(fps) || fps < 0) return;
@@ -179,6 +186,7 @@ namespace Kedit.Console
         {
             if (closed) return;
             ready = false; input.Dispose(); loadTimer.Stop(); metricsTimer.Stop(); controller.SetRenderFps(null);
+            controller.SetTypingMetrics(null, 0, false);
             controller.SetStatus("桌宠加载/运行失败：" + text);
             message.Text = "桌宠出现问题，请在中控的桌宠页查看。";
             bubble.Visibility = Visibility.Visible;
@@ -208,7 +216,8 @@ namespace Kedit.Console
             PostInteraction(new { type = "interactionSettings", mouseFollow = controller.Settings.MouseFollow,
                 headFollow = controller.Settings.HeadFollow, typingEnabled = controller.Settings.TypingEnabled,
                 typingScope = controller.Settings.TypingScope, followAmount = controller.Settings.FollowAmount,
-                followSensitivity = controller.Settings.FollowSensitivity, followSpeed = controller.Settings.FollowSpeed });
+                followSensitivity = controller.Settings.FollowSensitivity, followSpeed = controller.Settings.FollowSpeed,
+                scrollRate = controller.Settings.ScrollRate, scrollSeconds = controller.Settings.ScrollSeconds });
             if (configureInput) input.Configure(typingAvailable);
             const string hookWarning = " · 键盘活动监听启动失败，可关闭再开启桌宠重试";
             if (configureInput) {

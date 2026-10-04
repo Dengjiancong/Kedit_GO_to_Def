@@ -67,7 +67,7 @@ namespace Kedit.Console
                 for (int i = 0; i < 100 && !app.Pet.IsReady; i++) await Task.Delay(200);
                 Check(app.Pet.IsReady, "Pet could not be re-enabled");
                 Check(app.Pet.Settings.FrameLimit == 30, "Benchmark did not restore default limit");
-                File.WriteAllText(Path.Combine(directory, "result.txt"), "PASS: adjustable gaze, single-key strokes, fast-only text, real 60-second keyboard retention, pause/resume priority, hook installation/removal, original-canvas rendering, alpha-zero blank hit-through, body hit target, NOACTIVATE, click-through on/off, resize, event cues, 30/60/90/120 UI settings and real FPS reports, close/reopen console, dispose/re-enable pet. Typing activity was supplied by the diagnostic driver, not physical keyboard input. See fps-benchmark.csv for measured results.");
+                File.WriteAllText(Path.Combine(directory, "result.txt"), "PASS: adjustable gaze, single-key strokes, sustained speed/duration settings, authored scrolling with complete final cycle, real 60-second keyboard retention, pause/resume priority, hook installation/removal, original-canvas rendering, alpha-zero blank hit-through, body hit target, NOACTIVATE, click-through on/off, resize, event cues, 30/60/90/120 UI settings and real FPS reports, close/reopen console, dispose/re-enable pet. Typing activity was supplied by the diagnostic driver, not physical keyboard input. See fps-benchmark.csv for measured results.");
                 app.ExitConsole();
             }
             catch (Exception ex) {
@@ -129,6 +129,11 @@ namespace Kedit.Console
             Check(saved.FollowAmount==80 && saved.FollowSensitivity==3 && saved.FollowSpeed==2, "Follow UI did not persist");
             Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.settings.followAmount===80") == "true", "Follow UI did not reach renderer");
             panel.SetFollowForDiagnostics(45,2,1.5);
+            panel.SetScrollForDiagnostics(900,6); await Task.Delay(150);
+            saved=PetSettings.Load();
+            Check(saved.ScrollRate==900 && saved.ScrollSeconds==6,"Scroll settings did not persist through UI");
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.settings.scrollSeconds===6 && window.petDiagnostics.interactions.settings.scrollRate===900") == "true","Scroll settings did not reach renderer");
+            panel.SetScrollForDiagnostics(600,5); await Task.Delay(100);
             await window.EvaluateForDiagnostics("window.petDiagnostics.press()");
             await Task.Delay(90); app.Pet.Capture(Path.Combine(directory,"pet-single-down.png"));
             await Task.Delay(250);
@@ -137,10 +142,27 @@ namespace Kedit.Console
             for(int i=0;i<4;i++) { await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); await Task.Delay(500); }
             Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.textWeight===0") == "true", "Slow typing revealed text");
             app.Pet.Capture(Path.Combine(directory,"pet-slow-no-text.png"));
-            for(int i=0;i<10;i++) { await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); await Task.Delay(100); }
-            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.textWeight>.5") == "true", "Fast typing did not reveal text");
-            app.Pet.Capture(Path.Combine(directory,"pet-fast-text.png"));
-            await Task.Delay(500);
+            await window.EvaluateForDiagnostics("window.petDiagnostics.fastTimer=setInterval(window.petDiagnostics.press,80)");
+            await Task.Delay(4000);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.cycleStart===null") == "true","Brief high speed triggered scrolling before sustained duration");
+            panel.ShowPetInteractionsForDiagnostics(); await Task.Delay(100);
+            Capture(panel,Path.Combine(directory,"console-scroll-progress.png"));
+            bool rolling=false;
+            for(int i=0;i<100;i++) { await Task.Delay(50); if(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.cycleStart!==null") == "true") {rolling=true;break;} }
+            Check(rolling,"Sustained typing failed to trigger scrolling");
+            await window.EvaluateForDiagnostics("clearInterval(window.petDiagnostics.fastTimer)");
+            Check(await window.EvaluateForDiagnostics("Math.abs(window.petDiagnostics.interactions.textCurve(1.3)-32.167)<.0001 && window.petDiagnostics.interactions.textDuration===2.4") == "true","Authored text curve or duration not preserved");
+            await Task.Delay(650);
+            double previous=double.Parse(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.textValue"),CultureInfo.InvariantCulture);
+            app.Pet.Capture(Path.Combine(directory,"pet-scroll-entry.png"));
+            await Task.Delay(650);
+            double middle=double.Parse(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.textValue"),CultureInfo.InvariantCulture);
+            Check(middle>previous && previous>0,"Text did not keep scrolling after typing stopped");
+            app.Pet.Capture(Path.Combine(directory,"pet-scroll-middle.png"));
+            await Task.Delay(650);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.textWeight===1") == "true","Final cycle was cut short");
+            app.Pet.Capture(Path.Combine(directory,"pet-scroll-exit.png"));
+            await Task.Delay(650);
             Check(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.typing && window.petDiagnostics.interactions.textWeight===0 && window.petDiagnostics.keyboard>.9 && window.petDiagnostics.headX<0") == "true", "Stopped typing did not retain keyboard and restore gaze");
             app.Pet.Capture(Path.Combine(directory,"pet-stopped-retained.png"));
             // Verify a real minute of wall-clock retention, without shortening the product timeout.

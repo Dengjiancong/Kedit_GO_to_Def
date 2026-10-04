@@ -42,6 +42,11 @@ namespace Kedit.Console {
             File.WriteAllText(Path.Combine(directory, "settings.json"), "{\"Size\":360}"); Assert(PetSettings.Load().FrameLimit == 30, "Old settings must default to 30 FPS");
             loaded = PetSettings.Load(); Assert(loaded.MouseFollow && loaded.TypingEnabled && loaded.HeadFollow && loaded.TypingScope == "editors", "Missing interaction settings must default to all enabled");
             Assert(loaded.FollowAmount == 45 && loaded.FollowSensitivity == 2 && loaded.FollowSpeed == 1.5, "Follow defaults incorrect");
+            Assert(loaded.ScrollRate == 600 && loaded.ScrollSeconds == 5, "Old config must gain scroll defaults");
+            settings.ScrollRate = 900; settings.ScrollSeconds = 6; settings.Save(); loaded = PetSettings.Load();
+            Assert(loaded.ScrollRate == 900 && loaded.ScrollSeconds == 6, "Scroll settings did not persist");
+            settings.ScrollRate = -1; settings.ScrollSeconds = 999; settings.Save(); loaded = PetSettings.Load();
+            Assert(loaded.ScrollRate == 60 && loaded.ScrollSeconds == 30, "Scroll settings not bounded");
             settings.FollowAmount = 80; settings.FollowSensitivity = 3; settings.FollowSpeed = 2; settings.Save();
             loaded = PetSettings.Load(); Assert(loaded.FollowAmount == 80 && loaded.FollowSensitivity == 3 && loaded.FollowSpeed == 2, "Follow values did not persist");
             settings.FollowAmount = 999; settings.FollowSensitivity = -1; settings.FollowSpeed = 999; settings.Save();

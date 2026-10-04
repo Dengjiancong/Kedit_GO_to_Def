@@ -52,7 +52,7 @@ namespace Kedit.Console
                 System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle).AddHook(ConsoleMessage);
             };
             Pet.Changed += delegate { RefreshPet(); };
-            Pet.MetricsChanged += delegate { PetFrameRate.Text = Pet.FrameRateText; };
+            Pet.MetricsChanged += delegate { PetFrameRate.Text = Pet.FrameRateText; PetTypingRate.Text = Pet.TypingRateText; };
             RefreshPet();
         }
 
@@ -305,6 +305,10 @@ namespace Kedit.Console
             PetFollowAmountText.Text = "跟随幅度：" + Pet.Settings.FollowAmount.ToString("0") + "%";
             PetFollowSensitivityText.Text = "灵敏度：" + Pet.Settings.FollowSensitivity.ToString("0.0") + " 倍";
             PetFollowSpeedText.Text = "跟随速度：" + Pet.Settings.FollowSpeed.ToString("0.0") + " 倍";
+            PetScrollRate.Value = Pet.Settings.ScrollRate; PetScrollSeconds.Value = Pet.Settings.ScrollSeconds;
+            PetScrollRateText.Text = "滚动文字触发速度：" + Pet.Settings.ScrollRate + " 次按键／分钟";
+            PetScrollSecondsText.Text = "持续达标时长：" + Pet.Settings.ScrollSeconds + " 秒";
+            PetTypingRate.Text = Pet.TypingRateText;
             PetInteractionStatus.Text = Pet.InteractionStatus ?? "开启桌宠后检测模型互动能力。";
             PetStatus.Text = Pet.Status;
             applyingPet = false;
@@ -312,6 +316,7 @@ namespace Kedit.Console
         internal void ShowPetPage() { selected = null; ShowCategory("pet"); }
         internal void SelectFrameLimitForDiagnostics(int limit) { PetFrameLimit.SelectedIndex = -1; PetFrameLimit.SelectedValue = limit.ToString(); }
         internal void ShowPetInteractionsForDiagnostics() { PetInteractionStatus.BringIntoView(); }
+        internal void SetScrollForDiagnostics(int rate, int seconds) { PetScrollRate.Value = rate; PetScrollSeconds.Value = seconds; }
         internal void SetFollowForDiagnostics(double amount, double sensitivity, double speed)
         {
             PetFollowAmount.Value = amount; PetFollowSensitivity.Value = sensitivity; PetFollowSpeed.Value = speed;
@@ -327,6 +332,10 @@ namespace Kedit.Console
         private void PetOptions_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetOptions(PetTopmostToggle.IsChecked == true, PetClickThroughToggle.IsChecked == true); }
         private void PetInteractions_Changed(object sender, RoutedEventArgs e) { SavePetInteractions(); }
         private void PetTypingScope_Changed(object sender, SelectionChangedEventArgs e) { SavePetInteractions(); }
+        private void PetScroll_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!applyingPet && IsLoaded) Pet.SetScroll((int)PetScrollRate.Value, (int)PetScrollSeconds.Value);
+        }
         private void PetFollow_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (!applyingPet && IsLoaded) Pet.SetFollow(PetFollowAmount.Value, PetFollowSensitivity.Value, PetFollowSpeed.Value);
