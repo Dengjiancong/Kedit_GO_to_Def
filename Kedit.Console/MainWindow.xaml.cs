@@ -31,6 +31,8 @@ namespace Kedit.Console
         private string category = "kedit";
         private ShortcutItem selected;
         private bool applyingState;
+        private bool applyingPet;
+        private PetController Pet { get { return ((App)Application.Current).Pet; } }
 
         public MainWindow()
         {
@@ -40,6 +42,17 @@ namespace Kedit.Console
             var pipeThread = new Thread(PipeServerLoop) { IsBackground = true };
             pipeThread.Start();
             Closed += MainWindow_Closed;
+            Closing += delegate(object sender, System.ComponentModel.CancelEventArgs e) {
+                var app = (App)Application.Current;
+                if (!app.Exiting && Pet.Settings.Enabled) { e.Cancel = true; Hide(); BackgroundVideo.Pause(); }
+                else if (!app.Exiting) Dispatcher.BeginInvoke(new Action(app.ExitConsole));
+            };
+            IsVisibleChanged += delegate { if (IsVisible && BackgroundVideo.Source != null) BackgroundVideo.Play(); };
+            SourceInitialized += delegate {
+                System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle).AddHook(ConsoleMessage);
+            };
+            Pet.Changed += delegate { RefreshPet(); };
+            RefreshPet();
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -122,8 +135,9 @@ namespace Kedit.Console
             DemoVideo.Source = null;
             DetailPage.Visibility = Visibility.Collapsed;
             SystemPage.Visibility = newCategory == "system" ? Visibility.Visible : Visibility.Collapsed;
-            ListPage.Visibility = newCategory == "system" ? Visibility.Collapsed : Visibility.Visible;
-            PageTitle.Text = newCategory == "kedit" ? "Kedit 快捷键" : newCategory == "vs" ? "Visual Studio" : newCategory == "other" ? "其他快捷键" : "通用设置";
+            PetPage.Visibility = newCategory == "pet" ? Visibility.Visible : Visibility.Collapsed;
+            ListPage.Visibility = newCategory == "system" || newCategory == "pet" ? Visibility.Collapsed : Visibility.Visible;
+            PageTitle.Text = newCategory == "kedit" ? "Kedit 快捷键" : newCategory == "vs" ? "Visual Studio" : newCategory == "other" ? "其他快捷键" : newCategory == "pet" ? "Live2D 桌宠" : "通用设置";
             CategoryDescription.Text = newCategory == "other" ? "这一分类对应托盘中的 Kedit 以外快捷键。更多项目将在确认样板布局后接入。" : "选择一个功能，进入演示和快捷键设置。";
             ShortcutList.Children.Clear();
             foreach (var item in shortcuts)
@@ -261,6 +275,39 @@ namespace Kedit.Console
         {
             RootCard.Clip = new RectangleGeometry(new Rect(0, 0, RootCard.ActualWidth, RootCard.ActualHeight), 22, 22);
         }
+
+        private IntPtr ConsoleMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == 0x8001) { Pet.Notify(wParam.ToInt32()); handled = true; }
+            if (msg == 0x8002) { ((App)Application.Current).ShowConsole(); handled = true; }
+            return IntPtr.Zero;
+        }
+
+        private void RefreshPet()
+        {
+            applyingPet = true;
+            PetModelPath.Text = string.IsNullOrEmpty(Pet.Settings.ModelPath) ? "尚未选择模型（.model3.json）" : Pet.Settings.ModelPath;
+            PetEnabledToggle.IsChecked = Pet.Settings.Enabled;
+            PetTopmostToggle.IsChecked = Pet.Settings.Topmost;
+            PetClickThroughToggle.IsChecked = Pet.Settings.ClickThrough;
+            PetSizeSlider.Value = Pet.Settings.Size;
+            PetSizeText.Text = "大小 " + Pet.Settings.Size.ToString("0");
+            PetStatus.Text = Pet.Status;
+            applyingPet = false;
+        }
+        internal void ShowPetPage() { selected = null; ShowCategory("pet"); }
+        private void ChoosePetModel_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog {
+                Title = "选择 Live2D 模型入口", Filter = "Live2D 模型 (*.model3.json)|*.model3.json", CheckFileExists = true
+            };
+            if (dialog.ShowDialog(this) == true) Pet.SelectModel(dialog.FileName);
+        }
+        private void PetEnabled_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetEnabled(PetEnabledToggle.IsChecked == true); }
+        private void PetOptions_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetOptions(PetTopmostToggle.IsChecked == true, PetClickThroughToggle.IsChecked == true); }
+        private void PetSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { if (!applyingPet && IsLoaded) Pet.SetSize(e.NewValue); }
+        private void PreviewPet_Click(object sender, RoutedEventArgs e) { Pet.Preview(); }
+        private void ResetPetPosition_Click(object sender, RoutedEventArgs e) { Pet.ResetPosition(); }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {

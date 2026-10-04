@@ -1987,19 +1987,20 @@ ToggleAutoUpdateCheck:
 return
 
 LaunchKeditConsole:
+    ; Check the hidden console before extracting its EXE (which may still be running).
+    ExistingConsole := DllCall("FindWindow", "Ptr", 0, "Str", "Kedit 中控", "Ptr")
+    if (ExistingConsole) {
+        DllCall("PostMessage", "Ptr", ExistingConsole, "UInt", 0x8002, "Ptr", 0, "Ptr", 0)
+        ConsoleStateAttempts := 0
+        SetTimer, SendConsoleState, 500
+        return
+    }
     if (A_IsCompiled)
         ConsolePath := GetTempPath("Kedit.Console.exe")
     else
         ConsolePath := A_ScriptDir . "\Kedit.Console\bin\Release\Kedit.Console.exe"
     if (!FileExist(ConsolePath)) {
         MsgBox, 48, Kedit 中控, 尚未找到 WPF 中控程序。`n请先构建:`n%ConsolePath%
-        return
-    }
-
-    if WinExist("ahk_exe Kedit.Console.exe") {
-        WinActivate
-        ConsoleStateAttempts := 0
-        SetTimer, SendConsoleState, 500
         return
     }
 
@@ -2902,8 +2903,37 @@ UpdateCompanionChanceMenu() {
 ; =======================================================
 ; OSD (On-Screen Display) 操作反馈系统 (支持自定义时长)
 ; =======================================================
+; Desktop-pet protocol v1: fixed numeric events, no copied text or synchronous IPC.
+NotifyDesktopPet(Text) {
+    static LastNotify := 0
+    if (InStr(Text, "快捷键已屏蔽"))
+        EventId := 6
+    else if (InStr(Text, "快捷键已恢复"))
+        EventId := 7
+    else if (InStr(Text, "Definition"))
+        EventId := 1
+    else if (InStr(Text, "Bookmark"))
+        EventId := 2
+    else if (InStr(Text, "Redo"))
+        EventId := 3
+    else if (InStr(Text, "Find"))
+        EventId := 4
+    else if (InStr(Text, "Done") || InStr(Text, "完成"))
+        EventId := 8
+    else
+        EventId := 5
+    if (EventId != 6 && EventId != 7 && A_TickCount - LastNotify < 400)
+        return
+    PetConsole := DllCall("FindWindow", "Ptr", 0, "Str", "Kedit 中控", "Ptr")
+    if (!PetConsole)
+        return
+    LastNotify := A_TickCount
+    DllCall("PostMessage", "Ptr", PetConsole, "UInt", 0x8001, "Ptr", EventId, "Ptr", 0)
+}
+
 ShowOSD(Text, DisplayTime := 1200, CompanionCue := "") {  ; 可指定某个快捷键的专属动画
     Global EnableOSD
+    NotifyDesktopPet(Text)
     if (!EnableOSD)
         return
 

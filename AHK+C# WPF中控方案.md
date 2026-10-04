@@ -18,6 +18,7 @@
 开发构建：
 
 ```powershell
+& '.\tools\Restore-PetDependencies.ps1'
 & 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\MSBuild.exe' `
   '.\Kedit.Console\Kedit.Console.csproj' /t:Build /p:Configuration=Release
 ```
@@ -83,3 +84,11 @@ Kedit_Media\shortcuts\
 5. 圆角由 WPF 容器裁剪，阴影由外层窗口提供；每次改视觉布局都要实际启动检查。
 6. 不把用户视频路径硬编码到 C#；由 AHK 传入已存在的素材路径。
 7. 当前通信已进入第二阶段，但仍属于本机测试协议；正式发布前需要补充命令结果回传、失败提示和版本兼容处理。
+
+## Live2D 桌宠扩展（2026-10-04）
+
+详见《Live2D桌宠实施方案.md》。中控新增独立桌宠页面及透明 PetWindow，使用本地 WebView2CompositionControl / Live2D 渲染。桌宠打开时关闭主窗口只隐藏面板；中控自带托盘可以重新打开、解除穿透、恢复位置和退出。
+
+AHK 的 `ShowOSD` 会独立投递 `WM_APP+1` 固定数字事件；桌宠通知不依赖 OSD 是否开启，不等待接收方。`WM_APP+2` 用于重新显示隐藏的中控。既有设置通信保持原样。桌宠配置由 C# 保存到 `%LOCALAPPDATA%\Kedit\DesktopPet\settings.json`，不写 AHK INI。
+
+新增依赖由 `tools/Restore-PetDependencies.ps1` 恢复并按 `PetDependencies.lock.json` 校验。`Build-Kedit.ps1` 自动运行此步骤；手动 MSBuild 前需先恢复一次。WebView2 托管 DLL、x86/x64 loader 和本地渲染页面内嵌中控 EXE，AHK 仍然只需 FileInstall 中控 EXE。目标电脑另需安装 WebView2 Runtime，模型由用户自行选择。本轮未更改正式版本号。

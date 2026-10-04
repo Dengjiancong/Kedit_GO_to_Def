@@ -33,13 +33,47 @@
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System.Xaml" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>..\.packages\Microsoft.Web.WebView2.1.0.3537.50\lib\net462\Microsoft.Web.WebView2.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Wpf">
+      <HintPath>..\.packages\Microsoft.Web.WebView2.1.0.3537.50\lib\net462\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml" />
     <Page Include="MainWindow.xaml" />
     <Compile Include="App.xaml.cs" />
     <Compile Include="MainWindow.xaml.cs" />
+    <Compile Include="Pet\PetRuntime.cs" />
+    <Compile Include="Pet\PetSettings.cs" />
+    <Compile Include="Pet\PetModel.cs" />
+    <Compile Include="Pet\PetController.cs" />
+    <Compile Include="Pet\PetWindow.cs" />
+    <Compile Include="Pet\PetDiagnostics.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="PetWeb\**\*">
+      <LogicalName>PetWeb/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\.packages\Microsoft.Web.WebView2.1.0.3537.50\lib\net462\Microsoft.Web.WebView2.Core.dll">
+      <LogicalName>PetRuntime/Microsoft.Web.WebView2.Core.dll</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\.packages\Microsoft.Web.WebView2.1.0.3537.50\lib\net462\Microsoft.Web.WebView2.Wpf.dll">
+      <LogicalName>PetRuntime/Microsoft.Web.WebView2.Wpf.dll</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\.packages\Microsoft.Web.WebView2.1.0.3537.50\runtimes\win-x64\native\WebView2Loader.dll">
+      <LogicalName>PetRuntime/x64/WebView2Loader.dll</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\.packages\Microsoft.Web.WebView2.1.0.3537.50\runtimes\win-x86\native\WebView2Loader.dll">
+      <LogicalName>PetRuntime/x86/WebView2Loader.dll</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

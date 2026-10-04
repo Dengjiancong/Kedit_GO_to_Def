@@ -18,3 +18,7 @@
 !/Kedit.Console/**
 /Kedit.Console/bin/
 /Kedit.Console/obj/
+!/Live2D桌宠实施方案.md
+/Kedit.Console/PetWeb/vendor/
+!/tools/*.json
+!/tools/*.js

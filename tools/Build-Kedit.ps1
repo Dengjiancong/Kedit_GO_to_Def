@@ -40,7 +40,7 @@ if (-not (Test-Path -LiteralPath $outputDirectoryFull)) {
 }
 $outputPath = Join-Path $outputDirectoryFull ("Kedit_GO_to_Def_$version.exe")
 $outputProcessName = [System.IO.Path]::GetFileNameWithoutExtension($outputPath)
-if (Get-Process -Name $outputProcessName -ErrorAction SilentlyContinue) {
+if (Get-Process -Name $outputProcessName -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $outputPath }) {
     throw "The output EXE is running. Close it before rebuilding: $outputPath"
 }
 
@@ -48,6 +48,7 @@ Write-Host "Building $version from $($source.Name)"
 Push-Location -LiteralPath $projectRoot
 try {
     Write-Host 'Building Kedit.Console (Release)...'
+    & (Join-Path $PSScriptRoot 'Restore-PetDependencies.ps1')
     & $MsBuildPath $consoleProject '/t:Rebuild' '/p:Configuration=Release' '/v:minimal'
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $consoleExe -PathType Leaf)) {
         throw 'Kedit.Console Release build failed; AHK package was not created.'

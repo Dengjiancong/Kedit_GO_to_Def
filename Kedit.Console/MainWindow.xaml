@@ -61,6 +61,7 @@
           <Button Style="{StaticResource NavButton}" Content="其他快捷键" Tag="other" Click="Category_Click"/>
           <Separator Margin="0,14,0,16"/>
           <Button Style="{StaticResource NavButton}" Content="通用设置" Tag="system" Click="Category_Click"/>
+          <Button Style="{StaticResource NavButton}" Content="Live2D 桌宠" Tag="pet" Click="Category_Click"/>
         </StackPanel>
       </Border>
       <Grid Grid.Column="1" Margin="30,24,30,24">
@@ -123,6 +124,35 @@
             <CheckBox x:Name="AutoUpdateToggle" Content="自动检查更新" Foreground="White" FontSize="16" IsEnabled="False" Margin="0,0,0,20" Checked="AutoUpdateToggle_Changed" Unchecked="AutoUpdateToggle_Changed"/>
             <CheckBox x:Name="OsdToggle" Content="屏幕操作提示 (OSD)" Foreground="White" FontSize="16" IsEnabled="False" Checked="OsdToggle_Changed" Unchecked="OsdToggle_Changed"/>
           </StackPanel>
+          <ScrollViewer x:Name="PetPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,12,0">
+              <TextBlock Text="让熟悉的角色陪你工作" Foreground="White" FontSize="21" FontWeight="SemiBold"/>
+              <TextBlock Text="选择本地 Live2D 模型，开启后可拖动角色、用滚轮调整大小。" Foreground="#BFD8EF" Margin="0,10,0,20" TextWrapping="Wrap"/>
+              <Border Background="#CC1A2C3E" CornerRadius="16" Padding="18">
+                <StackPanel>
+                  <TextBlock Text="角色模型" Foreground="#FFDD38" FontSize="16"/>
+                  <TextBlock x:Name="PetModelPath" Foreground="#BFD8EF" TextWrapping="Wrap" Margin="0,8,0,14"/>
+                  <Button Content="选择模型…" Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Click="ChoosePetModel_Click"/>
+                  <CheckBox x:Name="PetEnabledToggle" Content="开启桌宠" Foreground="White" FontSize="16" Margin="0,22,0,14" Checked="PetEnabled_Changed" Unchecked="PetEnabled_Changed"/>
+                  <WrapPanel>
+                    <CheckBox x:Name="PetTopmostToggle" Content="始终置顶" Foreground="White" Margin="0,0,22,12" Checked="PetOptions_Changed" Unchecked="PetOptions_Changed"/>
+                    <CheckBox x:Name="PetClickThroughToggle" Content="鼠标穿透" Foreground="White" Checked="PetOptions_Changed" Unchecked="PetOptions_Changed"/>
+                  </WrapPanel>
+                  <TextBlock Text="穿透后无法拖动角色，可回到这里或通过中控托盘解除。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12"/>
+                  <DockPanel Margin="0,20,0,10">
+                    <TextBlock x:Name="PetSizeText" Foreground="#BFD8EF" Width="100" VerticalAlignment="Center"/>
+                    <Slider x:Name="PetSizeSlider" Minimum="180" Maximum="720" Value="360" TickFrequency="30" IsSnapToTickEnabled="True" ValueChanged="PetSize_Changed"/>
+                  </DockPanel>
+                  <WrapPanel Margin="0,10,0,0">
+                    <Button Content="预览联动" Style="{StaticResource ActionButton}" Click="PreviewPet_Click"/>
+                    <Button Content="恢复位置" Style="{StaticResource ActionButton}" Click="ResetPetPosition_Click"/>
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+              <TextBlock x:Name="PetStatus" Foreground="#FFDD38" TextWrapping="Wrap" Margin="0,16,0,10"/>
+              <TextBlock Text="桌宠开启时，关闭中控会收起面板；可从托盘重新打开或退出。桌宠与原有陪伴表情 OSD 分别控制。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12"/>
+            </StackPanel>
+          </ScrollViewer>
         </Grid>
         <TextBlock x:Name="PipeStatus" Grid.Row="2" Text="正在等待 Kedit 主程序连接..." Foreground="#BFD8EF" FontSize="12" TextWrapping="Wrap"/>
       </Grid>
