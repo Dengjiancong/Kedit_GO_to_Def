@@ -19,6 +19,19 @@ namespace Kedit.Console
             Save(); RaiseChanged();
         }
         public event EventHandler Changed;
+        public void SetFollow(double amount, double sensitivity, double speed)
+        {
+            Settings.FollowAmount = PetSettings.Bound(amount, 10, 100, 45);
+            Settings.FollowSensitivity = PetSettings.Bound(sensitivity, .5, 4, 2);
+            Settings.FollowSpeed = PetSettings.Bound(speed, .5, 3, 1.5);
+            if (window != null) window.ApplyInteractions(false);
+            Save(); RaiseChanged();
+        }
+        public void ResetInteractions()
+        {
+            Settings.FollowAmount = 45; Settings.FollowSensitivity = 2; Settings.FollowSpeed = 1.5;
+            SetInteractions(true, true, true, "editors");
+        }
         public event EventHandler MetricsChanged;
         public double? RenderFps { get; private set; }
         internal int MetricsSamples { get; private set; }

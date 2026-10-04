@@ -23,6 +23,9 @@ namespace Kedit.Console
                 panel.ShowPetPage();
                 for (int i = 0; i < 150 && !app.Pet.IsReady; i++) await Task.Delay(200);
                 Check(app.Pet.IsReady, "Live2D did not become ready: " + app.Pet.Status);
+                if (selfTest && Array.IndexOf(Environment.GetCommandLineArgs(), "--probe-typing") >= 0) {
+                    await ProbeTyping(app, directory); app.ExitConsole(); return;
+                }
                 await Task.Delay(3000);
                 app.Pet.Capture(Path.Combine(directory, "pet-1.png"));
                 await Task.Delay(1100);
@@ -64,7 +67,7 @@ namespace Kedit.Console
                 for (int i = 0; i < 100 && !app.Pet.IsReady; i++) await Task.Delay(200);
                 Check(app.Pet.IsReady, "Pet could not be re-enabled");
                 Check(app.Pet.Settings.FrameLimit == 30, "Benchmark did not restore default limit");
-                File.WriteAllText(Path.Combine(directory, "result.txt"), "PASS: mouse/head following, looping typing and recovery, pause/resume priority, hook installation/removal, original-canvas rendering, alpha-zero blank hit-through, body hit target, NOACTIVATE, click-through on/off, resize, event cues, 30/60/90/120 UI settings and real FPS reports, close/reopen console, dispose/re-enable pet. Typing activity was supplied by the diagnostic driver, not physical keyboard input. See fps-benchmark.csv for measured results.");
+                File.WriteAllText(Path.Combine(directory, "result.txt"), "PASS: adjustable gaze, single-key strokes, fast-only text, real 60-second keyboard retention, pause/resume priority, hook installation/removal, original-canvas rendering, alpha-zero blank hit-through, body hit target, NOACTIVATE, click-through on/off, resize, event cues, 30/60/90/120 UI settings and real FPS reports, close/reopen console, dispose/re-enable pet. Typing activity was supplied by the diagnostic driver, not physical keyboard input. See fps-benchmark.csv for measured results.");
                 app.ExitConsole();
             }
             catch (Exception ex) {
@@ -75,55 +78,92 @@ namespace Kedit.Console
         }
         private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 
+        private static async Task ProbeTyping(App app, string directory)
+        {
+            app.Pet.SetInteractions(false, false, false, "editors");
+            var window = app.Pet.DiagnosticWindow;
+            await window.EvaluateForDiagnostics(@"(() => {
+                const d=window.petDiagnostics; d.probe={ParamExpression7:1,ParamExpression12:.2,ParamExpression13:0,ParamExpression14:0,ParamExpression15:0};
+                d.model.internalModel.on('beforeModelUpdate',()=>{for(const [id,value] of Object.entries(d.probe)) d.model.internalModel.coreModel.setParameterValueById(id,value);});
+            })()");
+            foreach (var item in new[] { "rest", "knock", "left", "right", "text", "text10", "text20", "text30", "text40", "text50" }) {
+                string script = item == "knock" ? "d.probe.ParamExpression12=1" : item == "left" ? "d.probe.ParamExpression13=1" : item == "right" ? "d.probe.ParamExpression13=0;d.probe.ParamExpression14=1" : item == "text" ? "d.probe.ParamExpression15=60" : "";
+                if (item.StartsWith("text") && item.Length > 4) script = "d.probe.ParamExpression15=" + item.Substring(4);
+                await window.EvaluateForDiagnostics("(()=>{const d=window.petDiagnostics;" + script + "})()");
+                await Task.Delay(600); app.Pet.Capture(Path.Combine(directory, "probe-" + item + ".png"));
+            }
+            File.WriteAllText(Path.Combine(directory,"parameters.json"), await window.EvaluateForDiagnostics("(()=>{const c=window.petDiagnostics.model.internalModel.coreModel; return c._parameterIds.map((id,i)=>({id,min:c.getParameterMinimumValue(i),max:c.getParameterMaximumValue(i),value:c.getParameterDefaultValue(i)}));})()"));
+        }
+
         private static async Task CheckInteractions(App app, string directory)
         {
             var window = app.Pet.DiagnosticWindow;
-            app.Pet.SetInteractions(true, false, true, "editors");
-            Check(window.InputHookInstalled, "Keyboard activity hook was not installed");
+            app.Pet.ResetInteractions();
+            Check(app.Pet.Settings.MouseFollow && app.Pet.Settings.HeadFollow && app.Pet.Settings.TypingEnabled, "All interaction defaults must be enabled");
+            Check(window.InputHookInstalled, "Keyboard hook was not installed");
             window.StopInputForDiagnostics();
-            Check(!window.InputHookInstalled, "Keyboard activity hook was not released");
-            Check(PetInput.IsTypingKey(0x41) && PetInput.IsTypingKey(0x20) && !PetInput.IsTypingKey(0x70) && !PetInput.IsTypingKey(0x11), "Keyboard classification failed");
+            Check(!window.InputHookInstalled, "Keyboard hook was not released");
+            Check(PetInput.IsTypingKey(0x41) && PetInput.IsTypingKey(0xE5) && !PetInput.IsTypingKey(0x70), "Key classification failed");
+            Check(PetInput.AcceptKey(0x41,0,false) && !PetInput.AcceptKey(0x41,0,true) && !PetInput.AcceptKey(0x41,0x10,false) && !PetInput.AcceptKey(0x41,0x20,false), "Modifier/injected-key filter failed");
             await window.EvaluateForDiagnostics(@"(() => {
-                const d = window.petDiagnostics; d.input = {x:1,y:.5,typing:false};
-                d.baseline = d.model.internalModel.coreModel.getParameterValueById('ParamExpression7');
-                d.model.internalModel.on('beforeModelUpdate', () => {
-                    d.headX = d.model.internalModel.coreModel.getParameterValueById('ParamAngleX');
-                    d.keyboard = d.model.internalModel.coreModel.getParameterValueById('ParamExpression7');
+                const d=window.petDiagnostics; d.input={x:1,y:.5,presses:0};
+                d.press=()=>d.interactions.receive({...d.input,presses:1});
+                d.timer=setInterval(()=>d.interactions.receive(d.input),33);
+                d.model.internalModel.on('beforeModelUpdate',()=>{
+                    d.headX=d.model.internalModel.coreModel.getParameterValueById('ParamAngleX');
+                    d.hand=d.model.internalModel.coreModel.getParameterValueById('ParamExpression12');
+                    d.keyboard=d.model.internalModel.coreModel.getParameterValueById('ParamExpression7');
                 });
-                d.timer = setInterval(() => d.interactions.receive(d.input), 33);
             })()");
             await Task.Delay(700);
-            File.WriteAllText(Path.Combine(directory, "interaction-state.json"), await window.EvaluateForDiagnostics("(() => { const d=window.petDiagnostics, s=d.interactions; return {headX:d.headX,eyes:s.eyes,head:s.head,settings:s.settings,input:s.input,x:s.x,dt:s.dt,paused:s.paused,busy:s.busy,ids:s.core._parameterIds}; })()"));
-            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.headX > 0") == "true", "Mouse right did not move the head");
-            app.Pet.Capture(Path.Combine(directory, "pet-look-right.png"));
-            await window.EvaluateForDiagnostics("window.petDiagnostics.input.x = -1");
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.headX>0") == "true", "Right gaze failed");
+            app.Pet.Capture(Path.Combine(directory,"pet-look-right.png"));
+            await window.EvaluateForDiagnostics("window.petDiagnostics.input.x=-1");
             await Task.Delay(700);
-            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.headX < 0") == "true", "Mouse left did not move the head");
-            app.Pet.Capture(Path.Combine(directory, "pet-look-left.png"));
-            await window.EvaluateForDiagnostics("window.petDiagnostics.input.typing = true");
-            await Task.Delay(3200);
-            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.typing && window.petDiagnostics.keyboard > .5") == "true", "Typing did not continue beyond one motion cycle");
-            app.Pet.Capture(Path.Combine(directory, "pet-typing.png"));
-            await window.EvaluateForDiagnostics("window.petDiagnostics.input.typing = false");
-            await Task.Delay(600);
-            Check(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.typing && Math.abs(window.petDiagnostics.keyboard-window.petDiagnostics.baseline)<.001") == "true", "Keyboard prop did not restore after typing");
-            app.Pet.Capture(Path.Combine(directory, "pet-typing-stopped.png"));
-            await window.EvaluateForDiagnostics("window.petDiagnostics.input.typing = true");
-            await Task.Delay(400); app.Pet.Notify(6); await Task.Delay(400);
-            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.paused && !window.petDiagnostics.interactions.typing") == "true", "Pause did not suspend typing");
-            app.Pet.Notify(7);
-            bool resumed = false;
-            for (int i = 0; i < 60; i++) {
-                await Task.Delay(200);
-                if (await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.typing") == "true") { resumed = true; break; }
-            }
-            Check(resumed, "Typing did not resume after the celebration finished");
-            await window.EvaluateForDiagnostics("clearInterval(window.petDiagnostics.timer); window.petDiagnostics.interactions.receive({x:0,y:0,typing:false})");
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.headX<0") == "true", "Left gaze failed");
+            app.Pet.Capture(Path.Combine(directory,"pet-look-left.png"));
+            var panel=(MainWindow)app.MainWindow;
+            panel.SetFollowForDiagnostics(80,3,2);
+            await Task.Delay(300);
+            var saved=PetSettings.Load();
+            Check(saved.FollowAmount==80 && saved.FollowSensitivity==3 && saved.FollowSpeed==2, "Follow UI did not persist");
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.settings.followAmount===80") == "true", "Follow UI did not reach renderer");
+            panel.SetFollowForDiagnostics(45,2,1.5);
+            await window.EvaluateForDiagnostics("window.petDiagnostics.press()");
+            await Task.Delay(90); app.Pet.Capture(Path.Combine(directory,"pet-single-down.png"));
+            await Task.Delay(250);
+            Check(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.typing && window.petDiagnostics.interactions.strokeCount===1 && window.petDiagnostics.interactions.keyboardWeight===1 && window.petDiagnostics.interactions.textWeight===0") == "true", "Single stroke did not settle with keyboard retained");
+            app.Pet.Capture(Path.Combine(directory,"pet-single-up.png"));
+            for(int i=0;i<4;i++) { await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); await Task.Delay(500); }
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.textWeight===0") == "true", "Slow typing revealed text");
+            app.Pet.Capture(Path.Combine(directory,"pet-slow-no-text.png"));
+            for(int i=0;i<10;i++) { await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); await Task.Delay(100); }
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.textWeight>.5") == "true", "Fast typing did not reveal text");
+            app.Pet.Capture(Path.Combine(directory,"pet-fast-text.png"));
             await Task.Delay(500);
-            app.Pet.SetInteractions(false, false, false, "editors");
-            Check(!window.InputHookInstalled, "Disabled typing retained its hook");
-            app.Pet.SetInteractions(true, false, true, "editors");
-            Check(window.InputHookInstalled, "Input hook did not reinstall");
+            Check(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.typing && window.petDiagnostics.interactions.textWeight===0 && window.petDiagnostics.keyboard>.9 && window.petDiagnostics.headX<0") == "true", "Stopped typing did not retain keyboard and restore gaze");
+            app.Pet.Capture(Path.Combine(directory,"pet-stopped-retained.png"));
+            // Verify a real minute of wall-clock retention, without shortening the product timeout.
+            double age=double.Parse(await window.EvaluateForDiagnostics("performance.now()-window.petDiagnostics.interactions.lastKey"),CultureInfo.InvariantCulture);
+            await Task.Delay(Math.Max(1,(int)(59800-age)));
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.keyboardWeight===1") == "true", "Keyboard disappeared before 60 seconds");
+            await Task.Delay(700);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.keyboardWeight===0 && window.petDiagnostics.keyboard===0") == "true", "Keyboard did not disappear after 60 seconds");
+            app.Pet.Capture(Path.Combine(directory,"pet-after-minute.png"));
+            await window.EvaluateForDiagnostics("window.petDiagnostics.press()");
+            await Task.Delay(60); app.Pet.Notify(6); await Task.Delay(400);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.paused && window.petDiagnostics.interactions.keyboardWeight===0") == "true", "Pause failed to clear typing state");
+            await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); app.Pet.Notify(7);
+            for(int i=0;i<60;i++) { await Task.Delay(200); if(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.busy") == "true") break; }
+            Check(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.busy && !window.petDiagnostics.interactions.typing && window.petDiagnostics.interactions.keyboardWeight===0") == "true", "Resume replayed stale input or celebration never ended");
+            await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); await Task.Delay(300);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.keyboardWeight===1") == "true", "New input failed after resume");
+            await window.EvaluateForDiagnostics("clearInterval(window.petDiagnostics.timer)");
+            app.Pet.SetInteractions(true,true,true,"all"); await Task.Delay(350);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.keyboardWeight===0") == "true", "Scope change retained old input");
+            app.Pet.SetInteractions(false,false,false,"editors"); Check(!window.InputHookInstalled,"Disabled hook retained");
+            app.Pet.ResetInteractions(); Check(window.InputHookInstalled,"Hook did not reinstall");
+            File.WriteAllText(Path.Combine(directory,"interaction-state.json"),await window.EvaluateForDiagnostics("(()=>{const d=window.petDiagnostics,s=d.interactions;return {eyes:s.eyes,head:s.head,textDrawables:[...s.textDrawables],settings:s.settings,strokes:s.strokeCount};})()"));
         }
 
         private static void CheckTransparency(Window window)

@@ -38,8 +38,8 @@ namespace Kedit.Console
         {
             controller = owner;
             model = selected;
-            input = new PetInput(this, owner.Settings, delegate(double x, double y, bool typing) {
-                if (ready && !closed) PostInteraction(new { type = "input", x = x, y = y, typing = typing });
+            input = new PetInput(this, owner.Settings, delegate(double x, double y, int presses) {
+                if (ready && !closed) PostInteraction(new { type = "input", x = x, y = y, presses = presses, sentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
             });
             Title = "Kedit Live2D 桌宠";
             WindowStyle = WindowStyle.None;
@@ -202,14 +202,20 @@ namespace Kedit.Console
         }
 
         private void PostInteraction(object data) { browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(data)); }
-        public void ApplyInteractions()
+        public void ApplyInteractions(bool configureInput = true)
         {
             if (!ready || closed) return;
             PostInteraction(new { type = "interactionSettings", mouseFollow = controller.Settings.MouseFollow,
-                headFollow = controller.Settings.HeadFollow, typingEnabled = controller.Settings.TypingEnabled });
-            input.Configure(typingAvailable);
-            if (controller.Settings.TypingEnabled && typingAvailable && !input.HookInstalled)
-                controller.SetInteractionStatus(controller.InteractionStatus + " · 键盘活动监听启动失败，可关闭再开启桌宠重试");
+                headFollow = controller.Settings.HeadFollow, typingEnabled = controller.Settings.TypingEnabled,
+                typingScope = controller.Settings.TypingScope, followAmount = controller.Settings.FollowAmount,
+                followSensitivity = controller.Settings.FollowSensitivity, followSpeed = controller.Settings.FollowSpeed });
+            if (configureInput) input.Configure(typingAvailable);
+            const string hookWarning = " · 键盘活动监听启动失败，可关闭再开启桌宠重试";
+            if (configureInput) {
+                string status = (controller.InteractionStatus ?? "").Replace(hookWarning, "");
+                if (controller.Settings.TypingEnabled && typingAvailable && !input.HookInstalled) status += hookWarning;
+                controller.SetInteractionStatus(status);
+            }
         }
         internal Task<string> EvaluateForDiagnostics(string script) { return browser.CoreWebView2.ExecuteScriptAsync(script); }
         internal bool InputHookInstalled { get { return input.HookInstalled; } }

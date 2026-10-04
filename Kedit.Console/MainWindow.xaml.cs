@@ -299,6 +299,12 @@ namespace Kedit.Console
             PetHeadFollow.IsChecked = Pet.Settings.HeadFollow;
             PetTyping.IsChecked = Pet.Settings.TypingEnabled;
             PetTypingScope.SelectedValue = Pet.Settings.TypingScope;
+            PetFollowAmount.Value = Pet.Settings.FollowAmount;
+            PetFollowSensitivity.Value = Pet.Settings.FollowSensitivity;
+            PetFollowSpeed.Value = Pet.Settings.FollowSpeed;
+            PetFollowAmountText.Text = "跟随幅度：" + Pet.Settings.FollowAmount.ToString("0") + "%";
+            PetFollowSensitivityText.Text = "灵敏度：" + Pet.Settings.FollowSensitivity.ToString("0.0") + " 倍";
+            PetFollowSpeedText.Text = "跟随速度：" + Pet.Settings.FollowSpeed.ToString("0.0") + " 倍";
             PetInteractionStatus.Text = Pet.InteractionStatus ?? "开启桌宠后检测模型互动能力。";
             PetStatus.Text = Pet.Status;
             applyingPet = false;
@@ -306,6 +312,10 @@ namespace Kedit.Console
         internal void ShowPetPage() { selected = null; ShowCategory("pet"); }
         internal void SelectFrameLimitForDiagnostics(int limit) { PetFrameLimit.SelectedIndex = -1; PetFrameLimit.SelectedValue = limit.ToString(); }
         internal void ShowPetInteractionsForDiagnostics() { PetInteractionStatus.BringIntoView(); }
+        internal void SetFollowForDiagnostics(double amount, double sensitivity, double speed)
+        {
+            PetFollowAmount.Value = amount; PetFollowSensitivity.Value = sensitivity; PetFollowSpeed.Value = speed;
+        }
         private void ChoosePetModel_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new Microsoft.Win32.OpenFileDialog {
@@ -317,6 +327,11 @@ namespace Kedit.Console
         private void PetOptions_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetOptions(PetTopmostToggle.IsChecked == true, PetClickThroughToggle.IsChecked == true); }
         private void PetInteractions_Changed(object sender, RoutedEventArgs e) { SavePetInteractions(); }
         private void PetTypingScope_Changed(object sender, SelectionChangedEventArgs e) { SavePetInteractions(); }
+        private void PetFollow_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!applyingPet && IsLoaded) Pet.SetFollow(PetFollowAmount.Value, PetFollowSensitivity.Value, PetFollowSpeed.Value);
+        }
+        private void PetResetInteractions_Click(object sender, RoutedEventArgs e) { Pet.ResetInteractions(); }
         private void SavePetInteractions()
         {
             if (!applyingPet && IsLoaded) Pet.SetInteractions(PetMouseFollow.IsChecked == true, PetHeadFollow.IsChecked == true,

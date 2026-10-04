@@ -40,7 +40,13 @@ namespace Kedit.Console {
             settings.TypingScope = "invalid"; settings.Save(); Assert(PetSettings.Load().TypingScope == "editors", "Invalid input scope was not normalized");
             settings.FrameLimit = 999; settings.Save(); Assert(PetSettings.Load().FrameLimit == 30, "Invalid frame limit not normalized");
             File.WriteAllText(Path.Combine(directory, "settings.json"), "{\"Size\":360}"); Assert(PetSettings.Load().FrameLimit == 30, "Old settings must default to 30 FPS");
-            loaded = PetSettings.Load(); Assert(loaded.MouseFollow && loaded.TypingEnabled && !loaded.HeadFollow && loaded.TypingScope == "editors", "Old settings interaction defaults incorrect");
+            loaded = PetSettings.Load(); Assert(loaded.MouseFollow && loaded.TypingEnabled && loaded.HeadFollow && loaded.TypingScope == "editors", "Missing interaction settings must default to all enabled");
+            Assert(loaded.FollowAmount == 45 && loaded.FollowSensitivity == 2 && loaded.FollowSpeed == 1.5, "Follow defaults incorrect");
+            settings.FollowAmount = 80; settings.FollowSensitivity = 3; settings.FollowSpeed = 2; settings.Save();
+            loaded = PetSettings.Load(); Assert(loaded.FollowAmount == 80 && loaded.FollowSensitivity == 3 && loaded.FollowSpeed == 2, "Follow values did not persist");
+            settings.FollowAmount = 999; settings.FollowSensitivity = -1; settings.FollowSpeed = 999; settings.Save();
+            loaded = PetSettings.Load(); Assert(loaded.FollowAmount == 100 && loaded.FollowSensitivity == .5 && loaded.FollowSpeed == 3, "Follow values not bounded");
+            Assert(PetSettings.Bound(double.NaN, 10, 100, 45) == 45, "NaN follow value did not recover");
             settings.Size = 99999; settings.Save(); Assert(PetSettings.Load().Size == 1200, "Invalid size not bounded");
             File.WriteAllText(Path.Combine(directory, "settings.json"), "broken");
             Assert(!PetSettings.Load().Enabled && PetSettings.Load().Size == 360, "Corrupt settings did not recover");

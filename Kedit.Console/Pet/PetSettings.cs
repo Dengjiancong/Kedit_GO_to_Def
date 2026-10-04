@@ -20,8 +20,12 @@ namespace Kedit.Console
         public bool HeadFollow { get; set; }
         public bool TypingEnabled { get; set; }
         public string TypingScope { get; set; }
+        public double FollowAmount { get; set; }
+        public double FollowSensitivity { get; set; }
+        public double FollowSpeed { get; set; }
 
-        public PetSettings() { ModelPath = ""; Size = 360; Topmost = true; FrameLimit = 30; MouseFollow = true; TypingEnabled = true; TypingScope = "editors"; }
+        public PetSettings() { ModelPath = ""; Size = 360; Topmost = true; FrameLimit = 30; MouseFollow = HeadFollow = TypingEnabled = true; TypingScope = "editors"; FollowAmount = 45; FollowSensitivity = 2; FollowSpeed = 1.5; }
+        public static double Bound(double value, double min, double max, double fallback) { return IsFinite(value) ? Math.Max(min, Math.Min(max, value)) : fallback; }
         public static int NormalizeFrameLimit(int value) { return value == 60 || value == 90 || value == 120 ? value : 30; }
 
         public static PetSettings Load()
@@ -35,6 +39,9 @@ namespace Kedit.Console
                 settings.Size = IsFinite(settings.Size) ? Math.Max(180, Math.Min(1200, settings.Size)) : 360;
                 settings.FrameLimit = NormalizeFrameLimit(settings.FrameLimit);
                 settings.TypingScope = settings.TypingScope == "all" ? "all" : "editors";
+                settings.FollowAmount = Bound(settings.FollowAmount, 10, 100, 45);
+                settings.FollowSensitivity = Bound(settings.FollowSensitivity, .5, 4, 2);
+                settings.FollowSpeed = Bound(settings.FollowSpeed, .5, 3, 1.5);
                 settings.HasPosition &= IsFinite(settings.Left) && IsFinite(settings.Top);
                 return settings;
             }
