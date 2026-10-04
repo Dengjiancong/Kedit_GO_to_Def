@@ -24,7 +24,11 @@ namespace Kedit.Console
         private readonly TextBlock message;
         private readonly DispatcherTimer bubbleTimer;
         private readonly DispatcherTimer loadTimer;
-        private bool closed, ready, dragging;
+        private readonly DispatcherTimer metricsTimer;
+        private readonly PetInput input;
+        private DateTime lastMetrics;
+        private double canvasAspect = 1.2;
+        private bool closed, ready, dragging, typingAvailable;
         private Point dragPoint;
         private double dragLeft, dragTop;
         internal bool IsReady { get { return ready; } }
@@ -34,6 +38,9 @@ namespace Kedit.Console
         {
             controller = owner;
             model = selected;
+            input = new PetInput(this, owner.Settings, delegate(double x, double y, bool typing) {
+                if (ready && !closed) PostInteraction(new { type = "input", x = x, y = y, typing = typing });
+            });
             Title = "Kedit Live2D 桌宠";
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
@@ -45,7 +52,7 @@ namespace Kedit.Console
             var grid = new Grid();
             browser = new WebView2CompositionControl {
                 DefaultBackgroundColor = System.Drawing.Color.Transparent,
-                IsHitTestVisible = false, Focusable = false, Margin = new Thickness(0, 65, 0, 0)
+                Focusable = false, Margin = new Thickness(0, 65, 0, 0)
             };
             grid.Children.Add(browser);
             message = new TextBlock { Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap, FontSize = 13 };
@@ -55,28 +62,32 @@ namespace Kedit.Console
                 VerticalAlignment = VerticalAlignment.Top, Child = message, Visibility = Visibility.Collapsed
             };
             grid.Children.Add(bubble);
-            // A near-transparent hit surface supports dragging without browser focus.
-            var surface = new Border { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)) };
-            surface.MouseLeftButtonDown += BeginDrag;
-            surface.MouseMove += MoveDrag;
-            surface.MouseLeftButtonUp += EndDrag;
-            surface.LostMouseCapture += delegate { dragging = false; };
-            surface.MouseWheel += delegate(object sender, MouseWheelEventArgs e) {
+            // Do not paint a rectangular hit surface: alpha-zero pixels of a
+            // layered window naturally pass through to the application below.
+            // Intercept body input before WebView2 so dragging cannot focus it.
+            grid.PreviewMouseLeftButtonDown += BeginDrag;
+            grid.PreviewMouseMove += MoveDrag;
+            grid.PreviewMouseLeftButtonUp += EndDrag;
+            grid.LostMouseCapture += delegate { dragging = false; };
+            grid.PreviewMouseWheel += delegate(object sender, MouseWheelEventArgs e) {
                 controller.SetSize(controller.Settings.Size + (e.Delta > 0 ? 30 : -30)); e.Handled = true;
             };
-            grid.Children.Add(surface);
             Content = grid;
             bubbleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
             bubbleTimer.Tick += delegate { bubble.Visibility = Visibility.Collapsed; bubbleTimer.Stop(); };
             loadTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
             loadTimer.Tick += delegate { loadTimer.Stop(); Fail("模型加载超时，请检查模型资源或重新打开桌宠。"); };
+            metricsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            metricsTimer.Tick += delegate {
+                if ((DateTime.UtcNow - lastMetrics).TotalSeconds > 4 && controller.RenderFps.HasValue) controller.SetRenderFps(null);
+            };
             SourceInitialized += delegate {
                 HwndSource.FromHwnd(new WindowInteropHelper(this).Handle).AddHook(WindowMessage);
                 ApplyOptions();
             };
             Loaded += async delegate { await InitializeBrowser(); };
             Closed += delegate {
-                closed = true; loadTimer.Stop(); bubbleTimer.Stop(); browser.Dispose();
+                closed = true; input.Dispose(); loadTimer.Stop(); bubbleTimer.Stop(); metricsTimer.Stop(); browser.Dispose();
             };
             ApplySize();
             if (owner.Settings.HasPosition) { Left = owner.Settings.Left; Top = owner.Settings.Top; EnsureVisible(); }
@@ -117,7 +128,8 @@ namespace Kedit.Console
                 };
                 core.WebMessageReceived += ReceiveMessage;
                 string url = "https://model.kedit.local/" + Uri.EscapeDataString(model.FileName);
-                browser.Source = new Uri("https://pet.kedit.local/index.html?model=" + Uri.EscapeDataString(url));
+                browser.Source = new Uri("https://pet.kedit.local/index.html?model=" + Uri.EscapeDataString(url) + "&fps=" + controller.Settings.FrameLimit +
+                    (Array.IndexOf(Environment.GetCommandLineArgs(), "--self-test-pet") >= 0 ? "&diagnostics=1" : ""));
             }
             catch (WebView2RuntimeNotFoundException) { Fail("缺少 Microsoft Edge WebView2 Runtime，请安装后重试。"); }
             catch (Exception ex) { if (!closed) Fail(ex.Message); }
@@ -128,13 +140,37 @@ namespace Kedit.Console
             if (closed || !e.Source.StartsWith("https://pet.kedit.local/", StringComparison.Ordinal)) return;
             try
             {
-                var data = new JavaScriptSerializer().Deserialize<Dictionary<string, string>>(e.WebMessageAsJson);
-                if (data["type"] == "ready") {
+                var data = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
+                string type = Convert.ToString(data["type"]);
+                if (type == "ready") {
+                    double width = Convert.ToDouble(data["canvasWidth"]), height = Convert.ToDouble(data["canvasHeight"]);
+                    if (width <= 0 || height <= 0 || double.IsNaN(width + height) || double.IsInfinity(width + height))
+                        throw new InvalidDataException("模型原始画布尺寸无效");
+                    canvasAspect = height / width;
+                    ApplySize();
                     ready = true; loadTimer.Stop();
-                    controller.SetStatus("模型已加载 · " + model.ResourceCount + " 个资源 · 30 FPS");
+                    ApplyFrameLimit(); ApplyInteractions(); metricsTimer.Start();
+                    controller.SetStatus("模型已加载 · " + model.ResourceCount + " 个资源 · 原始画布");
                     ShowBubble("你好！拖动可移动，滚轮可缩放。");
                 }
-                else if (data["type"] == "error") Fail(data["text"]);
+                else if (type == "interactionCapabilities") {
+                    typingAvailable = Convert.ToBoolean(data["typing"]);
+                    controller.SetInteractionStatus((Convert.ToBoolean(data["eyes"]) ? "支持眼球跟随" :
+                        Convert.ToBoolean(data["head"]) ? "模型无独立眼球参数，使用轻微转头跟随" : "模型不支持视线或转头跟随") +
+                        " · " + (Convert.ToBoolean(data["typing"]) ? "支持敲键盘动作" : "模型敲键盘动作不可用") +
+                        (Convert.ToString(data["warning"]) == "" ? "" : "：" + Convert.ToString(data["warning"])));
+                }
+                else if (type == "interactionWarning") {
+                    typingAvailable = false; input.Configure(false);
+                    controller.SetInteractionStatus(Convert.ToString(data["text"]));
+                }
+                else if (type == "fps" && ready) {
+                    double fps = Convert.ToDouble(data["fps"]);
+                    if (Convert.ToInt32(data["limit"]) != controller.Settings.FrameLimit || double.IsNaN(fps) || double.IsInfinity(fps) || fps < 0) return;
+                    lastMetrics = DateTime.UtcNow;
+                    controller.SetRenderFps(fps);
+                }
+                else if (type == "error") Fail(Convert.ToString(data["text"]));
             }
             catch (Exception ex) { Fail("渲染消息错误：" + ex.Message); }
         }
@@ -142,7 +178,7 @@ namespace Kedit.Console
         private void Fail(string text)
         {
             if (closed) return;
-            ready = false; loadTimer.Stop();
+            ready = false; input.Dispose(); loadTimer.Stop(); metricsTimer.Stop(); controller.SetRenderFps(null);
             controller.SetStatus("桌宠加载/运行失败：" + text);
             message.Text = "桌宠出现问题，请在中控的桌宠页查看。";
             bubble.Visibility = Visibility.Visible;
@@ -156,6 +192,28 @@ namespace Kedit.Console
             browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new { type = "cue", kind = kind }));
             PetRuntime.Log("Cue: " + kind + " " + text);
         }
+
+        public void ApplyFrameLimit()
+        {
+            lastMetrics = DateTime.UtcNow;
+            controller.SetRenderFps(null);
+            if (!ready || closed) return;
+            browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new { type = "settings", frameLimit = controller.Settings.FrameLimit }));
+        }
+
+        private void PostInteraction(object data) { browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(data)); }
+        public void ApplyInteractions()
+        {
+            if (!ready || closed) return;
+            PostInteraction(new { type = "interactionSettings", mouseFollow = controller.Settings.MouseFollow,
+                headFollow = controller.Settings.HeadFollow, typingEnabled = controller.Settings.TypingEnabled });
+            input.Configure(typingAvailable);
+            if (controller.Settings.TypingEnabled && typingAvailable && !input.HookInstalled)
+                controller.SetInteractionStatus(controller.InteractionStatus + " · 键盘活动监听启动失败，可关闭再开启桌宠重试");
+        }
+        internal Task<string> EvaluateForDiagnostics(string script) { return browser.CoreWebView2.ExecuteScriptAsync(script); }
+        internal bool InputHookInstalled { get { return input.HookInstalled; } }
+        internal void StopInputForDiagnostics() { input.Dispose(); }
 
         private void ShowBubble(string text) { message.Text = text; bubble.Visibility = Visibility.Visible; bubbleTimer.Stop(); bubbleTimer.Start(); }
 
@@ -178,7 +236,17 @@ namespace Kedit.Console
             SetWindowLong(handle, -20, new IntPtr(style));
         }
 
-        public void ApplySize() { Width = controller.Settings.Size; Height = controller.Settings.Size * 1.2 + 65; EnsureVisible(); }
+        public void ApplySize()
+        {
+            var source = PresentationSource.FromVisual(this);
+            var transform = source == null ? Matrix.Identity : source.CompositionTarget.TransformFromDevice;
+            var screen = System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle).WorkingArea;
+            double maxWidth = screen.Width * transform.M11;
+            double maxHeight = Math.Max(100, screen.Height * transform.M22 - 65);
+            Width = Math.Max(1, Math.Min(controller.Settings.Size, Math.Min(maxWidth, maxHeight / canvasAspect)));
+            Height = Width * canvasAspect + 65;
+            EnsureVisible();
+        }
 
         public void ResetPosition()
         {

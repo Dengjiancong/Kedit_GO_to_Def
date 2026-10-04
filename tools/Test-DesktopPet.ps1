@@ -31,10 +31,17 @@ namespace Kedit.Console {
             File.WriteAllText(Path.Combine(directory, "outside.moc3"), "test");
             File.WriteAllText(entry, "{\"FileReferences\":{\"Moc\":\"../outside.moc3\",\"Textures\":[\"../outside.moc3\"]}}"); Reject(entry);
             File.WriteAllText(entry, "{\"FileReferences\":{\"Moc\":\"https://example.com/x\",\"Textures\":[\"x.png\"]}}"); Reject(entry);
-            var settings = new PetSettings { ModelPath = model.PathName, Enabled = true, Size = 420, Left = -240, Top = 30, HasPosition = true, ClickThrough = true };
+            var settings = new PetSettings { ModelPath = model.PathName, Enabled = true, Size = 420, Left = -240, Top = 30, HasPosition = true, ClickThrough = true, FrameLimit = 120 };
             settings.Save(); var loaded = PetSettings.Load();
-            Assert(loaded.Enabled && loaded.ClickThrough && loaded.Size == 420 && loaded.Left == -240 && loaded.ModelPath == model.PathName, "Settings did not round-trip");
-            settings.Size = 99999; settings.Save(); Assert(PetSettings.Load().Size == 720, "Invalid size not bounded");
+            Assert(loaded.Enabled && loaded.ClickThrough && loaded.Size == 420 && loaded.Left == -240 && loaded.ModelPath == model.PathName && loaded.FrameLimit == 120, "Settings did not round-trip");
+            foreach (int limit in new[] { 30, 60, 90, 120 }) { settings.FrameLimit = limit; settings.Save(); Assert(PetSettings.Load().FrameLimit == limit, "FPS preset did not persist"); }
+            settings.MouseFollow = false; settings.HeadFollow = true; settings.TypingEnabled = false; settings.TypingScope = "all"; settings.Save();
+            loaded = PetSettings.Load(); Assert(!loaded.MouseFollow && loaded.HeadFollow && !loaded.TypingEnabled && loaded.TypingScope == "all", "Interaction settings did not persist");
+            settings.TypingScope = "invalid"; settings.Save(); Assert(PetSettings.Load().TypingScope == "editors", "Invalid input scope was not normalized");
+            settings.FrameLimit = 999; settings.Save(); Assert(PetSettings.Load().FrameLimit == 30, "Invalid frame limit not normalized");
+            File.WriteAllText(Path.Combine(directory, "settings.json"), "{\"Size\":360}"); Assert(PetSettings.Load().FrameLimit == 30, "Old settings must default to 30 FPS");
+            loaded = PetSettings.Load(); Assert(loaded.MouseFollow && loaded.TypingEnabled && !loaded.HeadFollow && loaded.TypingScope == "editors", "Old settings interaction defaults incorrect");
+            settings.Size = 99999; settings.Save(); Assert(PetSettings.Load().Size == 1200, "Invalid size not bounded");
             File.WriteAllText(Path.Combine(directory, "settings.json"), "broken");
             Assert(!PetSettings.Load().Enabled && PetSettings.Load().Size == 360, "Corrupt settings did not recover");
             return "PASS: real model (" + model.ResourceCount + " resources), malformed JSON, missing resources, path traversal, remote paths, settings persistence, bounds and recovery.";

@@ -21,8 +21,10 @@ namespace Kedit.Console
             for (int i = 0; i + 1 < e.Args.Length; i++)
                 if (e.Args[i] == "--data-dir") data = Path.GetFullPath(e.Args[i + 1]);
             PetRuntime.Configure(data);
+            bool isolatedTest = Array.IndexOf(e.Args, "--self-test-pet") >= 0 && Array.IndexOf(e.Args, "--data-dir") >= 0;
             bool created;
-            singleInstance = new Mutex(true, "Local\\Kedit.Console." + System.Security.Principal.WindowsIdentity.GetCurrent().User.Value, out created);
+            singleInstance = new Mutex(true, "Local\\Kedit.Console." + System.Security.Principal.WindowsIdentity.GetCurrent().User.Value +
+                (isolatedTest ? ".diagnostics." + System.Diagnostics.Process.GetCurrentProcess().Id : ""), out created);
             if (!created) {
                 var existing = FindWindow(null, "Kedit 中控");
                 if (existing != IntPtr.Zero) PostMessage(existing, 0x8002, IntPtr.Zero, IntPtr.Zero);
@@ -30,6 +32,7 @@ namespace Kedit.Console
             }
             Pet = new PetController();
             var window = new MainWindow();
+            if (isolatedTest) window.Title = "Kedit 中控（独立测试）";
             MainWindow = window;
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("打开 Kedit 中控", null, delegate { ShowConsole(); });

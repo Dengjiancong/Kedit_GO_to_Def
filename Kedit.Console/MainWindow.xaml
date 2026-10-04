@@ -141,8 +141,29 @@
                   <TextBlock Text="穿透后无法拖动角色，可回到这里或通过中控托盘解除。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12"/>
                   <DockPanel Margin="0,20,0,10">
                     <TextBlock x:Name="PetSizeText" Foreground="#BFD8EF" Width="100" VerticalAlignment="Center"/>
-                    <Slider x:Name="PetSizeSlider" Minimum="180" Maximum="720" Value="360" TickFrequency="30" IsSnapToTickEnabled="True" ValueChanged="PetSize_Changed"/>
+                    <Slider x:Name="PetSizeSlider" Minimum="180" Maximum="1200" Value="360" TickFrequency="30" IsSnapToTickEnabled="True" ValueChanged="PetSize_Changed"/>
                   </DockPanel>
+                  <TextBlock Text="按原始画布完整显示；透明留白可穿透。放大超出屏幕时会等比适配。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12"/>
+                  <DockPanel Margin="0,18,0,8">
+                    <TextBlock Text="帧率上限" Foreground="#BFD8EF" Width="100" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="PetFrameLimit" Width="140" HorizontalAlignment="Left" SelectedValuePath="Tag" SelectionChanged="PetFrameLimit_Changed">
+                      <ComboBoxItem Content="30 FPS（默认）" Tag="30"/>
+                      <ComboBoxItem Content="60 FPS" Tag="60"/>
+                      <ComboBoxItem Content="90 FPS" Tag="90"/>
+                      <ComboBoxItem Content="120 FPS" Tag="120"/>
+                    </ComboBox>
+                  </DockPanel>
+                  <TextBlock x:Name="PetFrameRate" Foreground="#FFDD38" FontSize="14"/>
+                  <CheckBox x:Name="PetMouseFollow" Content="鼠标跟随（模型无眼球参数时轻微转头）" Foreground="White" Margin="0,16,0,10" Checked="PetInteractions_Changed" Unchecked="PetInteractions_Changed"/>
+                  <CheckBox x:Name="PetHeadFollow" Content="眼球跟随时也轻微转头" Foreground="White" Margin="0,0,0,10" Checked="PetInteractions_Changed" Unchecked="PetInteractions_Changed"/>
+                  <CheckBox x:Name="PetTyping" Content="打字时播放敲键盘动作" Foreground="White" Margin="0,0,0,10" Checked="PetInteractions_Changed" Unchecked="PetInteractions_Changed"/>
+                  <ComboBox x:Name="PetTypingScope" Width="260" HorizontalAlignment="Left" SelectedValuePath="Tag" SelectionChanged="PetTypingScope_Changed">
+                    <ComboBoxItem Content="仅 Kedit / Visual Studio" Tag="editors"/>
+                    <ComboBoxItem Content="所有应用" Tag="all"/>
+                  </ComboBox>
+                  <TextBlock Text="停键约半秒后收尾；不记录按键或输入内容。" Foreground="#AABBC9" TextWrapping="Wrap" Margin="0,8,0,4"/>
+                  <TextBlock x:Name="PetInteractionStatus" Foreground="#FFDD38" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                  <TextBlock Text="当前数值为渲染统计，不代表屏幕实际显示帧率；受设备与刷新率影响。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12" Margin="0,5,0,0"/>
                   <WrapPanel Margin="0,10,0,0">
                     <Button Content="预览联动" Style="{StaticResource ActionButton}" Click="PreviewPet_Click"/>
                     <Button Content="恢复位置" Style="{StaticResource ActionButton}" Click="ResetPetPosition_Click"/>

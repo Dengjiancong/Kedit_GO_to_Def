@@ -52,6 +52,7 @@ namespace Kedit.Console
                 System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle).AddHook(ConsoleMessage);
             };
             Pet.Changed += delegate { RefreshPet(); };
+            Pet.MetricsChanged += delegate { PetFrameRate.Text = Pet.FrameRateText; };
             RefreshPet();
         }
 
@@ -291,11 +292,20 @@ namespace Kedit.Console
             PetTopmostToggle.IsChecked = Pet.Settings.Topmost;
             PetClickThroughToggle.IsChecked = Pet.Settings.ClickThrough;
             PetSizeSlider.Value = Pet.Settings.Size;
-            PetSizeText.Text = "大小 " + Pet.Settings.Size.ToString("0");
+            PetSizeText.Text = "画布 " + Pet.Settings.Size.ToString("0");
+            PetFrameLimit.SelectedValue = Pet.Settings.FrameLimit.ToString();
+            PetFrameRate.Text = Pet.FrameRateText;
+            PetMouseFollow.IsChecked = Pet.Settings.MouseFollow;
+            PetHeadFollow.IsChecked = Pet.Settings.HeadFollow;
+            PetTyping.IsChecked = Pet.Settings.TypingEnabled;
+            PetTypingScope.SelectedValue = Pet.Settings.TypingScope;
+            PetInteractionStatus.Text = Pet.InteractionStatus ?? "开启桌宠后检测模型互动能力。";
             PetStatus.Text = Pet.Status;
             applyingPet = false;
         }
         internal void ShowPetPage() { selected = null; ShowCategory("pet"); }
+        internal void SelectFrameLimitForDiagnostics(int limit) { PetFrameLimit.SelectedIndex = -1; PetFrameLimit.SelectedValue = limit.ToString(); }
+        internal void ShowPetInteractionsForDiagnostics() { PetInteractionStatus.BringIntoView(); }
         private void ChoosePetModel_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new Microsoft.Win32.OpenFileDialog {
@@ -305,7 +315,19 @@ namespace Kedit.Console
         }
         private void PetEnabled_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetEnabled(PetEnabledToggle.IsChecked == true); }
         private void PetOptions_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetOptions(PetTopmostToggle.IsChecked == true, PetClickThroughToggle.IsChecked == true); }
+        private void PetInteractions_Changed(object sender, RoutedEventArgs e) { SavePetInteractions(); }
+        private void PetTypingScope_Changed(object sender, SelectionChangedEventArgs e) { SavePetInteractions(); }
+        private void SavePetInteractions()
+        {
+            if (!applyingPet && IsLoaded) Pet.SetInteractions(PetMouseFollow.IsChecked == true, PetHeadFollow.IsChecked == true,
+                PetTyping.IsChecked == true, Convert.ToString(PetTypingScope.SelectedValue));
+        }
         private void PetSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { if (!applyingPet && IsLoaded) Pet.SetSize(e.NewValue); }
+        private void PetFrameLimit_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            int limit;
+            if (!applyingPet && IsLoaded && int.TryParse(Convert.ToString(PetFrameLimit.SelectedValue), out limit)) Pet.SetFrameLimit(limit);
+        }
         private void PreviewPet_Click(object sender, RoutedEventArgs e) { Pet.Preview(); }
         private void ResetPetPosition_Click(object sender, RoutedEventArgs e) { Pet.ResetPosition(); }
 

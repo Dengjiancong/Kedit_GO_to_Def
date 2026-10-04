@@ -9,7 +9,21 @@ namespace Kedit.Console
         private DateTime lastCue = DateTime.MinValue;
         public PetSettings Settings { get; private set; }
         public string Status { get; private set; }
+        public string InteractionStatus { get; private set; }
+        public void SetInteractionStatus(string text) { InteractionStatus = text; RaiseChanged(); }
+        public void SetInteractions(bool mouse, bool head, bool typing, string scope)
+        {
+            Settings.MouseFollow = mouse; Settings.HeadFollow = head; Settings.TypingEnabled = typing;
+            Settings.TypingScope = scope == "all" ? "all" : "editors";
+            if (window != null) window.ApplyInteractions();
+            Save(); RaiseChanged();
+        }
         public event EventHandler Changed;
+        public event EventHandler MetricsChanged;
+        public double? RenderFps { get; private set; }
+        internal int MetricsSamples { get; private set; }
+        public string FrameRateText { get { return "上限 " + Settings.FrameLimit + "／当前渲染" +
+            (RenderFps.HasValue ? "约 " + RenderFps.Value.ToString("0") + " FPS" : IsReady ? "测量中…" : "— FPS"); } }
         internal bool IsReady { get { return window != null && window.IsReady; } }
         internal bool HasWindow { get { return window != null; } }
         internal long WindowStyle { get { return window == null ? 0 : window.ExtendedStyle; } }
@@ -48,6 +62,7 @@ namespace Kedit.Console
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void OpenWindow(PetModel model)
         {
+            InteractionStatus = "正在检测模型互动能力…";
             SetStatus("正在加载模型…");
             window = new PetWindow(this, model);
             window.Show();
@@ -62,13 +77,28 @@ namespace Kedit.Console
         public void SetSize(double size)
         {
             if (double.IsNaN(size) || double.IsInfinity(size)) return;
-            Settings.Size = Math.Max(180, Math.Min(720, size));
+            Settings.Size = Math.Max(180, Math.Min(1200, size));
             if (window != null) window.ApplySize();
             Save(); RaiseChanged();
         }
         public void ResetPosition() { if (window != null) window.ResetPosition(); else Settings.HasPosition = false; Save(); }
         public void Preview() { if (window != null) window.Cue("快捷键联动预览", "celebrate"); else SetStatus("请先开启桌宠。"); }
         internal void Capture(string path) { if (window != null) window.Capture(path); }
+        internal PetWindow DiagnosticWindow { get { return window; } }
+
+        public void SetFrameLimit(int limit)
+        {
+            Settings.FrameLimit = PetSettings.NormalizeFrameLimit(limit);
+            SetRenderFps(null);
+            if (window != null) window.ApplyFrameLimit();
+            Save(); RaiseChanged();
+        }
+        internal void SetRenderFps(double? fps)
+        {
+            RenderFps = fps;
+            if (fps.HasValue) MetricsSamples++;
+            var changed = MetricsChanged; if (changed != null) changed(this, EventArgs.Empty);
+        }
 
         public void Notify(int id)
         {
@@ -83,7 +113,7 @@ namespace Kedit.Console
         public void SetStatus(string status) { Status = status; PetRuntime.Log(status); RaiseChanged(); }
         public void Save() { try { Settings.Save(); } catch (Exception ex) { SetStatus("设置保存失败：" + ex.Message); } }
         private void RaiseChanged() { var changed = Changed; if (changed != null) changed(this, EventArgs.Empty); }
-        private void CloseWindow() { if (window != null) { var old = window; window = null; old.Close(); } }
+        private void CloseWindow() { if (window != null) { var old = window; window = null; old.Close(); } SetRenderFps(null); }
         public void Dispose() { CloseWindow(); }
     }
 }
