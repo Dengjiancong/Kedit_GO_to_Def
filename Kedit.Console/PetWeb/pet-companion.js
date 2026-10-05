@@ -8,6 +8,7 @@ class PetCompanion {
         this.activeSince = null; this.returnPending = false; this.speechUntil = 0; this.mouth = 0;
         this.contextTimes = {}; this.clock = performance.now();
         this.sword = new PetSword();
+        this.life = typeof PetLife!=="undefined" ? new PetLife(this) : null;
         model.internalModel.on("beforeModelUpdate", () => this.apply());
         this.ready = this.prepare(manifest, url);
     }
@@ -112,6 +113,7 @@ class PetCompanion {
     activity(data) {
         this.sword.receive(data);
         if (!(data.presses > 0) || data.reset || (data.sentAt && Math.abs(Date.now()-data.sentAt)>250)) return;
+        if(this.life)this.life.typing();
         const now = performance.now();
         if (now-this.lastActivity > 300000) { this.returnPending = Number.isFinite(this.lastActivity); this.activeSince = now; }
         if (this.activeSince === null) this.activeSince = now;
@@ -146,6 +148,7 @@ class PetCompanion {
     select(id, hold, touch = false) {
         const r = this.resources.find(r => r.id === id && r.available);
         if (!r) { this.report({type:"companionStatus",text:"模型中没有可用的这项资源。"}); return false; }
+        if(this.life && /cloth off/.test(id))this.life.manualAppearance();
         // All hand resources are exclusive. Face/marks can combine when their actual parameters don't overlap.
         const hand = r.channels.includes("手部／道具"), appearance = /cloth off/.test(r.id);
         const values = r.values.filter(v => appearance || v.category !== "外观");
@@ -155,12 +158,13 @@ class PetCompanion {
         if (hand) { this.input.manualBusy = true; this.input.cancel(); }
         this.status(); return true;
     }
-    reset() { this.layers.forEach(l => l.ending = true); this.speech(0); this.hits=[]; this.status(); }
-    combination() { return this.layers.filter(l => l.hold && !l.ending && !l.touch).map(l => l.r.id); }
+    reset() { if(this.life){this.life.rub(false);this.life.manualAppearance();this.life.auto=null;this.life.savedKey=-Infinity;} this.layers.forEach(l => l.ending = true); this.speech(0); this.hits=[]; this.status(); }
+    combination() { return this.layers.filter(l => l.hold && !l.ending && !l.touch && !l.automatic).map(l => l.r.id); }
     restore(ids) { this.reset(); (Array.isArray(ids) ? ids.slice(0,this.resources.length) : []).forEach(id => this.select(id,true)); }
     status() { this.report({type:"companionStatus",text:this.layers.filter(l=>!l.ending).map(l=>l.r.label+(l.hold?"（保持）":"")).join("＋") || "自然状态"}); }
     update(dt) {
         const now = performance.now(); this.dt = Math.max(0,Math.min(100,dt));
+        if(this.life)this.life.update(dt);
         this.sword.update(dt,this.layers.some(l=>l.r.id==="motion-weapon"&&!l.ending&&now-l.start>=l.r.duration) &&
             !!this.input.settings.mouseFollow && !this.input.paused,this.settings);
         let changed = false;
@@ -169,7 +173,7 @@ class PetCompanion {
             l.weight = Math.max(0,Math.min(1,l.weight+(l.ending?-1:1)*this.dt/250));
         }
         this.layers = this.layers.filter(l => { const keep = !l.ending || l.weight>0; if(!keep)changed=true; return keep; });
-        const busy = this.layers.some(l => l.hand);
+        const busy = this.layers.some(l => l.hand && !(l.automatic&&l.ending));
         if (this.input.manualBusy && !busy) this.input.cancel();
         this.input.manualBusy = busy;
         if(changed)this.status();
@@ -192,6 +196,7 @@ class PetCompanion {
             const loop = l.hold && ["motion-music","motion-keyboard"].includes(l.r.id);
             const time = (loop ? elapsed%l.r.duration : Math.min(elapsed,l.r.duration))/1000;
             for (const v of l.values) {
+                if(l.scheduled && ["ParamExpression9","ParamExpression25"].includes(v.id) && (this.input.manualBusy||this.input.keyboardWeight>.05))continue;
                 const weaponFollow = l.r.id === "motion-weapon" && this.input.settings.mouseFollow && !this.input.paused;
                 const release = weaponFollow ? Math.max(0,Math.min(1,(elapsed-l.r.duration)/250)) : 0;
                 // Finish the draw-sword gesture, then stop pinning the authored head angles to zero.
@@ -199,6 +204,11 @@ class PetCompanion {
                 const weight = l.weight;
                 const base=c.getParameterValueByIndex(v.index);
                 let value=v.value(time);
+                if(l.automatic && v.category!=="外观") {
+                    const center=c.getParameterDefaultValue(v.index);
+                    const amount=Math.max(0,Math.min(1,(this.life.music.amount===undefined?70:this.life.music.amount)/100));
+                    if(v.category==="姿势")value=center+(value-center)*(.2+.8*this.life.energy*amount);
+                }
                 if (weaponFollow && /^ParamAngle[XY]$/.test(v.id)) {
                     const axis=v.id==="ParamAngleX"?0:1;
                     const head=this.sword.followHead(axis,this.swordGazeTarget(v.index,axis,this.input.headWeight),this.dt,this.settings.swordHeadAmount,this.settings.swordHeadSpeed);
@@ -210,6 +220,7 @@ class PetCompanion {
                 if(v.category==="嘴部" && l.weight>.01)fixedMouth=true;
             }
         }
+        if(this.life)this.life.apply();
         const index=this.input.index("ParamMouthOpenY");
         if(this.sword.active) (this.input.eyes || []).forEach((i,axis)=>{
             if(i>=0)c.setParameterValueByIndex(i,this.sword.followHead(axis+2,this.swordGazeTarget(i,axis,this.input.gazeWeight),this.dt,this.settings.swordHeadAmount,this.settings.swordHeadSpeed));

@@ -1,7 +1,7 @@
 /* All assets are local. Only explicit, named motions are selected. */
 "use strict";
 (() => {
-    let app, model, manifest, canvasBounds, interactions, companion;
+    let app, model, manifest, canvasBounds, interactions, companion, gesture;
     let cueQueue = Promise.resolve();
     const params = new URLSearchParams(location.search);
     const validLimits = [30, 60, 90, 120];
@@ -59,9 +59,11 @@
         if (event.data.type === "cue") cueQueue = cueQueue.then(() => cue(event.data.kind)).catch(fail);
         if (event.data.type === "settings") setFrameLimit(event.data.frameLimit);
         if (interactions && event.data.type === "interactionSettings") interactions.configure(event.data);
-        if (interactions && event.data.type === "input") interactions.receive(event.data);
         if (companion && event.data.type === "input") companion.activity(event.data);
+        if (interactions && event.data.type === "input") interactions.receive(event.data);
         if (companion && event.data.type === "companionSettings") companion.configure(event.data);
+        if(gesture && event.data.type==="gesture")gesture.receive(event.data);
+        if(companion && companion.life)companion.life.receive(event.data);
         if (companion && event.data.type === "speech") companion.speech(event.data.duration);
         if (companion && event.data.type === "touch") touchAt(event.data.x*innerWidth,event.data.y*innerHeight);
         if(companion && event.data.type==="requestActionMenu" && hitRegion(event.data.x*innerWidth,event.data.y*innerHeight)) {
@@ -71,6 +73,7 @@
         if (companion && event.data.type === "companion") {
             const d=event.data;
             if (d.action === "head" || d.action === "body") companion.touch(d.action);
+            else if (d.action === "rub") companion.life.rub(true,3);
             else if (d.action === "speechPreview") companion.say("encourage");
             else if (d.action === "reset") companion.reset();
             else if (d.action === "select") companion.select(d.id,d.hold);
@@ -151,7 +154,8 @@
         await interactions.ready;
         companion = new PetCompanion(model,interactions,manifest,url,post);
         await companion.ready;
-        if (params.get("diagnostics") === "1") window.petDiagnostics = { model, interactions, companion, app, touchAt, hitRegion };
+        gesture=new PetGesture((x,y)=>hitRegion(x*innerWidth,y*innerHeight),kind=>companion.touch(kind),active=>companion.life.rub(active));
+        if (params.get("diagnostics") === "1") window.petDiagnostics = { model, interactions, companion, app, touchAt, hitRegion, gesture };
         // Use one capped ticker for both model/physics updates and rendering.
         app.ticker.add(() => { companion.update(app.ticker.deltaMS); interactions.update(app.ticker.deltaMS); model.update(app.ticker.deltaMS); });
         model.update(16);

@@ -32,6 +32,7 @@ const vm = require("node:vm");
     const sandbox = {
         URL, URLSearchParams, console, innerWidth: 400, innerHeight: 400, devicePixelRatio: 1,
         performance: { now: () => now },
+        PetGesture: require("../Kedit.Console/PetWeb/pet-gesture.js"),
         PetInteractions: class { constructor() { interactions = this; this.settings = {}; this.ready = Promise.resolve(); } configure() {} receive() {} update() {} },
         PetCompanion: class { constructor() { this.ready=Promise.resolve(); } update() {} },
         location: { search: "?model=https%3A%2F%2Fmodel.kedit.local%2Ftest.model3.json&fps=30" },

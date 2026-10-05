@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Kedit.Console
 {
-    internal sealed class PetController : IDisposable
+    internal sealed partial class PetController : IDisposable
     {
         private PetWindow window;
         private DateTime lastCue = DateTime.MinValue;
@@ -26,6 +26,9 @@ namespace Kedit.Console
         public void CompanionCommand(string action, string id = null, bool hold = false)
         {
             if (!IsReady) { SetCompanionStatus("请先开启桌宠，等待模型加载完成。"); return; }
+            if(action=="reset"||action=="restore"||(action=="select"&&id!=null&&id.Contains("cloth off"))) {
+                pendingWardrobe=null;if(Automation.Wardrobe!=null){Automation.Wardrobe=null;SaveAutomation();}
+            }
             if (action == "restore" && !string.Equals(Settings.FavoriteModel, Settings.ModelPath, StringComparison.OrdinalIgnoreCase)) {
                 SetCompanionStatus("当前模型尚未保存组合，请先选择资源并保持显示。"); return;
             }
@@ -103,7 +106,7 @@ namespace Kedit.Console
         internal bool HasWindow { get { return window != null; } }
         internal long WindowStyle { get { return window == null ? 0 : window.ExtendedStyle; } }
 
-        public PetController() { Settings = PetSettings.Load(); Status = "选择模型后开启桌宠。"; }
+        public PetController() { Settings = PetSettings.Load(); InitializeAutomation(); Status = "选择模型后开启桌宠。"; }
 
         public void SelectModel(string path)
         {
@@ -189,8 +192,8 @@ namespace Kedit.Console
         public void SetStatus(string status) { Status = status; PetRuntime.Log(status); RaiseChanged(); }
         public void Save() { try { Settings.Save(); } catch (Exception ex) { SetStatus("设置保存失败：" + ex.Message); } }
         private void RaiseChanged() { var changed = Changed; if (changed != null) changed(this, EventArgs.Empty); }
-        private void CloseWindow() { if (window != null) { var old = window; window = null; old.Close(); } SetRenderFps(null); SetTypingMetrics(null, 0, false); }
-        public void Dispose() { CloseWindow(); }
+        private void CloseWindow() { StopMusic(); if (window != null) { var old = window; window = null; old.Close(); } SetRenderFps(null); SetTypingMetrics(null, 0, false); }
+        public void Dispose() { DisposeAutomation(); CloseWindow(); }
     }
     public sealed class PetResource
     {

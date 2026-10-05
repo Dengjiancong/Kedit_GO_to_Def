@@ -54,6 +54,10 @@
     <Compile Include="Pet\PetSettings.cs" />
     <Compile Include="Pet\PetModel.cs" />
     <Compile Include="Pet\PetController.cs" />
+    <Compile Include="Pet\PetSchedule.cs" />
+    <Compile Include="Pet\PetAudio.cs" />
+    <Compile Include="Pet\PetAutomation.cs" />
+    <Compile Include="Pet\PetAutomationPanel.cs" />
     <Compile Include="Pet\PetWindow.cs" />
     <Compile Include="Pet\PetInput.cs" />
     <Compile Include="Pet\PetDiagnostics.cs" />

@@ -32,8 +32,8 @@ namespace Kedit.Console
         private Point dragPoint;
         private double dragLeft, dragTop;
         private Point middlePoint;
-        private DateTime middleStarted;
-        private bool middlePressed, middleMoved;
+        private bool middlePressed;
+        private DateTime lastGestureMove;
         private ContextMenu actionMenu;
         private int menuRequest;
         private DateTime menuRequestedAt;
@@ -48,6 +48,7 @@ namespace Kedit.Console
             controller = owner;
             model = selected;
             input = new PetInput(this, owner.Settings, delegate(double x, double y, int presses) {
+                if(presses>0)controller.AutomationActivity();
                 if (ready && !closed) PostInteraction(new { type = "input", x = x, y = y, presses = presses, mouseVX = input.MouseVX, mouseVY = input.MouseVY, sentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
             });
             Title = "Kedit Live2D 桌宠";
@@ -81,9 +82,11 @@ namespace Kedit.Console
             grid.PreviewMouseUp += MiddleUp;
             grid.PreviewMouseRightButtonUp += RequestActionMenu;
             grid.PreviewMouseMove += delegate(object sender, MouseEventArgs e) {
-                if (middlePressed && (e.GetPosition(this) - middlePoint).Length > 6) middleMoved = true;
+                if(middlePressed && (DateTime.UtcNow-lastGestureMove).TotalMilliseconds>=33) {
+                    lastGestureMove=DateTime.UtcNow;SendGesture("move",e.GetPosition(this));
+                }
             };
-            grid.LostMouseCapture += delegate { middlePressed = false; };
+            grid.LostMouseCapture += delegate { CancelGesture(); };
             grid.LostMouseCapture += delegate { dragging = false; };
             grid.PreviewMouseWheel += delegate(object sender, MouseWheelEventArgs e) {
                 controller.SetSize(controller.Settings.Size + (e.Delta > 0 ? 30 : -30)); e.Handled = true;
@@ -166,7 +169,7 @@ namespace Kedit.Console
                     canvasAspect = height / width;
                     ApplySize();
                     ready = true; loadTimer.Stop();
-                    ApplyFrameLimit(); ApplyInteractions(); ApplyCompanion(); metricsTimer.Start();
+                    ApplyFrameLimit(); ApplyInteractions(); ApplyCompanion(); metricsTimer.Start();controller.AutomationReady();
                     controller.SetStatus("模型已加载 · " + model.ResourceCount + " 个资源 · 原始画布");
                 }
                 else if (type == "interactionCapabilities") {
@@ -196,6 +199,7 @@ namespace Kedit.Console
                     var serializer = new JavaScriptSerializer();
                     controller.SetResources(serializer.Deserialize<PetResource[]>(serializer.Serialize(data["items"])));
                 }
+                else if(type=="wardrobePrepared" || type=="wardrobeManual")controller.AutomationMessage(data);
                 else if (type == "companionStatus") controller.SetCompanionStatus(Convert.ToString(data["text"]));
                 else if(type=="actionMenu" && ready && Convert.ToInt32(data["request"])==menuRequest &&
                     !controller.Settings.ClickThrough && (DateTime.UtcNow-menuRequestedAt).TotalSeconds<1) {
@@ -239,6 +243,8 @@ namespace Kedit.Console
         }
 
         private void PostInteraction(object data) { browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(data)); }
+        internal void SendAutomation(object data) { if(ready&&!closed)PostInteraction(data); }
+        internal void AutomationBubble(string text) { if(ready&&!closed)ShowBubble(text,7000); }
         public void CompanionCommand(string action, string id, bool hold)
         {
             if (action == "reset") { bubble.Visibility = Visibility.Collapsed; bubbleTimer.Stop(); }
@@ -306,7 +312,7 @@ namespace Kedit.Console
         public void ApplyOptions()
         {
             menuRequest++; if(actionMenu!=null)actionMenu.IsOpen=false;
-            middlePressed = false;
+            CancelGesture();
             if (Mouse.Captured != null && IsAncestorOf(Mouse.Captured as DependencyObject)) Mouse.Capture(null);
             Topmost = controller.Settings.Topmost;
             IntPtr handle = new WindowInteropHelper(this).Handle;
@@ -357,8 +363,8 @@ namespace Kedit.Console
             if (!ready || controller.Settings.ClickThrough || e.GetPosition(this).Y < 65) return;
             Point bubblePoint = e.GetPosition(bubble);
             if (bubble.IsVisible && bubblePoint.X >= 0 && bubblePoint.X <= bubble.ActualWidth && bubblePoint.Y >= 0 && bubblePoint.Y <= bubble.ActualHeight) return;
-            middlePoint = e.GetPosition(this); middleStarted = DateTime.UtcNow;
-            middlePressed = true; middleMoved = false; ((UIElement)sender).CaptureMouse();
+            middlePoint = e.GetPosition(this);
+            middlePressed = true; ((UIElement)sender).CaptureMouse();SendGesture("down",middlePoint);
         }
         private void RequestActionMenu(object sender, MouseButtonEventArgs e)
         {
@@ -392,6 +398,12 @@ namespace Kedit.Console
                 var source=PresentationSource.FromVisual(actionMenu) as HwndSource;
                 if(source!=null) { SetWindowLong(source.Handle,-20,new IntPtr(GetWindowLong(source.Handle,-20).ToInt64()|0x08000000L)); source.AddHook(WindowMessage); }
             };
+            var reminder=controller.Automation.Occurrences.FindLast(o=>o.Due.Date==DateTime.Now.Date&&(o.Status=="pending"||o.Status=="snoozed"||o.Status=="executed"));
+            if(reminder!=null) {
+                actionMenu.Items.Add(new Separator());
+                var later=new MenuItem{Header="本次提醒：稍后提醒"};later.Click+=delegate{controller.RespondReminder(reminder.ReminderId,true);};actionMenu.Items.Add(later);
+                var ignore=new MenuItem{Header="本次提醒：今天忽略"};ignore.Click+=delegate{controller.RespondReminder(reminder.ReminderId,false);};actionMenu.Items.Add(ignore);
+            }
             actionMenu.IsOpen=true;
         }
         internal void OpenActionMenuForDiagnostics(string selected) { menuPoint=new Point(Width*.5,Height*.6);OpenActionMenu(selected); }
@@ -400,12 +412,13 @@ namespace Kedit.Console
         {
             if (e.ChangedButton != MouseButton.Middle) return;
             e.Handled = true;
-            bool click = middlePressed && !middleMoved && (DateTime.UtcNow - middleStarted).TotalMilliseconds <= 500;
+            if(middlePressed)SendGesture("up",e.GetPosition(this));
             middlePressed = false; ((UIElement)sender).ReleaseMouseCapture();
-            Point point = e.GetPosition(this);
-            if (click && ready && !controller.Settings.ClickThrough && (point-middlePoint).Length <= 6 && point.Y >= 65)
-                PostInteraction(new { type = "touch", x = point.X / ActualWidth, y = (point.Y-65)/(ActualHeight-65) });
         }
+        private void SendGesture(string phase,Point point) {
+            if(ready&&!closed)PostInteraction(new {type="gesture",phase=phase,x=point.X/ActualWidth,y=(point.Y-65)/(ActualHeight-65),px=point.X,py=point.Y});
+        }
+        private void CancelGesture() { if(middlePressed)SendGesture("cancel",middlePoint);middlePressed=false; }
         private void MoveDrag(object sender, MouseEventArgs e)
         {
             if (!dragging || e.LeftButton != MouseButtonState.Pressed) return;

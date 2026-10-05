@@ -23,6 +23,9 @@ namespace Kedit.Console
                 panel.ShowPetPage();
                 for (int i = 0; i < 150 && !app.Pet.IsReady; i++) await Task.Delay(200);
                 Check(app.Pet.IsReady, "Live2D did not become ready: " + app.Pet.Status);
+                if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-life")>=0) {
+                    await CheckLife(app,panel,directory);app.ExitConsole();return;
+                }
                 if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-menu")>=0) {
                     await CheckMenu(app,panel,directory);app.ExitConsole();return;
                 }
@@ -89,6 +92,64 @@ namespace Kedit.Console
             }
         }
         private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+        private static async Task CheckLife(App app,MainWindow panel,string directory) {
+            var pet=app.Pet;var w=pet.DiagnosticWindow;w.StopInputForDiagnostics();pet.SetSize(650);pet.SetOptions(true,false);pet.SetCare(false,20,false);pet.CompanionCommand("reset");await Task.Delay(400);
+            NativePoint original;GetCursorPos(out original);IntPtr foreground=GetForegroundWindow(),handle=new System.Windows.Interop.WindowInteropHelper(w).Handle;
+            Point head=new Point(w.ActualWidth*.5,65+(w.ActualHeight-65)*.60),move=new Point(w.ActualWidth*.5+15,65+(w.ActualHeight-65)*.60);
+            try {
+                await MouseMessage(w,handle,head,0x207,16);await Task.Delay(200);await MouseMessage(w,handle,move,0x200,16);await Task.Delay(300);
+                Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rubbing") == "true","Native rub did not begin");
+                pet.Capture(Path.Combine(directory,"rub.png"),true);
+                await MouseMessage(w,handle,move,0x208,0);await Task.Delay(400);
+                Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.companion.life.rubbing && window.petDiagnostics.companion.hits.length===0") == "true","Rub release became tap or stayed active");
+                await MouseMessage(w,handle,head,0x207,16);await Task.Delay(200);await MouseMessage(w,handle,move,0x200,16);
+                pet.SetOptions(true,true);await Task.Delay(300);
+                Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.companion.life.rubbing") == "true","Click-through failed to cancel rub");
+                await MouseMessage(w,handle,move,0x208,0);pet.SetOptions(true,false);
+                Check(GetForegroundWindow()==foreground,"Rub stole foreground focus");
+            }finally{SetCursorPos(original.X,original.Y);}
+            var r=new PetReminder{Enabled=true,Days=127,Time=DateTime.Now.ToString("HH:mm"),CatchUpMinutes=5,Exact=true};pet.SaveReminder(r);pet.TickAutomation(DateTime.Now);await Task.Delay(1500);
+            Check(pet.Automation.Wardrobe!=null,"Wardrobe prepare/commit failed");
+            pet.Capture(Path.Combine(directory,"scheduled-animation.png"),true);await Task.Delay(2000);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.wardrobe.values.ParamExpression11===1") == "true","Scheduled costume result missing");
+            Check(PetAutomationData.Load().Wardrobe.RestoreAt.Date==DateTime.Now.Date.AddDays(1),"Cross-night restoration not persisted");
+            pet.CompanionCommand("drink");await Task.Delay(600);pet.Capture(Path.Combine(directory,"costume-with-pot.png"),true);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.combination().includes('hand-pot') && window.petDiagnostics.companion.life.appearance.ParamExpression11>.99") == "true","Hand prop replaced wardrobe");
+            pet.Automation.Wardrobe.RestoreAt=DateTime.Now.AddSeconds(-1);pet.TickAutomation(DateTime.Now);await Task.Delay(600);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.appearance.ParamExpression11<.01 && window.petDiagnostics.companion.combination().includes('hand-pot')") == "true","Wardrobe restore changed hand prop or failed");
+            pet.Capture(Path.Combine(directory,"restored-with-pot.png"),true);
+            pet.CompanionCommand("select","cloth off",true);await Task.Delay(300);Check(pet.Automation.Wardrobe==null,"Manual appearance did not cancel old restoration");
+            var once=new PetReminder{Enabled=true,Days=127,Time=DateTime.Now.ToString("HH:mm"),CatchUpMinutes=5,Exact=true,Policy="once"};
+            pet.SaveReminder(once);pet.TickAutomation(DateTime.Now);await Task.Delay(500);
+            Check(pet.Automation.Wardrobe!=null&&pet.Automation.Wardrobe.original["ParamExpression11"]>.99,"Snapshot did not preserve manually selected appearance");
+            await Task.Delay(7000);
+            Check(pet.Automation.Wardrobe.Token=="restored"&&await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.appearance.ParamExpression11>.99") == "true","Play-once did not restore previous appearance");
+            pet.CompanionCommand("reset");await Task.Delay(400);
+            var hold=new PetReminder{Enabled=true,Days=127,Time=DateTime.Now.ToString("HH:mm"),CatchUpMinutes=5,Exact=true,Policy="hold"};
+            pet.SaveReminder(hold);pet.TickAutomation(DateTime.Now);await Task.Delay(2800);
+            Check(PetAutomationData.Load().Wardrobe.RestoreAt==default(DateTime),"Long hold unexpectedly acquired a restore deadline");
+            pet.SetEnabled(false);pet.SetEnabled(true);for(int i=0;i<100&&!pet.IsReady;i++)await Task.Delay(100);Check(pet.IsReady,"Reopen failed");
+            w=pet.DiagnosticWindow;w.StopInputForDiagnostics();await Task.Delay(700);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.appearance.ParamExpression11>.99 && !window.petDiagnostics.companion.layers.some(l=>l.scheduled)") == "true","Reopen lost wardrobe or replayed reminder animation");
+            pet.Automation.Wardrobe.RestoreAt=DateTime.Now.AddSeconds(-1);pet.SaveAutomation();pet.SetEnabled(false);pet.SetEnabled(true);
+            for(int i=0;i<100&&!pet.IsReady;i++)await Task.Delay(100);w=pet.DiagnosticWindow;w.StopInputForDiagnostics();await Task.Delay(700);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.appearance.ParamExpression11<.01 && !window.petDiagnostics.companion.layers.some(l=>l.scheduled)") == "true","Expired restore not applied on reopen");
+            pet.CompanionCommand("reset");await Task.Delay(400);
+            await w.EvaluateForDiagnostics("(()=>{const d=window.petDiagnostics;d.peak=.1;d.musicTimer=setInterval(()=>d.companion.life.receive({type:'music',enabled:true,peak:d.peak,amount:70,sensitivity:1.5}),100);})()");await Task.Delay(3700);
+            Check(await w.EvaluateForDiagnostics("!!window.petDiagnostics.companion.life.auto") == "true","Automatic music never entered");
+            pet.Capture(Path.Combine(directory,"automatic-music.png"),true);
+            await w.EvaluateForDiagnostics("(()=>{const d=window.petDiagnostics;d.oldCount=d.interactions.strokeCount;const input={x:0,y:0,presses:1,sentAt:Date.now()};d.companion.activity(input);d.interactions.receive(input);})()");
+            Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.companion.life.auto && window.petDiagnostics.interactions.strokeCount===window.petDiagnostics.oldCount+1") == "true","First typing stroke lost to music");
+            await Task.Delay(3500);Check(await w.EvaluateForDiagnostics("!!window.petDiagnostics.companion.life.auto") == "true","Music did not resume after typing");
+            pet.CompanionCommand("drink");await Task.Delay(500);Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.companion.life.auto && window.petDiagnostics.companion.combination().includes('hand-pot')") == "true","Automatic music displaced manual prop");
+            pet.CompanionCommand("reset");await Task.Delay(500);await w.EvaluateForDiagnostics("window.petDiagnostics.peak=0");await Task.Delay(2000);
+            Check(await w.EvaluateForDiagnostics("!!window.petDiagnostics.companion.life.auto") == "true","Short silence removed music");await Task.Delay(7000);
+            Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.companion.life.auto") == "true","Stopped source did not exit music");
+            await w.EvaluateForDiagnostics("clearInterval(window.petDiagnostics.musicTimer)");
+            panel.ShowAutomationForDiagnostics(false);await Task.Delay(300);Capture(panel,Path.Combine(directory,"console-reminders.png"));
+            panel.ShowAutomationForDiagnostics(true);await Task.Delay(300);Capture(panel,Path.Combine(directory,"console-music.png"));
+            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: native rub, release without tap, click-through cancellation, foreground preserved, scheduled authored animation, persistent cross-night deadline, costume retained with prop, restore without changing prop, manual override, automatic music, first typing stroke, resume, manual priority, brief silence/stop, UI. Music samples in this renderer check were injected; real audio meter is checked separately.");
+        }
         private static async Task CheckMenu(App app, MainWindow panel, string directory)
         {
             var w=app.Pet.DiagnosticWindow; w.StopInputForDiagnostics();app.Pet.SetSize(550);app.Pet.SetOptions(true,false);app.Pet.SetCare(false,20,false);

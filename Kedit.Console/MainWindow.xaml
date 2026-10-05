@@ -184,7 +184,7 @@
               </Border>
               <Expander Header="互动与暖心陪伴" IsExpanded="True" Foreground="White" Margin="0,16,0,8">
                 <StackPanel Margin="8">
-                  <TextBlock Text="左键拖动 · 中键轻点头部摸摸头／身体轻戳 · 滚轮缩放。按住中键移动暂不触发互动。" TextWrapping="Wrap" Foreground="#91ABC1" Margin="0,0,0,8"/>
+                  <TextBlock Text="左键拖动 · 中键轻点头部摸摸头／身体轻戳 · 按住中键在头部移动揉头 · 滚轮缩放。" TextWrapping="Wrap" Foreground="#91ABC1" Margin="0,0,0,8"/>
                   <WrapPanel>
                     <Button Content="摸摸头" Tag="head" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
                     <Button Content="轻戳一下" Tag="body" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
@@ -239,6 +239,9 @@
                   <TextBlock Text="相同参数和手部道具互斥；面部、标记可搭配。仅主动换装改变外观。保存当前保持显示的组合，按模型区分；不会自动载入。" TextWrapping="Wrap" Foreground="#91ABC1" FontSize="12" Margin="0,8,0,8"/>
                   <TextBlock x:Name="PetCompanionStatus" Foreground="#FFDD38" TextWrapping="Wrap"/>
                 </StackPanel>
+              </Expander>
+              <Expander Header="揉头、定时提醒与音乐陪伴" IsExpanded="True" Foreground="White" Margin="0,8,0,8">
+                <ContentControl x:Name="PetAutomationHost"/>
               </Expander>
               <TextBlock x:Name="PetStatus" Foreground="#FFDD38" TextWrapping="Wrap" Margin="0,16,0,10"/>
               <TextBlock Text="桌宠开启时，关闭中控会收起面板；可从托盘重新打开或退出。桌宠与原有陪伴表情 OSD 分别控制。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12"/>

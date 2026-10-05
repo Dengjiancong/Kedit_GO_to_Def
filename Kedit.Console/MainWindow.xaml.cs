@@ -330,6 +330,7 @@ namespace Kedit.Console
                 PetResources.ItemsSource = Pet.Resources; if (PetResources.Items.Count > 0) PetResources.SelectedIndex = 0;
             }
             PetCompanionStatus.Text = Pet.CompanionStatus;
+            if(PetAutomationHost.Content==null)PetAutomationHost.Content=new PetAutomationPanel(Pet,(Style)FindResource("ActionButton"));
             applyingPet = false;
         }
         internal void ShowPetPage() { selected = null; ShowCategory("pet"); }
@@ -338,6 +339,7 @@ namespace Kedit.Console
         internal void ShowCompanionForDiagnostics() { PetCompanionStatus.BringIntoView(); }
         internal void ShowPresentationForDiagnostics() { PetMouthAmount.BringIntoView(); }
         internal void ShowSwordForDiagnostics() { PetSwordHeadSpeed.BringIntoView(); }
+        internal void ShowAutomationForDiagnostics(bool music) { ((PetAutomationPanel)PetAutomationHost.Content).ShowForDiagnostics(music); }
         internal void OpenPetResourcesForDiagnostics() { PetCompanionStatus.BringIntoView(); PetResources.IsDropDownOpen=true; }
         internal void ClosePetResourcesForDiagnostics() { PetResources.IsDropDownOpen=false; }
         internal FrameworkElement PetResourcesPopupForDiagnostics() { return ((System.Windows.Controls.Primitives.Popup)PetResources.Template.FindName("PART_Popup",PetResources)).Child as FrameworkElement; }
