@@ -19,6 +19,48 @@ namespace Kedit.Console
             Save(); RaiseChanged();
         }
         public event EventHandler Changed;
+        public PetResource[] Resources { get; private set; }
+        public string CompanionStatus { get; private set; }
+        internal void SetResources(PetResource[] resources) { Resources = resources; RaiseChanged(); }
+        internal void SetCompanionStatus(string text) { CompanionStatus = text; RaiseChanged(); }
+        public void CompanionCommand(string action, string id = null, bool hold = false)
+        {
+            if (!IsReady) { SetCompanionStatus("请先开启桌宠，等待模型加载完成。"); return; }
+            if (action == "restore" && !string.Equals(Settings.FavoriteModel, Settings.ModelPath, StringComparison.OrdinalIgnoreCase)) {
+                SetCompanionStatus("当前模型尚未保存组合，请先选择资源并保持显示。"); return;
+            }
+            window.CompanionCommand(action, id, hold);
+        }
+        internal void SaveCombination(string[] ids)
+        {
+            Settings.FavoriteCombination = ids; Settings.FavoriteModel = Settings.ModelPath;
+            Save(); SetCompanionStatus("已保存 " + ids.Length + " 项保持显示的资源；可点击载入组合。");
+        }
+        public void SetCare(bool enabled, int minutes, bool rest)
+        {
+            Settings.CareEnabled = enabled; Settings.CareMinutes = minutes == 10 || minutes == 30 ? minutes : 20;
+            Settings.RestEnabled = rest; if (window != null) window.ApplyCompanion(); Save(); RaiseChanged();
+        }
+        public void SetPresentation(double bubbleOffset, double mouthAmount)
+        {
+            Settings.BubbleOffsetPercent = PetSettings.Bound(bubbleOffset, 0, 70, 30);
+            Settings.MouthAmount = PetSettings.Bound(mouthAmount, 10, 100, 75);
+            if (window != null) window.ApplyCompanion(); Save(); RaiseChanged();
+        }
+        public void SetSword(double sensitivity, double amount, double headAmount, double? headSensitivity = null, double? headSpeed = null)
+        {
+            Settings.SwordSensitivity=PetSettings.Bound(sensitivity,.5,3,1.5);
+            Settings.SwordAmount=PetSettings.Bound(amount,0,100,65);
+            Settings.SwordHeadAmount=PetSettings.Bound(headAmount,0,100,25);
+            if(headSensitivity.HasValue)Settings.SwordHeadSensitivity=PetSettings.Bound(headSensitivity.Value,.5,4,1);
+            if(headSpeed.HasValue)Settings.SwordHeadSpeed=PetSettings.Bound(headSpeed.Value,.5,3,1);
+            if(window!=null)window.ApplyCompanion(); Save(); RaiseChanged();
+        }
+        public void SetQuiet(bool quiet)
+        {
+            Settings.QuietUntil = quiet ? DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds() : 0;
+            if (window != null) window.ApplyCompanion(); Save(); RaiseChanged();
+        }
         public void SetFollow(double amount, double sensitivity, double speed)
         {
             Settings.FollowAmount = PetSettings.Bound(amount, 10, 100, 45);
@@ -95,6 +137,7 @@ namespace Kedit.Console
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void OpenWindow(PetModel model)
         {
+            Resources = new PetResource[0]; CompanionStatus = "正在整理可用资源…";
             InteractionStatus = "正在检测模型互动能力…";
             SetStatus("正在加载模型…");
             window = new PetWindow(this, model);
@@ -116,7 +159,7 @@ namespace Kedit.Console
         }
         public void ResetPosition() { if (window != null) window.ResetPosition(); else Settings.HasPosition = false; Save(); }
         public void Preview() { if (window != null) window.Cue("快捷键联动预览", "celebrate"); else SetStatus("请先开启桌宠。"); }
-        internal void Capture(string path) { if (window != null) window.Capture(path); }
+        internal void Capture(string path, bool neutralBackground = false) { if (window != null) window.Capture(path, neutralBackground); }
         internal PetWindow DiagnosticWindow { get { return window; } }
 
         public void SetFrameLimit(int limit)
@@ -148,5 +191,14 @@ namespace Kedit.Console
         private void RaiseChanged() { var changed = Changed; if (changed != null) changed(this, EventArgs.Empty); }
         private void CloseWindow() { if (window != null) { var old = window; window = null; old.Close(); } SetRenderFps(null); SetTypingMetrics(null, 0, false); }
         public void Dispose() { CloseWindow(); }
+    }
+    public sealed class PetResource
+    {
+        public string id { get; set; }
+        public string label { get; set; }
+        public string detail { get; set; }
+        public string parameters { get; set; }
+        public bool available { get; set; }
+        public string Display { get { return label + (available ? "" : "（不可用）"); } }
     }
 }

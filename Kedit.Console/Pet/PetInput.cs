@@ -19,6 +19,10 @@ namespace Kedit.Console
         private int pendingPresses;
         private long lastPress;
         private bool allowed, typingEnabled;
+        private NativePoint previousCursor;
+        private long cursorTime;
+        internal double MouseVX { get; private set; }
+        internal double MouseVY { get; private set; }
         internal bool HookInstalled { get { return hook != IntPtr.Zero; } }
 
         public PetInput(PetWindow window, PetSettings settings, Action<double, double, int> publish)
@@ -32,6 +36,7 @@ namespace Kedit.Console
         public void Configure(bool typingAvailable)
         {
             typingEnabled = settings.TypingEnabled && typingAvailable;
+            cursorTime=0; MouseVX=MouseVY=0;
             pendingPresses = 0; foreground = allowedWindow = IntPtr.Zero;
             if (typingEnabled && hook == IntPtr.Zero) {
                 hook = SetWindowsHookEx(13, callback, GetModuleHandle(null), 0);
@@ -59,11 +64,22 @@ namespace Kedit.Console
             }
             double x = 0, y = 0;
             NativePoint point;
+            MouseVX=MouseVY=0;
             if (settings.MouseFollow && GetCursorPos(out point)) {
+                long timestamp=Stopwatch.GetTimestamp();
+                double elapsed=(timestamp-cursorTime)/(double)Stopwatch.Frequency;
+                if(cursorTime!=0 && elapsed>.005 && elapsed<.25 && !window.IsDraggingForInput) {
+                    var source=PresentationSource.FromVisual(window);
+                    Vector delta=new Vector(point.X-previousCursor.X,point.Y-previousCursor.Y);
+                    if(source!=null) delta=source.CompositionTarget.TransformFromDevice.Transform(delta);
+                    if(delta.Length<2000) { MouseVX=delta.X/elapsed/1000; MouseVY=-delta.Y/elapsed/1000; }
+                }
+                previousCursor=point; cursorTime=timestamp;
                 Point local = window.PointFromScreen(new Point(point.X, point.Y));
                 x = Clamp((local.X - window.ActualWidth * .5) / Math.Max(100, window.ActualWidth));
                 y = Clamp((65 + (window.ActualHeight - 65) * .5 - local.Y) / Math.Max(100, window.ActualHeight - 65));
             }
+            else cursorTime=0;
             bool fresh = (Stopwatch.GetTimestamp() - lastPress) * 1000.0 / Stopwatch.Frequency < 250;
             int presses = typingEnabled && allowed && fresh ? pendingPresses : 0;
             pendingPresses = 0;

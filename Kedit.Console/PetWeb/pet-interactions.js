@@ -90,7 +90,7 @@ class PetInteractions {
         if (input.reset) { this.cancel(); return; }
         const stale = Number.isFinite(input.sentAt) && Math.abs(Date.now()-input.sentAt) > 250;
         const count = stale ? 0 : Math.floor(this.number(input.presses, 0, 32, 0));
-        if (!count || !this.keyboard || !this.settings.typingEnabled || this.paused || this.busy) return;
+        if (!count || !this.keyboard || !this.settings.typingEnabled || this.paused || this.busy || this.manualBusy) return;
         if (now-this.lastKey > this.maxKeyGap()) this.resetQualification();
         if (this.observationStart === null) this.observationStart = now;
         this.lastKey = now;
@@ -122,7 +122,7 @@ class PetInteractions {
         if (this.busy && !this.cuePending && this.manager.isFinished()) this.busy = false;
         this.trim(now);
         if (now-this.lastInput > 750 && this.pulses.length) this.pulses = [];
-        const permitted = this.keyboard && this.settings.typingEnabled && !this.paused && !this.busy;
+        const permitted = this.keyboard && this.settings.typingEnabled && !this.paused && !this.busy && !this.manualBusy;
         this.typing = !!permitted && this.pulses.length > 0;
         this.rate = this.samples.reduce((sum,s) => sum+s.count, 0)*60;
         // One full second establishes the rate; only consecutive qualifying time then counts.

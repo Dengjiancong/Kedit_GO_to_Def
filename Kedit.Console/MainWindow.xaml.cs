@@ -311,11 +311,36 @@ namespace Kedit.Console
             PetTypingRate.Text = Pet.TypingRateText;
             PetInteractionStatus.Text = Pet.InteractionStatus ?? "开启桌宠后检测模型互动能力。";
             PetStatus.Text = Pet.Status;
+            PetCare.IsChecked = Pet.Settings.CareEnabled; PetRest.IsChecked = Pet.Settings.RestEnabled;
+            PetBubbleOffset.Value = Pet.Settings.BubbleOffsetPercent; PetMouthAmount.Value = Pet.Settings.MouthAmount;
+            PetBubbleOffsetText.Text = "气泡下移：" + Pet.Settings.BubbleOffsetPercent.ToString("0") + "%（随角色缩放）";
+            PetMouthAmountText.Text = "说话张合幅度：" + Pet.Settings.MouthAmount.ToString("0") + "%";
+            PetSwordSensitivity.Value=Pet.Settings.SwordSensitivity; PetSwordAmount.Value=Pet.Settings.SwordAmount; PetSwordHead.Value=Pet.Settings.SwordHeadAmount;
+            PetSwordSensitivityText.Text="挥剑灵敏度："+Pet.Settings.SwordSensitivity.ToString("0.0")+" 倍";
+            PetSwordAmountText.Text="挥剑幅度："+Pet.Settings.SwordAmount.ToString("0")+"%";
+            PetSwordHeadText.Text="持剑头部幅度：普通跟随的 "+Pet.Settings.SwordHeadAmount.ToString("0")+"%";
+            PetSwordHeadSensitivity.Value=Pet.Settings.SwordHeadSensitivity;
+            PetSwordHeadSensitivityText.Text="持剑头部灵敏度："+Pet.Settings.SwordHeadSensitivity.ToString("0.0")+" 倍";
+            PetSwordHeadSpeed.Value=Pet.Settings.SwordHeadSpeed;
+            PetSwordHeadSpeedText.Text="持剑头部跟随速度："+Pet.Settings.SwordHeadSpeed.ToString("0.0")+" 倍";
+            PetCareFrequency.SelectedValue = Pet.Settings.CareMinutes.ToString();
+            PetQuietStatus.Text = Pet.Settings.QuietUntil > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() ?
+                "自动关心安静至 " + DateTimeOffset.FromUnixTimeMilliseconds(Pet.Settings.QuietUntil).LocalDateTime.ToString("HH:mm") + "；手动互动可用。" : "自动关心遵循开关和冷却；手动互动始终可用。";
+            if (!object.ReferenceEquals(PetResources.ItemsSource, Pet.Resources)) {
+                PetResources.ItemsSource = Pet.Resources; if (PetResources.Items.Count > 0) PetResources.SelectedIndex = 0;
+            }
+            PetCompanionStatus.Text = Pet.CompanionStatus;
             applyingPet = false;
         }
         internal void ShowPetPage() { selected = null; ShowCategory("pet"); }
         internal void SelectFrameLimitForDiagnostics(int limit) { PetFrameLimit.SelectedIndex = -1; PetFrameLimit.SelectedValue = limit.ToString(); }
         internal void ShowPetInteractionsForDiagnostics() { PetInteractionStatus.BringIntoView(); }
+        internal void ShowCompanionForDiagnostics() { PetCompanionStatus.BringIntoView(); }
+        internal void ShowPresentationForDiagnostics() { PetMouthAmount.BringIntoView(); }
+        internal void ShowSwordForDiagnostics() { PetSwordHeadSpeed.BringIntoView(); }
+        internal void OpenPetResourcesForDiagnostics() { PetCompanionStatus.BringIntoView(); PetResources.IsDropDownOpen=true; }
+        internal void ClosePetResourcesForDiagnostics() { PetResources.IsDropDownOpen=false; }
+        internal FrameworkElement PetResourcesPopupForDiagnostics() { return ((System.Windows.Controls.Primitives.Popup)PetResources.Template.FindName("PART_Popup",PetResources)).Child as FrameworkElement; }
         internal void SetScrollForDiagnostics(int rate, int seconds) { PetScrollRate.Value = rate; PetScrollSeconds.Value = seconds; }
         internal void SetFollowForDiagnostics(double amount, double sensitivity, double speed)
         {
@@ -354,6 +379,37 @@ namespace Kedit.Console
         }
         private void PreviewPet_Click(object sender, RoutedEventArgs e) { Pet.Preview(); }
         private void ResetPetPosition_Click(object sender, RoutedEventArgs e) { Pet.ResetPosition(); }
+        private void PetResource_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            var resource = PetResources.SelectedItem as PetResource;
+            if (PetResourceDetail != null) PetResourceDetail.Text = resource == null ? "开启桌宠后显示当前模型资源。" : resource.detail;
+        }
+        private void PetCompanion_Click(object sender, RoutedEventArgs e)
+        {
+            string action = Convert.ToString(((Button)sender).Tag);
+            if (action == "quiet" || action == "unquiet") { Pet.SetQuiet(action == "quiet"); return; }
+            if (action == "once" || action == "hold") {
+                var resource = PetResources.SelectedItem as PetResource;
+                if (resource == null || !resource.available) { Pet.SetCompanionStatus("请先选择可用资源。"); return; }
+                Pet.CompanionCommand("select", resource.id, action == "hold");
+            } else Pet.CompanionCommand(action);
+        }
+        private void SavePetCare()
+        {
+            int minutes;
+            if (!applyingPet && IsLoaded && int.TryParse(Convert.ToString(PetCareFrequency.SelectedValue), out minutes))
+                Pet.SetCare(PetCare.IsChecked == true, minutes, PetRest.IsChecked == true);
+        }
+        private void PetPresentation_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!applyingPet && IsLoaded) Pet.SetPresentation(PetBubbleOffset.Value, PetMouthAmount.Value);
+        }
+        private void PetSword_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if(!applyingPet && IsLoaded)Pet.SetSword(PetSwordSensitivity.Value,PetSwordAmount.Value,PetSwordHead.Value,PetSwordHeadSensitivity.Value,PetSwordHeadSpeed.Value);
+        }
+        private void PetCare_Changed(object sender, RoutedEventArgs e) { SavePetCare(); }
+        private void PetCareFrequency_Changed(object sender, SelectionChangedEventArgs e) { SavePetCare(); }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {

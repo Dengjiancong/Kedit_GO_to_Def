@@ -23,6 +23,18 @@ namespace Kedit.Console
                 panel.ShowPetPage();
                 for (int i = 0; i < 150 && !app.Pet.IsReady; i++) await Task.Delay(200);
                 Check(app.Pet.IsReady, "Live2D did not become ready: " + app.Pet.Status);
+                if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-menu")>=0) {
+                    await CheckMenu(app,panel,directory);app.ExitConsole();return;
+                }
+                if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-sword")>=0) {
+                    await CheckSword(app,panel,directory);app.ExitConsole();return;
+                }
+                if (selfTest && Array.IndexOf(Environment.GetCommandLineArgs(), "--self-test-presentation") >= 0) {
+                    await CheckPresentation(app,panel,directory); app.ExitConsole(); return;
+                }
+                if (selfTest && Array.IndexOf(Environment.GetCommandLineArgs(), "--self-test-companion") >= 0) {
+                    await CheckCompanion(app, panel, directory); app.ExitConsole(); return;
+                }
                 if (selfTest && Array.IndexOf(Environment.GetCommandLineArgs(), "--probe-typing") >= 0) {
                     await ProbeTyping(app, directory); app.ExitConsole(); return;
                 }
@@ -77,6 +89,234 @@ namespace Kedit.Console
             }
         }
         private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+        private static async Task CheckMenu(App app, MainWindow panel, string directory)
+        {
+            var w=app.Pet.DiagnosticWindow; w.StopInputForDiagnostics();app.Pet.SetSize(550);app.Pet.SetOptions(true,false);app.Pet.SetCare(false,20,false);
+            app.Pet.SetSword(1.5,65,100);await Task.Delay(300);
+            Check(PetSettings.Load().SwordHeadAmount==100,"100 percent head did not persist");
+            app.Pet.CompanionCommand("head");await Task.Delay(500);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.layers.some(l=>!l.ending&&l.r.id==='emote-shy')") == "true","Head expression wrong");
+            app.Pet.CompanionCommand("body");await Task.Delay(500);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.layers.some(l=>!l.ending&&l.r.id==='emote-shy3') && !window.petDiagnostics.companion.layers.some(l=>!l.ending&&l.r.id==='emote-shy2')") == "true","Body expression wrong");
+            app.Pet.CompanionCommand("reset");await Task.Delay(400);
+            IntPtr foreground=GetForegroundWindow(),handle=new System.Windows.Interop.WindowInteropHelper(w).Handle;
+            NativePoint original;GetCursorPos(out original);
+            try {
+                Point body=new Point(w.ActualWidth*.5,65+(w.ActualHeight-65)*.9);
+                await MouseMessage(w,handle,body,0x204,2);await MouseMessage(w,handle,body,0x205,0);await Task.Delay(400);
+                Check(w.ActionMenuForDiagnostics!=null&&w.ActionMenuForDiagnostics.IsOpen,"Right-click did not open menu");
+                Check(GetForegroundWindow()==foreground,"Menu changed foreground window");
+                CaptureElement(w.ActionMenuForDiagnostics,Path.Combine(directory,"action-menu.png"));
+                string[] ids={"hand-pot","motion-weapon","motion-keyboard","motion-music"};
+                for(int i=0;i<ids.Length;i++) {
+                    if(i>0)w.OpenActionMenuForDiagnostics(ids[i-1]);
+                    var menu=w.ActionMenuForDiagnostics;
+                    if(i>0)Check(((System.Windows.Controls.MenuItem)menu.Items[i]).IsChecked,"Current action not marked");
+                    ((System.Windows.Controls.MenuItem)menu.Items[i+1]).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));menu.IsOpen=false;
+                    await Task.Delay(400);
+                    Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.combination().includes('"+ids[i]+"')") == "true","Menu action not applied: "+ids[i]);
+                }
+                w.OpenActionMenuForDiagnostics("motion-music");
+                ((System.Windows.Controls.MenuItem)w.ActionMenuForDiagnostics.Items[0]).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));w.ActionMenuForDiagnostics.IsOpen=false;await Task.Delay(400);
+                Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.interactions.manualBusy") == "true","Natural menu failed to restore automatic mode");
+            } finally {SetCursorPos(original.X,original.Y);if(w.ActionMenuForDiagnostics!=null)w.ActionMenuForDiagnostics.IsOpen=false;}
+            panel.OpenPetResourcesForDiagnostics();await Task.Delay(400);Capture(panel,Path.Combine(directory,"console-dark.png"));
+            // The ComboBox popup is a separate WPF visual, captured separately.
+            CaptureElement(panel.PetResourcesPopupForDiagnostics(),Path.Combine(directory,"dropdown-dark.png"));
+            panel.ClosePetResourcesForDiagnostics();app.Pet.SetSword(1.5,65,25);
+            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: fixed head/body expressions, 100% setting persistence, native right-click menu without foreground activation, all four mode switches, current checkmarks and natural/automatic restore.");
+        }
+        private static void CaptureElement(FrameworkElement element,string path)
+        {
+            var bitmap=new RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth),(int)Math.Ceiling(element.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(element);
+            var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var file=File.Create(path))encoder.Save(file);
+        }
+        private static async Task CheckSword(App app, MainWindow panel, string directory)
+        {
+            var w=app.Pet.DiagnosticWindow;w.StopInputForDiagnostics();app.Pet.SetSize(650);app.Pet.SetCare(false,20,false);
+            app.Pet.SetSword(1.5,65,25);app.Pet.CompanionCommand("weapon");await Task.Delay(1200);
+            Check(PetSettings.Load().SwordAmount==65&&PetSettings.Load().SwordHeadAmount==25,"Sword settings did not persist");
+            await w.EvaluateForDiagnostics(@"(()=>{const d=window.petDiagnostics;d.speed=0;d.cursor={x:.8,y:.6};d.swordTimer=setInterval(()=>{const data={...d.cursor,presses:0,mouseVX:d.speed,mouseVY:0,sentAt:Date.now()};d.interactions.receive(data);d.companion.activity(data);},33);d.model.internalModel.on('beforeModelUpdate',()=>{const c=d.model.internalModel.coreModel;d.swordPose={head:c.getParameterValueById('ParamAngleX'),arm:c.getParameterValueById('ParamExpression9')};});})()");
+            await Task.Delay(1600);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.swordPose.head>2 && window.petDiagnostics.swordPose.head<4") == "true","Head not reduced to 25 percent");
+            Check(Array.Exists(app.Pet.Resources,r=>r.id=="motion-cloth off"&&r.label=="丧失戰衣（换装动画）"&&r.available),"Named costume animation unavailable");
+            await w.EvaluateForDiagnostics("window.petDiagnostics.cursor={x:.1,y:.1}");
+            app.Pet.SetSword(1.5,65,25,.5);await Task.Delay(1800);
+            double low=double.Parse(await w.EvaluateForDiagnostics("window.petDiagnostics.swordPose.head"),CultureInfo.InvariantCulture);
+            app.Pet.SetSword(1.5,65,25,4);await Task.Delay(1800);
+            double high=double.Parse(await w.EvaluateForDiagnostics("window.petDiagnostics.swordPose.head"),CultureInfo.InvariantCulture);
+            Check(high>low*3 && high<=3.375,"Independent head sensitivity ineffective or exceeded amplitude");
+            Check(PetSettings.Load().SwordHeadSensitivity==4,"Head sensitivity not persisted");
+            app.Pet.SetSword(1.5,65,25,1);await w.EvaluateForDiagnostics("window.petDiagnostics.cursor={x:.8,y:.6}");await Task.Delay(800);
+            app.Pet.SetSword(1.5,65,25,1,2);await Task.Delay(100);
+            Check(PetSettings.Load().SwordHeadSpeed==2,"Head speed not persisted");
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.settings.swordHeadSpeed===2") == "true","Head speed not delivered to renderer");
+            app.Pet.SetSword(1.5,65,25,1,1);
+            foreach(int direction in new[]{-1,1}) {
+                await w.EvaluateForDiagnostics("window.petDiagnostics.cursor.x="+(direction*.8).ToString(CultureInfo.InvariantCulture)+";window.petDiagnostics.speed="+(direction*2));await Task.Delay(230);
+                Check(await w.EvaluateForDiagnostics("window.petDiagnostics.swordPose.head*"+direction+">0") == "true","Head froze during fast sword swipe");
+                app.Pet.Capture(Path.Combine(directory,direction<0?"sword-left.png":"sword-right.png"),true);
+                Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.sword.position*"+direction+">.25") == "true","Sword failed to follow velocity direction");
+                File.WriteAllText(Path.Combine(directory,direction<0?"left.json":"right.json"),await w.EvaluateForDiagnostics("window.petDiagnostics.swordPose"));
+                await w.EvaluateForDiagnostics("window.petDiagnostics.speed=0");await Task.Delay(1600);
+                Check(await w.EvaluateForDiagnostics("Math.abs(window.petDiagnostics.companion.sword.position)<.002 && Math.abs(window.petDiagnostics.swordPose.arm-.8)<.002") == "true","Sword did not return to resting grip");
+            }
+            app.Pet.Capture(Path.Combine(directory,"sword-rest.png"),true);
+            app.Pet.CompanionCommand("reset");await Task.Delay(500);
+            Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.interactions.manualBusy && !window.petDiagnostics.companion.sword.active") == "true","Sword state leaked after exit");
+            await w.EvaluateForDiagnostics("clearInterval(window.petDiagnostics.swordTimer)");panel.ShowSwordForDiagnostics();await Task.Delay(300);
+            Capture(panel,Path.Combine(directory,"console-sword.png"));
+            app.Pet.CompanionCommand("select","motion-cloth off",false);await Task.Delay(1400);app.Pet.Capture(Path.Combine(directory,"costume-animation.png"),true);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.layers.some(l=>l.r.id==='motion-cloth off'&&!l.ending)") == "true","Costume animation failed to play");
+            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: directional swings, continuous head during fast swipes, independent head speed delivered and persisted, independent 0.5/4 head sensitivity with amplitude bound, resting grip, cleanup, named costume animation playback; injected anonymous motion samples used.");
+        }
+        private static async Task CheckPresentation(App app, MainWindow panel, string directory)
+        {
+            var w=app.Pet.DiagnosticWindow; w.StopInputForDiagnostics(); app.Pet.SetSize(600);
+            app.Pet.SetCare(false,20,false); app.Pet.SetPresentation(30,75);
+            await Task.Delay(300);
+            Check(Math.Abs(w.BubbleTopForDiagnostics-(w.Height-65)*.3)<1,"Bubble offset did not follow canvas size");
+            app.Pet.CompanionCommand("speechPreview"); await Task.Delay(700);
+            app.Pet.Capture(Path.Combine(directory,"bubble-default.png"),true);
+            app.Pet.SetPresentation(45,100); await Task.Delay(300);
+            Check(Math.Abs(w.BubbleTopForDiagnostics-(w.Height-65)*.45)<1,"Live bubble adjustment failed");
+            Check(PetSettings.Load().MouthAmount==100 && PetSettings.Load().BubbleOffsetPercent==45,"Presentation settings did not persist");
+            app.Pet.Capture(Path.Combine(directory,"bubble-lowered.png"),true);
+            app.Pet.CompanionCommand("reset"); await Task.Delay(400);
+            app.Pet.SetPresentation(30,75);
+            await w.EvaluateForDiagnostics(@"(()=>{const d=window.petDiagnostics;d.target={x:-.8,y:.6};d.gazeTimer=setInterval(()=>d.interactions.receive({...d.target,presses:0,sentAt:Date.now()}),33);d.model.internalModel.on('beforeModelUpdate',()=>{const c=d.model.internalModel.coreModel;d.pose={x:c.getParameterValueById('ParamAngleX'),y:c.getParameterValueById('ParamAngleY'),arm:c.getParameterValueById('ParamExpression9')};});})()");
+            app.Pet.CompanionCommand("weapon"); await Task.Delay(1800);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.pose.x < -1 && window.petDiagnostics.pose.y > 1") == "true","Weapon pinned gaze to authored angles");
+            app.Pet.Capture(Path.Combine(directory,"weapon-left.png"),true);
+            File.WriteAllText(Path.Combine(directory,"weapon-left.json"),await w.EvaluateForDiagnostics("window.petDiagnostics.pose"));
+            await w.EvaluateForDiagnostics("window.petDiagnostics.target={x:.8,y:-.6}"); await Task.Delay(1000);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.pose.x > 1 && window.petDiagnostics.pose.y < -1") == "true","Weapon gaze did not switch direction");
+            app.Pet.Capture(Path.Combine(directory,"weapon-right.png"),true);
+            File.WriteAllText(Path.Combine(directory,"weapon-right.json"),await w.EvaluateForDiagnostics("window.petDiagnostics.pose"));
+            await w.EvaluateForDiagnostics("clearInterval(window.petDiagnostics.gazeTimer)");
+            app.Pet.CompanionCommand("reset"); await Task.Delay(400);
+            foreach(int amount in new[]{10,100}) {
+                app.Pet.SetPresentation(30,amount); await Task.Delay(100);
+                await w.EvaluateForDiagnostics("(()=>{const d=window.petDiagnostics;d.peak=0;d.companion.speech(2400);d.peakTimer=setInterval(()=>d.peak=Math.max(d.peak,d.companion.mouth),16);})()");
+                await Task.Delay(1700);
+                double peak=double.Parse(await w.EvaluateForDiagnostics("window.petDiagnostics.peak"),CultureInfo.InvariantCulture);
+                Check(amount==10 ? peak<.12 : peak>.65,"Mouth amplitude setting ineffective");
+                await w.EvaluateForDiagnostics("clearInterval(window.petDiagnostics.peakTimer);window.petDiagnostics.companion.speech(0)"); await Task.Delay(700);
+                Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.mouth<.001") == "true","Mouth did not close smoothly");
+            }
+            app.Pet.SetPresentation(30,75); app.Pet.CompanionCommand("speechPreview");
+            panel.ShowPresentationForDiagnostics(); await Task.Delay(400); Capture(panel,Path.Combine(directory,"console-presentation.png"));
+            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: live bubble offset and scaling; settings persistence; real weapon weak left/right/up/down head follow; 10%/100% mouth amplitude and smooth closure. Author model has no independent eyeball parameters.");
+        }
+
+        private static async Task CheckCompanion(App app, MainWindow panel, string directory)
+        {
+            var window = app.Pet.DiagnosticWindow;
+            window.StopInputForDiagnostics(); app.Pet.SetSize(700); app.Pet.SetOptions(true,false);
+            app.Pet.SetCare(false, 20, false);
+            await Task.Delay(700);
+            File.WriteAllText(Path.Combine(directory,"head-geometry.json"),await window.EvaluateForDiagnostics(@"(()=>{const d=window.petDiagnostics,m=d.model,h=d.companion.headBounds(),internal=m.internalModel; const project=p=>m.toGlobal(internal.localTransform.apply(new PIXI.Point(p.x,p.y)));return {head:h,topLeft:project(h),bottomRight:project({x:h.x+h.width,y:h.y+h.height}),canvas:[internal.originalWidth,internal.originalHeight]};})()"));
+            var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--probe-hit")>=0) {
+                File.WriteAllText(Path.Combine(directory,"drawables.json"),await window.EvaluateForDiagnostics(@"(()=>{const d=window.petDiagnostics,c=d.model.internalModel.coreModel,m=d.model.internalModel,r=c._model;return Array.from(r.drawables.ids).map((id,i)=>{let j=r.drawables.parentPartIndices[i],chain=[],n=0;while(j>=0&&n++<r.parts.count){chain.push(r.parts.ids[j]);j=r.parts.parentIndices[j];}return {id,i,chain,opacity:c.getDrawableOpacity(i),bounds:m.getDrawableBounds(i)};}).filter(x=>x.opacity>.01);})()"));
+                File.WriteAllText(Path.Combine(directory,"hit-debug.json"),await window.EvaluateForDiagnostics(@"(()=>{const d=window.petDiagnostics,c=d.model.internalModel.coreModel;return {headCount:d.companion.headDrawables.size,total:c.getDrawableCount(),parts:Array.from(c._model.parts.ids),hits:[.3,.4,.5,.6,.7,.8,.9,.95].map(y=>({y,hit:d.hitRegion(innerWidth*.5,innerHeight*y)}))};})()"));
+                string data=serializer.Deserialize<string>(await window.EvaluateForDiagnostics(@"(()=>{const d=window.petDiagnostics,c=d.model.internalModel.coreModel,old=c.getDrawableOpacity,r=PIXI.RenderTexture.create({width:innerWidth,height:innerHeight,resolution:1});try{c.getDrawableOpacity=i=>d.companion.headDrawables.has(i)?old.call(c,i):0;d.app.renderer.render(d.app.stage,{renderTexture:r,clear:true});return d.app.renderer.extract.canvas(r).toDataURL();}finally{c.getDrawableOpacity=old;r.destroy(true);}})()"));
+                File.WriteAllBytes(Path.Combine(directory,"head-mask.png"),Convert.FromBase64String(data.Substring(data.IndexOf(',')+1)));
+                await CheckMiddleGestures(app,directory);return;
+            }
+            File.WriteAllText(Path.Combine(directory,"catalog.json"), serializer.Serialize(app.Pet.Resources), Encoding.UTF8);
+            Check(app.Pet.Resources != null && app.Pet.Resources.Length == 23,"Expected all 23 model resources");
+            foreach (var r in app.Pet.Resources) {
+                Check(r.available,"Resource unavailable: " + r.id + " " + r.detail);
+                await window.EvaluateForDiagnostics("window.petDiagnostics.companion.reset()"); await Task.Delay(350);
+                app.Pet.CompanionCommand("select",r.id,true); await Task.Delay(1300);
+                app.Pet.Capture(Path.Combine(directory,r.id+".png"),true);
+            }
+            await window.EvaluateForDiagnostics("window.petDiagnostics.companion.reset()"); await Task.Delay(400);
+            await CheckMiddleGestures(app, directory);
+            await window.EvaluateForDiagnostics("window.petDiagnostics.companion.reset()"); await Task.Delay(400);
+            File.WriteAllText(Path.Combine(directory,"geometry.json"),await window.EvaluateForDiagnostics(@"(()=>{const d=window.petDiagnostics; return {head:d.companion.headBounds(),eyes:d.companion.eyeDrawables,mouth:d.interactions.index('ParamMouthOpenY'),width:innerWidth,height:innerHeight};})()"));
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.touchAt(0,0)") == "false","Transparent corner accepted a touch");
+            app.Pet.CompanionCommand("head"); await Task.Delay(500);
+            app.Pet.Capture(Path.Combine(directory,"touch-head.png"));
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.hits.length===1") == "true","Manual head button did not touch");
+            for(int i=0;i<4;i++) { app.Pet.CompanionCommand("body"); await Task.Delay(400); }
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.layers.some(l=>!l.ending&&l.r.id==='emote-angry')") == "true","Repeated touches did not escalate");
+            app.Pet.Capture(Path.Combine(directory,"touch-repeat.png"));
+            await Task.Delay(4100);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.layers.every(l=>!l.touch)") == "true","Touch feedback did not recover");
+            app.Pet.CompanionCommand("drink"); await Task.Delay(500);
+            await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.receive({presses:3,x:0,y:0,sentAt:Date.now()})");
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.manualBusy && !window.petDiagnostics.interactions.pulses.length") == "true","Keys interrupted manual prop");
+            app.Pet.CompanionCommand("select","emote-shy",true); app.Pet.CompanionCommand("save"); await Task.Delay(250);
+            Check(app.Pet.Settings.FavoriteCombination.Length == 2,"Combination not saved");
+            app.Pet.CompanionCommand("reset"); await Task.Delay(400);
+            Check(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.manualBusy && !window.petDiagnostics.interactions.pulses.length") == "true","Manual exit retained busy state or keys");
+            app.Pet.CompanionCommand("restore"); await Task.Delay(500);
+            app.Pet.Capture(Path.Combine(directory,"combination.png"));
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.combination().length===2") == "true","Combination not restored");
+            app.Pet.CompanionCommand("reset"); await Task.Delay(500);
+            await window.EvaluateForDiagnostics("window.petDiagnostics.companion.speech(3000)"); await Task.Delay(500);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.mouth>.05") == "true","Speech did not animate mouth");
+            app.Pet.Capture(Path.Combine(directory,"mouth-open.png"));
+            await window.EvaluateForDiagnostics("window.petDiagnostics.companion.speech(0)"); await Task.Delay(700);
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.mouth<.001") == "true","Mouth did not settle");
+            app.Pet.Capture(Path.Combine(directory,"mouth-closed.png"));
+            Check((app.Pet.WindowStyle & 0x08000000) != 0,"NOACTIVATE lost");
+            CheckTransparency(window);
+            app.Pet.SetOptions(true,true); app.Pet.CompanionCommand("head"); await Task.Delay(500);
+            Check((app.Pet.WindowStyle & 0x20) != 0,"Click through lost");
+            Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.hits.length===1") == "true","Panel touch failed in click through");
+            panel.ShowCompanionForDiagnostics(); await Task.Delay(300); Capture(panel,Path.Combine(directory,"console-companion.png"));
+            app.Pet.SetEnabled(false); Check(!app.Pet.HasWindow,"Companion window leaked");
+            app.Pet.SetEnabled(true);
+            for (int i=0;i<150&&!app.Pet.IsReady;i++) await Task.Delay(200);
+            Check(app.Pet.IsReady,"Companion could not reopen");
+            Check(await app.Pet.DiagnosticWindow.EvaluateForDiagnostics("window.petDiagnostics.companion.layers.length===0") == "true","Transient layers survived reopening");
+            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: all 23 resources loaded and captured; native middle head/body routing, left-click isolation, middle hold/move rejection, focus preserved, deformed head-mask hit regions at two sizes, alpha-zero rejection; shared touch counting/escalation/recovery, prop priority/no queued keys, combination save/restore, mouth open/close, NOACTIVATE, transparent hit-through, panel touch in click-through, dispose/reopen. Mouse messages were supplied by the diagnostic driver to this test window, not physical user input.");
+        }
+
+        private static async Task CheckMiddleGestures(App app, string directory)
+        {
+            var window=app.Pet.DiagnosticWindow;
+            NativePoint original; GetCursorPos(out original);
+            IntPtr foreground=GetForegroundWindow(), handle=new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            try {
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.headDrawables.size>0") == "true","No authored head parts mapped");
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.hitRegion(innerWidth*.5,innerHeight*.60)==='head'") == "true","Head pixel was misclassified");
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.hitRegion(innerWidth*.5,innerHeight*.90)==='body'") == "true","Body pixel was misclassified");
+                Point head=new Point(window.ActualWidth*.5,65+(window.ActualHeight-65)*.60);
+                Point body=new Point(window.ActualWidth*.5,65+(window.ActualHeight-65)*.90);
+                await MouseMessage(window,handle,head,0x201,1); await MouseMessage(window,handle,head,0x202,0);
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.hits.length===0") == "true","Left click triggered interaction");
+                await MouseMessage(window,handle,head,0x207,16); await MouseMessage(window,handle,head,0x208,0); await Task.Delay(200);
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.hits.length===1 && window.petDiagnostics.companion.lastTouchKind==='head'") == "true","Native middle head click failed");
+                await Task.Delay(400);
+                await MouseMessage(window,handle,body,0x207,16); await MouseMessage(window,handle,body,0x208,0); await Task.Delay(200);
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.hits.length===2 && window.petDiagnostics.companion.lastTouchKind==='body'") == "true","Native middle body click failed");
+                await MouseMessage(window,handle,head,0x207,16); await Task.Delay(550); await MouseMessage(window,handle,head,0x208,0);
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.hits.length===2") == "true","Long press counted as a tap");
+                await MouseMessage(window,handle,head,0x207,16);
+                await MouseMessage(window,handle,new Point(head.X+20,head.Y),0x200,16);
+                await MouseMessage(window,handle,head,0x208,0);
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.companion.hits.length===2") == "true","Middle movement counted as a tap");
+                Check(GetForegroundWindow()==foreground,"Pet interaction changed foreground focus");
+                app.Pet.SetSize(360); await Task.Delay(400);
+                Check(await window.EvaluateForDiagnostics("window.petDiagnostics.hitRegion(innerWidth*.5,innerHeight*.60)==='head' && window.petDiagnostics.hitRegion(innerWidth*.5,innerHeight*.90)==='body'") == "true","Hit regions did not follow resize");
+                File.WriteAllText(Path.Combine(directory,"native-gestures.txt"),"PASS: native WPF routing, left-click isolation, middle head/body, long hold/move rejection, focus preserved, resized head/body mask.");
+            } finally { SetCursorPos(original.X,original.Y); app.Pet.SetSize(700); }
+        }
+        private static async Task MouseMessage(PetWindow window, IntPtr handle, Point point, int message, int buttons)
+        {
+            Point screen=window.PointToScreen(point); SetCursorPos((int)screen.X,(int)screen.Y);
+            var source=PresentationSource.FromVisual(window); Point device=source.CompositionTarget.TransformToDevice.Transform(point);
+            PostMessage(handle,message,new IntPtr(buttons),new IntPtr(((int)device.Y<<16)|((int)device.X&0xffff)));
+            await Task.Delay(70);
+        }
+        [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr handle,int message,IntPtr wParam,IntPtr lParam);
+        [DllImport("user32.dll")] private static extern bool SetCursorPos(int x,int y);
+        [DllImport("user32.dll")] private static extern bool GetCursorPos(out NativePoint point);
+        [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
 
         private static async Task ProbeTyping(App app, string directory)
         {
@@ -176,7 +416,7 @@ namespace Kedit.Console
             await Task.Delay(60); app.Pet.Notify(6); await Task.Delay(400);
             Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.paused && window.petDiagnostics.interactions.keyboardWeight===0") == "true", "Pause failed to clear typing state");
             await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); app.Pet.Notify(7);
-            for(int i=0;i<60;i++) { await Task.Delay(200); if(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.busy") == "true") break; }
+            for(int i=0;i<60;i++) { await Task.Delay(200); if(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.busy && !window.petDiagnostics.interactions.manualBusy") == "true") break; }
             Check(await window.EvaluateForDiagnostics("!window.petDiagnostics.interactions.busy && !window.petDiagnostics.interactions.typing && window.petDiagnostics.interactions.keyboardWeight===0") == "true", "Resume replayed stale input or celebration never ended");
             await window.EvaluateForDiagnostics("window.petDiagnostics.press()"); await Task.Delay(300);
             Check(await window.EvaluateForDiagnostics("window.petDiagnostics.interactions.keyboardWeight===1") == "true", "New input failed after resume");

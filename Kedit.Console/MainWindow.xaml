@@ -182,6 +182,64 @@
                   </WrapPanel>
                 </StackPanel>
               </Border>
+              <Expander Header="互动与暖心陪伴" IsExpanded="True" Foreground="White" Margin="0,16,0,8">
+                <StackPanel Margin="8">
+                  <TextBlock Text="左键拖动 · 中键轻点头部摸摸头／身体轻戳 · 滚轮缩放。按住中键移动暂不触发互动。" TextWrapping="Wrap" Foreground="#91ABC1" Margin="0,0,0,8"/>
+                  <WrapPanel>
+                    <Button Content="摸摸头" Tag="head" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="轻戳一下" Tag="body" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="喝口水" Tag="drink" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="吃点饭" Tag="eat" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="拿起剑" Tag="weapon" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="恢复自然状态" Tag="reset" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                  </WrapPanel>
+                  <TextBlock Text="手动道具会保持到退出，普通按键不会抢走道具。穿透开启时也可使用这些按钮。" TextWrapping="Wrap" Foreground="#91ABC1" Margin="0,8,0,12"/>
+                  <CheckBox x:Name="PetCare" Content="自动暖心关心" Foreground="White" Checked="PetCare_Changed" Unchecked="PetCare_Changed"/>
+                  <TextBlock x:Name="PetBubbleOffsetText" Foreground="White" Margin="0,12,0,4"/>
+                  <Slider x:Name="PetBubbleOffset" Minimum="0" Maximum="70" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="PetPresentation_Changed" ToolTip="数值越大气泡越低，随角色缩放；0 为原来的顶部位置"/>
+                  <TextBlock x:Name="PetMouthAmountText" Foreground="White" Margin="0,10,0,4"/>
+                  <Slider x:Name="PetMouthAmount" Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="PetPresentation_Changed" ToolTip="说话时嘴部最大张合幅度；保留平滑闭嘴与固定嘴型优先规则"/>
+                  <Button Content="预览气泡与嘴动" Tag="speechPreview" Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Margin="0,8,0,8" Click="PetCompanion_Click"/>
+                  <TextBlock Text="持剑甩动（仅拿剑时生效，需开启鼠标跟随）" Foreground="White" Margin="0,12,0,8"/>
+                  <TextBlock x:Name="PetSwordSensitivityText" Foreground="White"/>
+                  <Slider x:Name="PetSwordSensitivity" Minimum="0.5" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" ValueChanged="PetSword_Changed"/>
+                  <TextBlock x:Name="PetSwordAmountText" Foreground="White" Margin="0,8,0,0"/>
+                  <Slider x:Name="PetSwordAmount" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="PetSword_Changed"/>
+                  <TextBlock x:Name="PetSwordHeadText" Foreground="White" Margin="0,8,0,0"/>
+                  <Slider x:Name="PetSwordHead" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="PetSword_Changed"/>
+                  <TextBlock x:Name="PetSwordHeadSensitivityText" Foreground="White" Margin="0,8,0,0"/>
+                  <Slider x:Name="PetSwordHeadSensitivity" Minimum="0.5" Maximum="4" TickFrequency="0.1" IsSnapToTickEnabled="True" ValueChanged="PetSword_Changed" ToolTip="仅持剑时生效：越高，鼠标移动更短距离就能达到设定的头部幅度；不增加幅度上限"/>
+                  <TextBlock x:Name="PetSwordHeadSpeedText" Foreground="White" Margin="0,8,0,0"/>
+                  <Slider x:Name="PetSwordHeadSpeed" Minimum="0.5" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" ValueChanged="PetSword_Changed" ToolTip="越高越跟手，越低越柔和；默认 1 倍对应约 180 毫秒平滑时间，不改变转头幅度"/>
+                  <TextBlock Text="左右甩动为主，上下轻微配合；停手后余摆收势。挥剑期间头部持续柔和跟随，不再冻结等待。" TextWrapping="Wrap" Foreground="#91ABC1" Margin="0,8,0,8"/>
+                  <ComboBox x:Name="PetCareFrequency" SelectedValuePath="Tag" SelectionChanged="PetCareFrequency_Changed" HorizontalAlignment="Left" Width="290" Margin="0,8,0,8">
+                    <ComboBoxItem Content="较多：自动关心至少间隔 10 分钟" Tag="10"/>
+                    <ComboBoxItem Content="适中：自动关心至少间隔 20 分钟" Tag="20"/>
+                    <ComboBoxItem Content="较少：自动关心至少间隔 30 分钟" Tag="30"/>
+                  </ComboBox>
+                  <CheckBox x:Name="PetRest" Content="忙碌约 30 分钟后，在停手时温柔提醒休息" Foreground="White" Checked="PetCare_Changed" Unchecked="PetCare_Changed"/>
+                  <TextBlock Text="依据当前监听范围内的匿名按键活动判断；没有合适停顿就不提醒，不追踪输入内容。" TextWrapping="Wrap" Foreground="#91ABC1" FontSize="12" Margin="0,8,0,8"/>
+                  <WrapPanel>
+                    <Button Content="安静一小时" Tag="quiet" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="取消临时安静" Tag="unquiet" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                  </WrapPanel>
+                  <TextBlock x:Name="PetQuietStatus" Foreground="#91ABC1" Margin="0,8,0,0"/>
+                </StackPanel>
+              </Expander>
+              <Expander Header="表情与道具试衣间" IsExpanded="True" Foreground="White" Margin="0,8,0,8">
+                <StackPanel Margin="8">
+                  <ComboBox x:Name="PetResources" DisplayMemberPath="Display" SelectedValuePath="id" SelectionChanged="PetResource_Changed"/>
+                  <TextBlock x:Name="PetResourceDetail" TextWrapping="Wrap" Foreground="#91ABC1" Margin="0,8,0,8"/>
+                  <WrapPanel>
+                    <Button Content="播放一次" Tag="once" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="保持显示" Tag="hold" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="保存组合" Tag="save" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                    <Button Content="载入组合" Tag="restore" Style="{StaticResource ActionButton}" Click="PetCompanion_Click"/>
+                  </WrapPanel>
+                  <TextBlock Text="相同参数和手部道具互斥；面部、标记可搭配。仅主动换装改变外观。保存当前保持显示的组合，按模型区分；不会自动载入。" TextWrapping="Wrap" Foreground="#91ABC1" FontSize="12" Margin="0,8,0,8"/>
+                  <TextBlock x:Name="PetCompanionStatus" Foreground="#FFDD38" TextWrapping="Wrap"/>
+                </StackPanel>
+              </Expander>
               <TextBlock x:Name="PetStatus" Foreground="#FFDD38" TextWrapping="Wrap" Margin="0,16,0,10"/>
               <TextBlock Text="桌宠开启时，关闭中控会收起面板；可从托盘重新打开或退出。桌宠与原有陪伴表情 OSD 分别控制。" Foreground="#91ABC1" TextWrapping="Wrap" FontSize="12"/>
             </StackPanel>

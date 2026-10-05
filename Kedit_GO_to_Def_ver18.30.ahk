@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v19.00-Amiya.v001)
+; Kedit 助手 - 终极完整版 (v19.00-Amiya.v002)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v19.00-Amiya.v001"
+Global CurrentVersion := "v19.00-Amiya.v002"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
