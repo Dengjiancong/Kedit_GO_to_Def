@@ -7,12 +7,23 @@ class PetLife {
         if(active===this.rubbing)return;
         this.rubbing=active;this.rubUntil=seconds?performance.now()+seconds*1000:Infinity;
         if(active) {
+            this.rubStarted=performance.now();this.rubNextTalk=this.rubStarted+10000;
             c.layers.filter(l=>l.touch).forEach(l=>l.ending=true);
-            for(const id of ["emote-shy","mark-flower"]) {
-                if(c.select(id,true,true))c.layers[c.layers.length-1].rub=true;
+            this.rubMood=((this.rubMood===undefined?-1:this.rubMood)+1+Math.floor(Math.random()*2))%3;
+            this.rubExpression();c.say("rubStart");
+        } else {
+            c.layers.filter(l=>l.rub).forEach(l=>l.ending=true);
+            if(!c.input.paused && performance.now()-this.rubStarted>=1800 && performance.now()-(this.rubLastEnd||-Infinity)>12000) {
+                c.say("rubEnd");this.rubLastEnd=performance.now();
             }
-            c.say("pat");
-        } else c.layers.filter(l=>l.rub).forEach(l=>l.ending=true);
+        }
+    }
+    rubExpression() {
+        const c=this.c;c.layers.filter(l=>l.rub).forEach(l=>l.ending=true);
+        for(const id of ["emote-shy",this.rubMood===2?"mark-exceting":"mark-flower"]) {
+            if(c.resources.some(r=>r.id===id&&r.available)&&c.select(id,true,true))c.layers[c.layers.length-1].rub=true;
+        }
+        this.rubNextMood=performance.now()+4500;
     }
     manualAppearance() {
         if(!this.wardrobe)return;
@@ -45,6 +56,11 @@ class PetLife {
         if(d.type==="music")this.music={...d,at:performance.now()};
         if(d.type==="wardrobePrepare")this.prepare(d);
         if(d.type==="wardrobe")this.wardrobeSet(d);
+        if(d.type==="previewReminder")this.preview={r:this.c.resources.find(r=>r.id===d.id&&r.available),start:performance.now()};
+        if(d.type==="resumeMusic") {
+            this.c.layers.filter(l=>l.hand).forEach(l=>l.ending=true);this.auto=null;
+            this.c.lastActivity=-Infinity;this.c.status();
+        }
     }
     typing() {
         if(!this.auto)return;
@@ -54,6 +70,11 @@ class PetLife {
     update(dt) {
         const c=this.c,now=performance.now();
         if(this.rubbing && (now>=this.rubUntil||c.input.paused))this.rub(false);
+        if(this.rubbing && now>=this.rubNextMood){this.rubMood=(this.rubMood+1)%3;this.rubExpression();}
+        if(this.rubbing && now>=this.rubNextTalk){c.say("rubContinue");this.rubNextTalk=now+12000;}
+        this.rubWeight=(this.rubWeight||0)+((this.rubbing?1:0)-(this.rubWeight||0))*(1-Math.exp(-Math.max(0,Math.min(100,dt))/180));
+        const closeTarget=this.rubMood===1?.65:this.rubMood===2?.25:.1;
+        this.rubClose=(this.rubClose||0)+(closeTarget-(this.rubClose||0))*(1-Math.exp(-Math.max(0,Math.min(100,dt))/250));
         const m=this.music,live=m.enabled && now-m.at<2000 && !c.input.paused;
         const peak=live?Math.max(0,Math.min(1,m.peak||0)):0;
         const elapsed=Math.max(0,Math.min(100,dt));
@@ -70,12 +91,19 @@ class PetLife {
         if(!live) { this.qualified=0;this.lastSound=-Infinity; }
         if(!this.auto && eligible&&this.qualified>=3000) {
             this.savedKey=Math.max(c.input.lastKey||-Infinity,this.savedKey||-Infinity);
-            if(c.select("motion-music",true)) { this.auto=c.layers[c.layers.length-1];this.auto.automatic=true; }
+            if(c.select("motion-music",true)) { this.auto=c.layers[c.layers.length-1];this.auto.automatic=true;if(c.status)c.status(); }
         }
+        const state=!m.enabled?"自动打碟已关闭":c.input.paused?"快捷键已暂停":!live?"等待音量信号":others?"手动道具优先，点击“恢复自动打碟”释放手部":now-c.lastActivity<=3000?"打字优先，停手约 3 秒后恢复":this.auto?"正在自动打碟":peak>.001?"检测到声音，持续发声约 3 秒后进入（"+(this.qualified/1000).toFixed(1)+" 秒）":"已连接，等待播放器发声";
+        if(state!==this.lastMusicState && now-(this.lastMusicReport||-Infinity)>300){this.lastMusicReport=now;this.lastMusicState=state;c.report({type:"musicBehavior",text:state});}
     }
     apply() {
         const w=this.wardrobe,c=this.c;
-        if(!w){this.captureAppearance();return;}
+        if(this.rubWeight>.001) {
+            const weight=this.rubWeight,close=this.rubClose||0;
+            for(const id of ["ParamEyeLOpen","ParamEyeROpen"]){const i=c.input.index(id);if(i>=0)c.core.setParameterValueByIndex(i,c.core.getParameterValueByIndex(i)*(1-close*weight));}
+            const z=c.input.index("ParamAngleZ");if(z>=0)c.core.setParameterValueByIndex(z,c.core.getParameterValueByIndex(z)+Math.sin(performance.now()/600)*2.5*weight);
+        }
+        if(!w){this.captureAppearance();this.applyPreview();return;}
         const elapsed=performance.now()-w.start,r=c.resources.find(r=>r.id==="motion-cloth off");
         for(const id of Object.keys(w.values||{})) {
             const i=c.input.index(id);if(i<0)continue;
@@ -87,6 +115,17 @@ class PetLife {
             c.core.setParameterValueByIndex(i,(w.from[id]||0)*(1-blend)+value*blend);
         }
         this.captureAppearance();
+        this.applyPreview();
+    }
+    applyPreview() {
+        const p=this.preview,c=this.c;if(!p||!p.r)return;
+        const age=performance.now()-p.start;if(age>=6000){this.preview=null;return;}
+        const weight=Math.min(1,age/250,(6000-age)/400),t=Math.min(age,p.r.duration)/1000;
+        for(const v of p.r.values) {
+            if(v.category==="外观"&&!/cloth off/.test(p.r.id))continue;
+            const base=c.core.getParameterValueByIndex(v.index),value=v.value(t);
+            c.core.setParameterValueByIndex(v.index,v.blend==="Add"?base+value:v.blend==="Multiply"?base*value:value,weight);
+        }
     }
     captureAppearance() {
         const c=this.c;this.appearance={};

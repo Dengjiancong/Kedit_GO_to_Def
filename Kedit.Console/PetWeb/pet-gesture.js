@@ -1,13 +1,13 @@
 "use strict";
 // Coordinates are desktop DIPs; alpha/head hit testing stays in the renderer.
 class PetGesture {
-    constructor(hit,touch,rub) { this.hit=hit; this.touch=touch; this.rub=rub; this.state=null; }
+    constructor(hit,touch,rub,cursor=()=>{}) { this.hit=hit; this.touch=touch; this.rub=rub; this.cursor=cursor; this.state=null; }
     receive(d) {
         const now=performance.now();
         if(d.phase==="cancel") { this.cancel(); return; }
         if(d.phase==="down") {
             this.cancel(); const region=this.hit(d.x,d.y);
-            if(region)this.state={region,x:d.px,y:d.py,start:now,moved:false,rubbing:false};
+            if(region){this.state={region,x:d.px,y:d.py,start:now,moved:false,rubbing:false};this.cursor(region==="head");}
             return;
         }
         const s=this.state;if(!s)return;
@@ -22,6 +22,6 @@ class PetGesture {
             this.cancel();
         }
     }
-    cancel() { if(this.state && this.state.rubbing)this.rub(false);this.state=null; }
+    cancel() { if(this.state && this.state.rubbing)this.rub(false);this.state=null;this.cursor(false); }
 }
 if(typeof module!=="undefined")module.exports=PetGesture;

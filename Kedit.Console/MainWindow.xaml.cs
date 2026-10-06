@@ -340,6 +340,7 @@ namespace Kedit.Console
         internal void ShowPresentationForDiagnostics() { PetMouthAmount.BringIntoView(); }
         internal void ShowSwordForDiagnostics() { PetSwordHeadSpeed.BringIntoView(); }
         internal void ShowAutomationForDiagnostics(bool music) { ((PetAutomationPanel)PetAutomationHost.Content).ShowForDiagnostics(music); }
+        internal PetAutomationPanel AutomationForDiagnostics {get{return (PetAutomationPanel)PetAutomationHost.Content;}}
         internal void OpenPetResourcesForDiagnostics() { PetCompanionStatus.BringIntoView(); PetResources.IsDropDownOpen=true; }
         internal void ClosePetResourcesForDiagnostics() { PetResources.IsDropDownOpen=false; }
         internal FrameworkElement PetResourcesPopupForDiagnostics() { return ((System.Windows.Controls.Primitives.Popup)PetResources.Template.FindName("PART_Popup",PetResources)).Child as FrameworkElement; }

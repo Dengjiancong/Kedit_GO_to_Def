@@ -52,6 +52,18 @@ namespace Kedit.Console {
     }
     // Local wall-clock appointments. Persist decisions before issuing visual effects.
     public static class PetSchedule {
+        public static DateTime? Next(PetAutomationData d,PetReminder r,DateTime now) {
+            if(r==null||!r.Enabled||!ValidTime(r.Time))return null;
+            var pending=d.Occurrences.Where(o=>o.ReminderId==r.Id&&(o.Status=="pending"||o.Status=="snoozed")&&o.Deadline>=now).OrderBy(o=>o.Next).FirstOrDefault();
+            if(pending!=null)return pending.Next;
+            for(int day=0;day<=7;day++) {
+                DateTime date=now.Date.AddDays(day),due=date.Add(TimeSpan.Parse(r.Time));
+                if(due<now||(r.Days&(1<<(int)date.DayOfWeek))==0)continue;
+                string key=r.Id+"/"+due.ToString("yyyyMMddHHmm");
+                if(!d.Occurrences.Any(o=>o.Key==key))return due;
+            }
+            return null;
+        }
         public static bool ValidTime(string text) {DateTime t;return DateTime.TryParseExact(text,"HH:mm",System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.None,out t);}
         public static void Validate(PetReminder r) {
             if(!ValidTime(r.Time)||!ValidTime(r.RestoreTime))throw new ArgumentException("时间请使用 HH:mm，例如 18:00、07:00。");

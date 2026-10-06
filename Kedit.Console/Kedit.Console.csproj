@@ -59,6 +59,7 @@
     <Compile Include="Pet\PetAutomation.cs" />
     <Compile Include="Pet\PetAutomationPanel.cs" />
     <Compile Include="Pet\PetWindow.cs" />
+    <Compile Include="Pet\PetPalmCursor.cs" />
     <Compile Include="Pet\PetInput.cs" />
     <Compile Include="Pet\PetDiagnostics.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

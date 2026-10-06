@@ -200,6 +200,8 @@ namespace Kedit.Console
                     controller.SetResources(serializer.Deserialize<PetResource[]>(serializer.Serialize(data["items"])));
                 }
                 else if(type=="wardrobePrepared" || type=="wardrobeManual")controller.AutomationMessage(data);
+                else if(type=="rubCursor")SetRubCursor(Convert.ToBoolean(data["active"])&&middlePressed);
+                else if(type=="musicBehavior")controller.SetMusicBehavior(Convert.ToString(data["text"]));
                 else if (type == "companionStatus") controller.SetCompanionStatus(Convert.ToString(data["text"]));
                 else if(type=="actionMenu" && ready && Convert.ToInt32(data["request"])==menuRequest &&
                     !controller.Settings.ClickThrough && (DateTime.UtcNow-menuRequestedAt).TotalSeconds<1) {
@@ -413,12 +415,14 @@ namespace Kedit.Console
             if (e.ChangedButton != MouseButton.Middle) return;
             e.Handled = true;
             if(middlePressed)SendGesture("up",e.GetPosition(this));
-            middlePressed = false; ((UIElement)sender).ReleaseMouseCapture();
+            middlePressed = false;SetRubCursor(false); ((UIElement)sender).ReleaseMouseCapture();
         }
         private void SendGesture(string phase,Point point) {
             if(ready&&!closed)PostInteraction(new {type="gesture",phase=phase,x=point.X/ActualWidth,y=(point.Y-65)/(ActualHeight-65),px=point.X,py=point.Y});
         }
-        private void CancelGesture() { if(middlePressed)SendGesture("cancel",middlePoint);middlePressed=false; }
+        private void CancelGesture() { if(middlePressed)SendGesture("cancel",middlePoint);middlePressed=false;SetRubCursor(false); }
+        private void SetRubCursor(bool active) { Cursor=active?PetPalmCursor.Value:null;ForceCursor=active;browser.Cursor=Cursor;browser.ForceCursor=active; }
+        internal bool HasPalmCursor {get{return ForceCursor&&Cursor==PetPalmCursor.Value;}}
         private void MoveDrag(object sender, MouseEventArgs e)
         {
             if (!dragging || e.LeftButton != MouseButtonState.Pressed) return;

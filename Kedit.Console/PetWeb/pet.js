@@ -154,7 +154,7 @@
         await interactions.ready;
         companion = new PetCompanion(model,interactions,manifest,url,post);
         await companion.ready;
-        gesture=new PetGesture((x,y)=>hitRegion(x*innerWidth,y*innerHeight),kind=>companion.touch(kind),active=>companion.life.rub(active));
+        gesture=new PetGesture((x,y)=>hitRegion(x*innerWidth,y*innerHeight),kind=>companion.touch(kind),active=>companion.life.rub(active),active=>post({type:"rubCursor",active}));
         if (params.get("diagnostics") === "1") window.petDiagnostics = { model, interactions, companion, app, touchAt, hitRegion, gesture };
         // Use one capped ticker for both model/physics updates and rendering.
         app.ticker.add(() => { companion.update(app.ticker.deltaMS); interactions.update(app.ticker.deltaMS); model.update(app.ticker.deltaMS); });

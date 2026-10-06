@@ -3,14 +3,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Text;
 
 namespace Kedit.Console {
     // Read only Windows per-session peak meters. No capture buffers, microphone or files.
     internal sealed class PetAudio : IDisposable {
         private readonly Thread worker;private readonly ManualResetEvent stop=new ManualResetEvent(false);
         private readonly string path;private readonly Action<double,string> publish;
-        internal PetAudio(string path,Action<double,string> publish) {
-            this.path=path;this.publish=publish;worker=new Thread(Run){IsBackground=true,Name="Pet audio meter"};worker.SetApartmentState(ApartmentState.MTA);worker.Start();
+        private readonly Action<string> trace;
+        internal PetAudio(string path,Action<double,string> publish,Action<string> trace=null) {
+            this.path=path;this.publish=publish;this.trace=trace;worker=new Thread(Run){IsBackground=true,Name="Pet audio meter"};worker.SetApartmentState(ApartmentState.MTA);worker.Start();
         }
         private void Run() {
             var sessions=new List<object>();DateTime next=DateTime.MinValue;string status="等待所选播放器发声";
@@ -43,11 +45,11 @@ namespace Kedit.Console {
                             object session=null;
                             try {
                                 list.GetSession(n,out session);uint pid;int hr=((ISession)session).GetProcessId(out pid);
+                                string processPath=ProgramPath(pid);
+                                if(trace!=null)trace("pid="+pid+" hr="+hr.ToString("X")+" matched="+string.Equals(processPath,path,StringComparison.OrdinalIgnoreCase)+" pathReadable="+!string.IsNullOrEmpty(processPath));
                                 // Shared sessions cannot be attributed safely. Never substitute the mix endpoint.
                                 if(hr!=0||pid==0)continue;
-                                using(var process=Process.GetProcessById((int)pid)) {
-                                    if(!string.Equals(process.MainModule.FileName,path,StringComparison.OrdinalIgnoreCase))continue;
-                                }
+                                if(!string.Equals(processPath,path,StringComparison.OrdinalIgnoreCase))continue;
                                 if(!(session is IMeter))continue;
                                 result.Add(session);session=null;
                             }catch(ArgumentException){}catch(InvalidOperationException){}catch(System.ComponentModel.Win32Exception){}
@@ -58,6 +60,16 @@ namespace Kedit.Console {
             }finally{Release(devices);Release(enumerator);}
         }
         private static void Release(object value){if(value!=null&&Marshal.IsComObject(value))Marshal.ReleaseComObject(value);}
+        // Process.MainModule cannot inspect 64-bit Chrome from our preferred-32-bit console.
+        // Querying the image name works across bitness and needs only limited query rights.
+        internal static string ProgramPath(uint pid) {
+            IntPtr handle=OpenProcess(0x1000,false,pid);if(handle==IntPtr.Zero)return null;
+            try{var buffer=new StringBuilder(32768);int size=buffer.Capacity;return QueryFullProcessImageName(handle,0,buffer,ref size)?buffer.ToString():null;}
+            finally{CloseHandle(handle);}
+        }
+        [DllImport("kernel32.dll",SetLastError=true)]private static extern IntPtr OpenProcess(uint access,bool inherit,uint pid);
+        [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]private static extern bool QueryFullProcessImageName(IntPtr process,uint flags,StringBuilder path,ref int size);
+        [DllImport("kernel32.dll")]private static extern bool CloseHandle(IntPtr handle);
         public void Dispose(){stop.Set();if(worker.Join(3000))stop.Dispose();}
 
         [ComImport,Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]private class DeviceEnumerator {}

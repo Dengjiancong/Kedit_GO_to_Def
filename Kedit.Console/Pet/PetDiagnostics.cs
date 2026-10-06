@@ -23,6 +23,14 @@ namespace Kedit.Console
                 panel.ShowPetPage();
                 for (int i = 0; i < 150 && !app.Pet.IsReady; i++) await Task.Delay(200);
                 Check(app.Pet.IsReady, "Live2D did not become ready: " + app.Pet.Status);
+                if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-feedback-ui")>=0) {
+                    panel.AutomationForDiagnostics.ScheduleForDiagnostics(DateTime.Now.AddHours(1));panel.ShowAutomationForDiagnostics(false);await Task.Delay(500);Capture(panel,Path.Combine(directory,"reminder-ui.png"));
+                    panel.ShowAutomationForDiagnostics(true);await Task.Delay(500);Capture(panel,Path.Combine(directory,"music-ui.png"));
+                    File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: revised navigation, enabled appointment summary and music page rendered.");app.ExitConsole();return;
+                }
+                if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-feedback")>=0) {
+                    await CheckFeedback(app,panel,directory);app.ExitConsole();return;
+                }
                 if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-life")>=0) {
                     await CheckLife(app,panel,directory);app.ExitConsole();return;
                 }
@@ -92,6 +100,53 @@ namespace Kedit.Console
             }
         }
         private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+        private static async Task CheckFeedback(App app,MainWindow panel,string directory) {
+            var pet=app.Pet;var w=pet.DiagnosticWindow;w.StopInputForDiagnostics();pet.SetSize(650);pet.SetOptions(true,false);pet.SetCare(false,20,false);pet.CompanionCommand("reset");await Task.Delay(400);
+            NativePoint original;GetCursorPos(out original);IntPtr foreground=GetForegroundWindow(),handle=new System.Windows.Interop.WindowInteropHelper(w).Handle;
+            Point head=new Point(w.ActualWidth*.5,65+(w.ActualHeight-65)*.60),move=new Point(w.ActualWidth*.5+15,65+(w.ActualHeight-65)*.60);
+            try {
+                await MouseMessage(w,handle,head,0x207,16);await Task.Delay(200);await MouseMessage(w,handle,move,0x200,16);await Task.Delay(300);
+                File.WriteAllText(Path.Combine(directory,"rub-state.json"),await w.EvaluateForDiagnostics("(()=>{const d=window.petDiagnostics;return {gesture:d.gesture.state,rubbing:d.companion.life.rubbing,region:d.hitRegion(innerWidth*.5,innerHeight*.6)}})()"));
+                Check(w.HasPalmCursor,"Palm cursor not shown while rubbing");Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rubbing") == "true","Native rub missing");
+                pet.Capture(Path.Combine(directory,"rub-start.png"),true);
+                await MouseMessage(w,handle,move,0x208,0);await Task.Delay(400);Check(!w.HasPalmCursor,"Palm cursor leaked after release");Check(GetForegroundWindow()==foreground,"Rub took foreground focus");
+            }finally{SetCursorPos(original.X,original.Y);}
+            // Do not hold the user's physical pointer captured for a multi-second animation check.
+            await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rub(true,8)");
+            string mood=await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rubMood");await Task.Delay(4800);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rubMood")!=mood,"Rub expression did not evolve");pet.Capture(Path.Combine(directory,"rub-next.png"),true);
+            await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rub(false)");
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.recent.some(t=>PetCompanion.phrases.rubStart.includes(t)) && !window.petDiagnostics.companion.layers.some(l=>l.r.id==='emote-shy2'&&!l.ending)")=="true","Dedicated rub dialogue or expression policy failed");
+            panel.AutomationForDiagnostics.PreviewForDiagnostics();await Task.Delay(1400);pet.Capture(Path.Combine(directory,"reminder-preview.png"),true);
+            Check(pet.Automation.Reminders.Count==0&&pet.Automation.Wardrobe==null,"Preview saved a reminder or changed restoration ownership");await Task.Delay(5200);
+            DateTime due=DateTime.Now.Date.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute+1);
+            if((due-DateTime.Now).TotalSeconds<5)due=due.AddMinutes(1);
+            string id=panel.AutomationForDiagnostics.ScheduleForDiagnostics(due);
+            Check(PetAutomationData.Load().Reminders.Exists(r=>r.Id==id&&r.Enabled),"UI save did not persist enabled reminder");
+            Check(panel.AutomationForDiagnostics.SummaryForDiagnostics.Contains(due.ToString("HH:mm")),"UI missing next trigger time");
+            panel.ShowAutomationForDiagnostics(false);await Task.Delay(250);Capture(panel,Path.Combine(directory,"reminder-configured.png"));
+            File.WriteAllText(Path.Combine(directory,"progress.txt"),"Waiting for actual DispatcherTimer appointment at "+due.ToString("HH:mm:ss"));
+            while(DateTime.Now<due.AddSeconds(4))await Task.Delay(500);
+            Check(pet.Automation.Occurrences.Exists(o=>o.ReminderId==id&&o.Status=="executed"),"Actual wall-clock appointment never triggered");
+            Check(pet.Automation.Wardrobe!=null,"Actual appointment did not apply wardrobe");pet.Capture(Path.Combine(directory,"reminder-triggered.png"),true);
+            pet.CompanionCommand("reset");await Task.Delay(400);
+            string chrome=Path.Combine(Environment.GetEnvironmentVariable("ProgramW6432")??Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),@"Google\Chrome\Application\chrome.exe");Check(File.Exists(chrome),"Chrome not installed for required integration check");
+            File.WriteAllText(Path.Combine(directory,"process-bitness.txt"),"Console: "+(IntPtr.Size*8)+" bit; Chrome executable: "+chrome);
+            string page=Path.Combine(directory,"chrome-audio.html");File.WriteAllText(page,"<!doctype html><title>Kedit isolated audio test</title><script>const a=new AudioContext(),o=a.createOscillator(),g=a.createGain();g.gain.value=.025;o.frequency.value=330;o.connect(g);g.connect(a.destination);a.resume();o.start();setTimeout(()=>{o.stop();a.close()},20000);</script>");
+            var start=new ProcessStartInfo(chrome,"--headless=new --no-first-run --no-default-browser-check --disable-background-networking --autoplay-policy=no-user-gesture-required --user-data-dir=\""+Path.Combine(directory,"ChromeProfile")+"\" \""+new Uri(page).AbsoluteUri+"\""){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden};
+            File.WriteAllText(Path.Combine(directory,"progress.txt"),"Testing real Chrome audio -> automatic music");
+            using(var browser=Process.Start(start))try {
+                pet.CompanionCommand("weapon");pet.MusicOptions(chrome,70,1.5);await Task.Delay(5500);
+                Check(pet.MusicPeak>.001,"Actual Chrome audio not detected: "+pet.MusicStatus);
+                Check(pet.MusicBehavior.Contains("手动道具"),"Music priority reason missing from UI");
+                panel.ShowAutomationForDiagnostics(true);await Task.Delay(250);Capture(panel,Path.Combine(directory,"music-priority.png"));
+                pet.ResumeAutomaticMusic();await Task.Delay(5000);
+                Check(await w.EvaluateForDiagnostics("!!window.petDiagnostics.companion.life.auto")=="true","Real Chrome audio did not start automatic music: "+pet.MusicBehavior);
+                pet.Capture(Path.Combine(directory,"chrome-auto-music.png"),true);Capture(panel,Path.Combine(directory,"music-playing.png"));
+                pet.MusicOptions("",70,1.5);await Task.Delay(500);Check(await w.EvaluateForDiagnostics("!window.petDiagnostics.companion.life.auto")=="true","Music disable failed");
+            }finally{if(!browser.HasExited)browser.Kill();}
+            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: native palm cursor/release and focus, evolving rub expressions/dedicated dialogue, non-persistent preview, UI save+next occurrence, real wall-clock DispatcherTimer appointment and wardrobe, actual isolated Chrome audio metering, manual-prop explanation, resume automatic music, disable. No injected music samples or manual scheduler ticks used for these integration checks.");
+        }
         private static async Task CheckLife(App app,MainWindow panel,string directory) {
             var pet=app.Pet;var w=pet.DiagnosticWindow;w.StopInputForDiagnostics();pet.SetSize(650);pet.SetOptions(true,false);pet.SetCare(false,20,false);pet.CompanionCommand("reset");await Task.Delay(400);
             NativePoint original;GetCursorPos(out original);IntPtr foreground=GetForegroundWindow(),handle=new System.Windows.Interop.WindowInteropHelper(w).Handle;

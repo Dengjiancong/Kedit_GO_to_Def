@@ -18,12 +18,17 @@ step(3200);assert(life.auto);c.lastActivity=now;life.typing();c.input.lastKey=no
 step(8500,0);assert(!life.auto);assert.equal(c.input.lastKey,keyTime,"music stop must restore unexpired keyboard retention");step(3200);assert(life.auto);
 c.layers.push({hand:true,ending:false,r:{id:"manual"}});step(100);assert(!life.auto);step(3200);assert(!life.auto,"manual prop priority");
 c.layers=[];step(3200);assert(life.auto);step(100,.1,false);assert(!life.auto);assert.equal(life.qualified,0);
-life.rub(true);assert(life.rubbing);assert(c.layers.some(l=>l.rub));life.rub(false);assert(c.layers.filter(l=>l.rub).every(l=>l.ending));
+c.resources=["emote-shy","mark-flower","mark-exceting"].map(id=>({id,available:true}));
+const contexts=[];c.say=context=>contexts.push(context);
+life.rub(true);assert(life.rubbing);assert(c.layers.some(l=>l.rub));const mood=life.rubMood;now+=5000;life.update(20);assert.notEqual(life.rubMood,mood);now+=6000;life.update(20);assert(contexts.includes("rubContinue"));life.rub(false);assert(contexts.includes("rubStart")&&contexts.includes("rubEnd"));assert(c.layers.filter(l=>l.rub).every(l=>l.ending));
 life.rub(true,3);now+=3100;life.update(20);assert(!life.rubbing);
 const resource={id:"motion-cloth off",available:true,duration:2400,values:[{id:"coat",index:0,category:"外观",value:t=>Math.min(1,t)},{id:"bg",index:1,category:"手部／道具",value:()=>1}]};c.resources=[resource];
 life.prepare({token:"one",action:resource.id});assert.equal(report.at(-1).original.coat,.2);assert.equal(report.at(-1).values.coat,1);
 life.wardrobeSet({state:{values:{coat:1},original:{coat:.2}},play:true});assert(c.layers.some(l=>l.scheduled&&!l.hand&&l.values.some(v=>v.id==="bg")));
 now+=3000;life.apply();assert.equal(c.value,1);life.prepare({token:"two",action:resource.id});assert.equal(report.at(-1).original.coat,.2);
 life.wardrobeSet({state:{values:{coat:.2},original:{coat:.2}},play:false});now+=500;life.apply();assert.equal(c.value,.2);
+const preserved=life.wardrobe;life.receive({type:"previewReminder",id:resource.id});now+=1000;life.apply();assert.strictEqual(life.wardrobe,preserved,"preview changed scheduled ownership");now+=6000;life.apply();assert.equal(life.preview,null);assert.equal(c.value,.2,"preview did not restore underlying appearance");
 life.manualAppearance();assert.equal(life.wardrobe,null);assert.equal(report.at(-1).type,"wardrobeManual");
+const Companion=require("../Kedit.Console/PetWeb/pet-companion.js");
+for(const context of ["rubStart","rubContinue","rubEnd"]){assert(Companion.phrases[context].length>=8);assert(Companion.phrases[context].every(t=>!Companion.phrases.pat.includes(t)));}
 console.log("PASS: tap/rub/cancel/outside/body separation, music qualification/energy/silence/typing/manual priority/disable, appearance snapshot/restoration/manual override.");

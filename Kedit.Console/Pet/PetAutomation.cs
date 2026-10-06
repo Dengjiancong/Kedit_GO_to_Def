@@ -11,6 +11,11 @@ namespace Kedit.Console {
         private DateTime lastTyping=DateTime.MinValue;private string pendingWardrobe;
         private bool automationDisposed;
         internal string MusicStatus {get;private set;}
+        internal string MusicBehavior {get;private set;}
+        internal double MusicPeak {get;private set;}
+        private DateTime musicUiUpdate;
+        internal void SetMusicBehavior(string text){MusicBehavior=text;AutomationNotice();}
+        private void AutomationNotice(){var h=AutomationChanged;if(h!=null)h(this,EventArgs.Empty);}
         internal event EventHandler AutomationChanged;
         private void InitializeAutomation() {
             Automation=PetAutomationData.Load();MusicStatus="未选择播放器，自动音乐陪伴已关闭。";
@@ -19,7 +24,14 @@ namespace Kedit.Console {
         }
         internal void AutomationActivity(){lastTyping=DateTime.Now;}
         internal void AutomationReady(){TickAutomation(DateTime.Now);SendWardrobe(false);StartMusic();}
-        internal void SaveAutomation(){Automation.Save();var h=AutomationChanged;if(h!=null)h(this,EventArgs.Empty);}
+        internal void SaveAutomation(){Automation.Save();AutomationNotice();}
+        internal void PreviewReminder(PetReminder r) {
+            PetSchedule.Validate(r);
+            if(!IsReady)throw new InvalidOperationException("请先开启桌宠，等模型加载完成后再试播。");
+            if(!string.IsNullOrEmpty(r.Action)&&!Resources.Any(x=>x.id==r.Action&&x.available))throw new InvalidOperationException("当前模型不支持这项动作，请改选可用动作或仅显示提示。");
+            window.AutomationBubble(r.Text);window.SendAutomation(new{type="previewReminder",id=r.Action});
+        }
+        internal void ResumeAutomaticMusic(){if(IsReady)window.SendAutomation(new{type="resumeMusic"});StartMusic();AutomationNotice();}
         internal void SaveReminder(PetReminder r){PetSchedule.Edit(Automation,r);pendingWardrobe=null;SaveAutomation();}
         internal void DeleteReminder(string id){PetSchedule.CancelPending(Automation,id);Automation.Reminders.RemoveAll(r=>r.Id==id);pendingWardrobe=null;SaveAutomation();}
         internal void MusicOptions(string path,double amount,double sensitivity) {
@@ -35,7 +47,8 @@ namespace Kedit.Console {
                 try { dispatcher.BeginInvoke(new Action(delegate {
                     if(automationDisposed||generation!=audioGeneration||!IsReady)return;
                     window.SendAutomation(new{type="music",enabled=true,peak=peak,amount=Automation.MusicAmount,sensitivity=Automation.MusicSensitivity});
-                    if(MusicStatus!=status){MusicStatus=status;var h=AutomationChanged;if(h!=null)h(this,EventArgs.Empty);}
+                    MusicPeak=peak;MusicStatus=status;
+                    if((DateTime.UtcNow-musicUiUpdate).TotalMilliseconds>=250){musicUiUpdate=DateTime.UtcNow;AutomationNotice();}
                 })); } catch(InvalidOperationException) { /* Dispatcher closed while the audio thread was finishing. */ }
             });
         }
@@ -43,9 +56,11 @@ namespace Kedit.Console {
             audioGeneration++;if(audio!=null){audio.Dispose();audio=null;}
             if(IsReady)window.SendAutomation(new{type="music",enabled=false,peak=0});
             MusicStatus="自动音乐陪伴已关闭；手动打碟仍可使用。";
+            MusicPeak=0;
         }
         internal void TickAutomation(DateTime now) {
             try {
+                AutomationNotice();
                 bool changed=PetSchedule.Scan(Automation,now,IsReady);
                 var w=Automation.Wardrobe;
                 if(w!=null&&w.RestoreAt!=default(DateTime)&&now>=w.RestoreAt) {
@@ -90,7 +105,7 @@ namespace Kedit.Console {
             window.SendAutomation(new{type="wardrobe",state=w!=null&&string.Equals(w.Model,Settings.ModelPath,StringComparison.OrdinalIgnoreCase)?w:null,play=play});
         }
         internal PetOccurrence LatestOccurrence(string reminderId) {
-            return Automation.Occurrences.Where(o=>o.ReminderId==reminderId&&o.Due.Date==DateTime.Now.Date&&o.Status!="missed"&&o.Status!="expired").OrderByDescending(o=>o.Due).FirstOrDefault();
+            return Automation.Occurrences.Where(o=>o.ReminderId==reminderId&&o.Due.Date==DateTime.Now.Date).OrderByDescending(o=>o.Due).FirstOrDefault();
         }
         internal void RespondReminder(string id,bool snooze) {
             var o=LatestOccurrence(id);var r=Automation.Reminders.FirstOrDefault(x=>x.Id==id);if(r==null)return;

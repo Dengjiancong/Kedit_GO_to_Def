@@ -125,7 +125,8 @@ class PetCompanion {
         if (automatic && (!this.canCare() || now-this.lastCare < (this.settings.careMinutes || 20)*60000 ||
             now-(this.contextTimes[context] || -Infinity) < 1800000)) return false;
         const available = bank.filter(text => !this.recent.includes(text));
-        const text = (available.length ? available : bank)[Math.floor(Math.random()*(available.length || bank.length))];
+        const choices=available.length?available:bank.filter(text=>text!==this.recent[this.recent.length-1]);
+        const text = (choices.length?choices:bank)[Math.floor(Math.random()*(choices.length||bank.length))];
         this.recent.push(text); this.recent = this.recent.slice(-8);
         this.lastCare = now; this.contextTimes[context] = now;
         this.report({type:"bubble", text, duration:Math.max(3500, Math.min(7000, text.length*180))});
@@ -161,7 +162,7 @@ class PetCompanion {
     reset() { if(this.life){this.life.rub(false);this.life.manualAppearance();this.life.auto=null;this.life.savedKey=-Infinity;} this.layers.forEach(l => l.ending = true); this.speech(0); this.hits=[]; this.status(); }
     combination() { return this.layers.filter(l => l.hold && !l.ending && !l.touch && !l.automatic).map(l => l.r.id); }
     restore(ids) { this.reset(); (Array.isArray(ids) ? ids.slice(0,this.resources.length) : []).forEach(id => this.select(id,true)); }
-    status() { this.report({type:"companionStatus",text:this.layers.filter(l=>!l.ending).map(l=>l.r.label+(l.hold?"（保持）":"")).join("＋") || "自然状态"}); }
+    status() { this.report({type:"companionStatus",text:this.layers.filter(l=>!l.ending).map(l=>l.r.label+(l.automatic?"（自动）":l.hold?"（保持）":"")).join("＋") || "自然状态"}); }
     update(dt) {
         const now = performance.now(); this.dt = Math.max(0,Math.min(100,dt));
         if(this.life)this.life.update(dt);
@@ -241,6 +242,9 @@ class PetCompanion {
         return center+value*range*settings.followAmount/100*weight;
     }
     static get phrases() { return {
+        rubStart:["唔，耳朵都想跟着你的手晃一晃啦。","是揉揉头呀，那我乖乖待一会儿。","轻轻的，像一小阵暖风。","收到一份温柔，悄悄收进小口袋。","脑袋上的小花，好像也开心起来了。","嘿嘿，今天的毛毛也被照顾到了。","慢慢揉就好，我不着急。","这一小会儿，我们都放松一下吧。","唔……这下连耳朵尖都暖暖的。","谢谢你特意停下来陪我一会儿。","把脑袋凑过来一点，给你揉揉。","揉揉头的时间到，我准备好啦。"],
+        rubContinue:["小花再开一朵，送给温柔的你。","嗯，舒服得想眯一会儿眼睛。","毛毛有一点乱，不过很开心。","慢一点也很好，就像现在这样。","这一会儿不用赶路，我们歇歇。","也把这份温柔留一点给自己呀。","耳朵晃呀晃，心情也轻轻的。","有你陪着，这个小角落暖和多了。","我把今天的这份摸摸记在小花里。","手累了就歇一歇，我还在这里。"],
+        rubEnd:["揉揉头收到了，送你一朵小花。","毛毛整理好啦，继续陪你。","谢谢这份温柔，希望你也轻松一点。","舒服多啦，手也休息一下吧。","把暖暖的好心情分你一半。","耳朵归位！我们按自己的节奏来。","这一小会儿真好，谢谢你。","小花替我挥挥手，随时都可以来呀。"],
         welcome:["今天也一起慢慢来吧。","很高兴陪着你，按自己的节奏来就好。","我在这里，陪你开始新的一段。"],
         return:["回来啦，按你的节奏继续就好。","欢迎回来，我们慢慢来。","又见面啦，先找个舒服的姿势吧。"],
         encourage:["认真忙了一会儿，想歇一下也可以呀。","一步一步来，给自己留一点余地。","不用急着做完所有事，我陪着你。","也记得照顾一下认真忙碌的自己。"],
