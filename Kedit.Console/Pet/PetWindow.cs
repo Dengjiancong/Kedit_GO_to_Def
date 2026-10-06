@@ -415,6 +415,10 @@ namespace Kedit.Console
                 var later=new MenuItem{Header="本次提醒：稍后提醒"};later.Click+=delegate{controller.RespondReminder(reminder.ReminderId,true);};actionMenu.Items.Add(later);
                 var ignore=new MenuItem{Header="本次提醒：今天忽略"};ignore.Click+=delegate{controller.RespondReminder(reminder.ReminderId,false);};actionMenu.Items.Add(ignore);
             }
+            actionMenu.Items.Add(new Separator());
+            var hidePet=new MenuItem {Header="隐藏桌宠",ToolTip="可从中控桌宠页或中控托盘重新开启"};
+            hidePet.Click+=delegate { actionMenu.IsOpen=false;controller.SetEnabled(false); };
+            actionMenu.Items.Add(hidePet);
             actionMenu.IsOpen=true;
         }
         internal void OpenActionMenuForDiagnostics(string selected) { menuPoint=new Point(Width*.5,Height*.6);OpenActionMenu(selected); }
