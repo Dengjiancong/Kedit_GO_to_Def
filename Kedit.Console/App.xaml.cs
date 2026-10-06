@@ -17,6 +17,7 @@ namespace Kedit.Console
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            if(Array.IndexOf(e.Args,"--design-preview")>=0) { MainWindow=new DesignPreview();MainWindow.Show();return; }
             string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kedit", "DesktopPet");
             for (int i = 0; i + 1 < e.Args.Length; i++)
                 if (e.Args[i] == "--data-dir") data = Path.GetFullPath(e.Args[i + 1]);

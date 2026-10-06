@@ -49,6 +49,8 @@
     <ApplicationDefinition Include="App.xaml" />
     <Page Include="MainWindow.xaml" />
     <Compile Include="App.xaml.cs" />
+    <Compile Include="DesignPreview.cs" />
+    <Compile Include="PreviewCrop.cs" />
     <Compile Include="MainWindow.xaml.cs" />
     <Compile Include="Pet\PetRuntime.cs" />
     <Compile Include="Pet\PetSettings.cs" />
@@ -67,6 +69,9 @@
   <ItemGroup>
     <EmbeddedResource Include="PetWeb\**\*">
       <LogicalName>PetWeb/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PreviewAssets\*.png">
+      <LogicalName>PreviewAssets/%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\.packages\Microsoft.Web.WebView2.1.0.3537.50\lib\net462\Microsoft.Web.WebView2.Core.dll">
       <LogicalName>PetRuntime/Microsoft.Web.WebView2.Core.dll</LogicalName>
