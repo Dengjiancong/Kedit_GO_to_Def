@@ -23,6 +23,17 @@ namespace Kedit.Console
                 panel.ShowPetPage();
                 for (int i = 0; i < 150 && !app.Pet.IsReady; i++) await Task.Delay(200);
                 Check(app.Pet.IsReady, "Live2D did not become ready: " + app.Pet.Status);
+                if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-eye-probe")>=0) {
+                    var w=app.Pet.DiagnosticWindow;w.StopInputForDiagnostics();app.Pet.SetSize(650);app.Pet.CompanionCommand("reset");await Task.Delay(500);
+                    File.WriteAllText(Path.Combine(directory,"ranges.json"),await w.EvaluateForDiagnostics("['ParamExpression20','ParamExpression21','ParamExpression28'].map(id=>{const c=petDiagnostics.companion,i=c.input.index(id);return {id,min:c.core.getParameterMinimumValue(i),max:c.core.getParameterMaximumValue(i)}})"));
+                    foreach(double v in new[]{-1.0,0.0,1.0}) {
+                        await w.EvaluateForDiagnostics("(()=>{const c=petDiagnostics.companion;c.life.apply=()=>{c.core.setParameterValueByIndex(c.input.index('ParamExpression20'),0);c.core.setParameterValueByIndex(c.input.index('ParamExpression21'),"+v.ToString(CultureInfo.InvariantCulture)+");};})()");await Task.Delay(400);app.Pet.Capture(Path.Combine(directory,"eye-"+v.ToString(CultureInfo.InvariantCulture)+".png"),true);
+                    }
+                    app.ExitConsole();return;
+                }
+                if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-palm")>=0) {
+                    await CheckFeedback(app,panel,directory);app.ExitConsole();return;
+                }
                 if(selfTest && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-feedback-ui")>=0) {
                     panel.AutomationForDiagnostics.ScheduleForDiagnostics(DateTime.Now.AddHours(1));panel.ShowAutomationForDiagnostics(false);await Task.Delay(500);Capture(panel,Path.Combine(directory,"reminder-ui.png"));
                     panel.ShowAutomationForDiagnostics(true);await Task.Delay(500);Capture(panel,Path.Combine(directory,"music-ui.png"));
@@ -108,13 +119,17 @@ namespace Kedit.Console
                 await MouseMessage(w,handle,head,0x207,16);await Task.Delay(200);await MouseMessage(w,handle,move,0x200,16);await Task.Delay(300);
                 File.WriteAllText(Path.Combine(directory,"rub-state.json"),await w.EvaluateForDiagnostics("(()=>{const d=window.petDiagnostics;return {gesture:d.gesture.state,rubbing:d.companion.life.rubbing,region:d.hitRegion(innerWidth*.5,innerHeight*.6)}})()"));
                 Check(w.HasPalmCursor,"Palm cursor not shown while rubbing");Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rubbing") == "true","Native rub missing");
+                IntPtr actual=CurrentCursor();System.Windows.Input.Mouse.SetCursor(PetPalmCursor.Value);IntPtr expected=CurrentCursor();
+                Check(actual==expected,"Actual Windows cursor is not the palm");System.Windows.Input.Mouse.UpdateCursor();
+                Check(CurrentCursor()==expected,"Cursor query overwrote the palm");
                 pet.Capture(Path.Combine(directory,"rub-start.png"),true);
-                await MouseMessage(w,handle,move,0x208,0);await Task.Delay(400);Check(!w.HasPalmCursor,"Palm cursor leaked after release");Check(GetForegroundWindow()==foreground,"Rub took foreground focus");
+                await MouseMessage(w,handle,move,0x208,0);await Task.Delay(400);Check(!w.HasPalmCursor,"Palm cursor leaked after release");Check(CurrentCursor()!=expected,"Actual Windows palm leaked after release");Check(GetForegroundWindow()==foreground,"Rub took foreground focus");
             }finally{SetCursorPos(original.X,original.Y);}
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-palm")>=0) {File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: actual Windows cursor handle matches palm during native rubbing, survives cursor query, restores on release; foreground unchanged.");return;}
             // Do not hold the user's physical pointer captured for a multi-second animation check.
             await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rub(true,8)");
-            string mood=await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rubMood");await Task.Delay(4800);
-            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rubMood")!=mood,"Rub expression did not evolve");pet.Capture(Path.Combine(directory,"rub-next.png"),true);
+            await Task.Delay(4800);
+            Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.layers.filter(l=>l.rub&&!l.ending).length")=="2","Rub layers must remain stable");pet.Capture(Path.Combine(directory,"rub-next.png"),true);
             await w.EvaluateForDiagnostics("window.petDiagnostics.companion.life.rub(false)");
             Check(await w.EvaluateForDiagnostics("window.petDiagnostics.companion.recent.some(t=>PetCompanion.phrases.rubStart.includes(t)) && !window.petDiagnostics.companion.layers.some(l=>l.r.id==='emote-shy2'&&!l.ending)")=="true","Dedicated rub dialogue or expression policy failed");
             panel.AutomationForDiagnostics.PreviewForDiagnostics();await Task.Delay(1400);pet.Capture(Path.Combine(directory,"reminder-preview.png"),true);
@@ -430,6 +445,9 @@ namespace Kedit.Console
             await Task.Delay(70);
         }
         [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr handle,int message,IntPtr wParam,IntPtr lParam);
+        [StructLayout(LayoutKind.Sequential)] private struct CursorInfo {public int size,flags;public IntPtr cursor;public NativePoint point;}
+        [DllImport("user32.dll")] private static extern bool GetCursorInfo(ref CursorInfo info);
+        private static IntPtr CurrentCursor() {var info=new CursorInfo {size=Marshal.SizeOf(typeof(CursorInfo))};Check(GetCursorInfo(ref info),"Cannot read Windows cursor");return info.cursor;}
         [DllImport("user32.dll")] private static extern bool SetCursorPos(int x,int y);
         [DllImport("user32.dll")] private static extern bool GetCursorPos(out NativePoint point);
         [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();

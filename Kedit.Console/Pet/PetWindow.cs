@@ -33,6 +33,7 @@ namespace Kedit.Console
         private double dragLeft, dragTop;
         private Point middlePoint;
         private bool middlePressed;
+        private bool palmActive;
         private DateTime lastGestureMove;
         private ContextMenu actionMenu;
         private int menuRequest;
@@ -46,6 +47,7 @@ namespace Kedit.Console
         public PetWindow(PetController owner, PetModel selected)
         {
             controller = owner;
+            PetRuntime.GestureTrace("SESSION rub-trace-v1 pid="+System.Diagnostics.Process.GetCurrentProcess().Id+" assembly="+typeof(PetWindow).Assembly.ManifestModule.ModuleVersionId);
             model = selected;
             input = new PetInput(this, owner.Settings, delegate(double x, double y, int presses) {
                 if(presses>0)controller.AutomationActivity();
@@ -86,12 +88,17 @@ namespace Kedit.Console
                     lastGestureMove=DateTime.UtcNow;SendGesture("move",e.GetPosition(this));
                 }
             };
-            grid.LostMouseCapture += delegate { CancelGesture(); };
+            grid.LostMouseCapture += delegate { if(middlePressed)PetRuntime.GestureTrace("native lost-capture");CancelGesture(); };
             grid.LostMouseCapture += delegate { dragging = false; };
             grid.PreviewMouseWheel += delegate(object sender, MouseWheelEventArgs e) {
                 controller.SetSize(controller.Settings.Size + (e.Delta > 0 ? 30 : -30)); e.Handled = true;
             };
             Content = grid;
+            // Mouse capture belongs to the grid, not the browser. Resolve the
+            // cursor at the window after child/WebView handlers have run.
+            AddHandler(Mouse.QueryCursorEvent, new QueryCursorEventHandler(delegate(object sender, QueryCursorEventArgs e) {
+                if(palmActive && middlePressed) { e.Cursor=PetPalmCursor.Value;e.Handled=true; }
+            }), true);
             bubbleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
             bubbleTimer.Tick += delegate { bubble.Visibility = Visibility.Collapsed; bubbleTimer.Stop(); if (ready && !closed) PostInteraction(new { type = "speech", duration = 0 }); };
             loadTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -200,7 +207,8 @@ namespace Kedit.Console
                     controller.SetResources(serializer.Deserialize<PetResource[]>(serializer.Serialize(data["items"])));
                 }
                 else if(type=="wardrobePrepared" || type=="wardrobeManual")controller.AutomationMessage(data);
-                else if(type=="rubCursor")SetRubCursor(Convert.ToBoolean(data["active"])&&middlePressed);
+                else if(type=="gestureTrace")PetRuntime.GestureTrace("renderer "+Convert.ToString(data["text"]));
+                else if(type=="rubCursor") {PetRuntime.GestureTrace("cursor requested="+data["active"]+" middlePressed="+middlePressed);SetRubCursor(Convert.ToBoolean(data["active"])&&middlePressed);}
                 else if(type=="musicBehavior")controller.SetMusicBehavior(Convert.ToString(data["text"]));
                 else if (type == "companionStatus") controller.SetCompanionStatus(Convert.ToString(data["text"]));
                 else if(type=="actionMenu" && ready && Convert.ToInt32(data["request"])==menuRequest &&
@@ -361,12 +369,13 @@ namespace Kedit.Console
         private void MiddleDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton != MouseButton.Middle) return;
+            PetRuntime.GestureTrace("native down ready="+ready+" clickThrough="+controller.Settings.ClickThrough+" topMargin="+(e.GetPosition(this).Y<65));
             e.Handled = true;
             if (!ready || controller.Settings.ClickThrough || e.GetPosition(this).Y < 65) return;
             Point bubblePoint = e.GetPosition(bubble);
-            if (bubble.IsVisible && bubblePoint.X >= 0 && bubblePoint.X <= bubble.ActualWidth && bubblePoint.Y >= 0 && bubblePoint.Y <= bubble.ActualHeight) return;
+            if (bubble.IsVisible && bubblePoint.X >= 0 && bubblePoint.X <= bubble.ActualWidth && bubblePoint.Y >= 0 && bubblePoint.Y <= bubble.ActualHeight) {PetRuntime.GestureTrace("native rejected bubble");return;}
             middlePoint = e.GetPosition(this);
-            middlePressed = true; ((UIElement)sender).CaptureMouse();SendGesture("down",middlePoint);
+            middlePressed = true; bool captured=((UIElement)sender).CaptureMouse();PetRuntime.GestureTrace("native capture="+captured);SendGesture("down",middlePoint);
         }
         private void RequestActionMenu(object sender, MouseButtonEventArgs e)
         {
@@ -413,6 +422,7 @@ namespace Kedit.Console
         private void MiddleUp(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton != MouseButton.Middle) return;
+            PetRuntime.GestureTrace("native up middlePressed="+middlePressed);
             e.Handled = true;
             if(middlePressed)SendGesture("up",e.GetPosition(this));
             middlePressed = false;SetRubCursor(false); ((UIElement)sender).ReleaseMouseCapture();
@@ -421,7 +431,7 @@ namespace Kedit.Console
             if(ready&&!closed)PostInteraction(new {type="gesture",phase=phase,x=point.X/ActualWidth,y=(point.Y-65)/(ActualHeight-65),px=point.X,py=point.Y});
         }
         private void CancelGesture() { if(middlePressed)SendGesture("cancel",middlePoint);middlePressed=false;SetRubCursor(false); }
-        private void SetRubCursor(bool active) { Cursor=active?PetPalmCursor.Value:null;ForceCursor=active;browser.Cursor=Cursor;browser.ForceCursor=active; }
+        private void SetRubCursor(bool active) { palmActive=active;Cursor=active?PetPalmCursor.Value:null;ForceCursor=active;browser.Cursor=Cursor;browser.ForceCursor=active;Mouse.UpdateCursor(); }
         internal bool HasPalmCursor {get{return ForceCursor&&Cursor==PetPalmCursor.Value;}}
         private void MoveDrag(object sender, MouseEventArgs e)
         {

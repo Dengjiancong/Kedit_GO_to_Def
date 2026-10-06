@@ -8,9 +8,10 @@ class PetLife {
         this.rubbing=active;this.rubUntil=seconds?performance.now()+seconds*1000:Infinity;
         if(active) {
             this.rubStarted=performance.now();this.rubNextTalk=this.rubStarted+10000;
+            this.rubVisits=(this.rubVisits||[]).filter(t=>this.rubStarted-t<20000);
+            this.rubVisits.push(this.rubStarted);this.rubTroubled=this.rubVisits.length>=5;
             c.layers.filter(l=>l.touch).forEach(l=>l.ending=true);
-            this.rubMood=((this.rubMood===undefined?-1:this.rubMood)+1+Math.floor(Math.random()*2))%3;
-            this.rubExpression();c.say("rubStart");
+            this.rubExpression();c.say(this.rubTroubled?"protest":"rubStart");
         } else {
             c.layers.filter(l=>l.rub).forEach(l=>l.ending=true);
             if(!c.input.paused && performance.now()-this.rubStarted>=1800 && performance.now()-(this.rubLastEnd||-Infinity)>12000) {
@@ -19,11 +20,12 @@ class PetLife {
         }
     }
     rubExpression() {
-        const c=this.c;c.layers.filter(l=>l.rub).forEach(l=>l.ending=true);
-        for(const id of ["emote-shy",this.rubMood===2?"mark-exceting":"mark-flower"]) {
+        const c=this.c;
+        for(const id of ["emote-shy",this.rubTroubled?"mark-sweat":"mark-flower"]) {
+            const existing=c.layers.find(l=>l.rub&&l.r.id===id);
+            if(existing){existing.ending=false;continue;}
             if(c.resources.some(r=>r.id===id&&r.available)&&c.select(id,true,true))c.layers[c.layers.length-1].rub=true;
         }
-        this.rubNextMood=performance.now()+4500;
     }
     manualAppearance() {
         if(!this.wardrobe)return;
@@ -70,11 +72,8 @@ class PetLife {
     update(dt) {
         const c=this.c,now=performance.now();
         if(this.rubbing && (now>=this.rubUntil||c.input.paused))this.rub(false);
-        if(this.rubbing && now>=this.rubNextMood){this.rubMood=(this.rubMood+1)%3;this.rubExpression();}
-        if(this.rubbing && now>=this.rubNextTalk){c.say("rubContinue");this.rubNextTalk=now+12000;}
+        if(this.rubbing && now>=this.rubNextTalk){c.say(this.rubTroubled?"protest":"rubContinue");this.rubNextTalk=now+12000;}
         this.rubWeight=(this.rubWeight||0)+((this.rubbing?1:0)-(this.rubWeight||0))*(1-Math.exp(-Math.max(0,Math.min(100,dt))/180));
-        const closeTarget=this.rubMood===1?.65:this.rubMood===2?.25:.1;
-        this.rubClose=(this.rubClose||0)+(closeTarget-(this.rubClose||0))*(1-Math.exp(-Math.max(0,Math.min(100,dt))/250));
         const m=this.music,live=m.enabled && now-m.at<2000 && !c.input.paused;
         const peak=live?Math.max(0,Math.min(1,m.peak||0)):0;
         const elapsed=Math.max(0,Math.min(100,dt));
@@ -98,9 +97,12 @@ class PetLife {
     }
     apply() {
         const w=this.wardrobe,c=this.c;
-        if(this.rubWeight>.001) {
-            const weight=this.rubWeight,close=this.rubClose||0;
-            for(const id of ["ParamEyeLOpen","ParamEyeROpen"]){const i=c.input.index(id);if(i>=0)c.core.setParameterValueByIndex(i,c.core.getParameterValueByIndex(i)*(1-close*weight));}
+        if(this.rubbing || this.rubWeight>.001) {
+            const weight=this.rubWeight;
+            // Visually verified: (20=0,21=1) is > <; (20=1,21=1) is troubled.
+            // Select branch 20 directly so happy rubs never drift into troubled eyes.
+            const eye=c.input.index("ParamExpression20");if(eye>=0)c.core.setParameterValueByIndex(eye,this.rubTroubled?1:0);
+            const shape=c.input.index("ParamExpression21");if(shape>=0){const value=c.core.getParameterValueByIndex(shape);c.core.setParameterValueByIndex(shape,value+(1-value)*(weight||0));}
             const z=c.input.index("ParamAngleZ");if(z>=0)c.core.setParameterValueByIndex(z,c.core.getParameterValueByIndex(z)+Math.sin(performance.now()/600)*2.5*weight);
         }
         if(!w){this.captureAppearance();this.applyPreview();return;}

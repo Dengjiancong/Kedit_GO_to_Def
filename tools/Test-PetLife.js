@@ -20,7 +20,18 @@ c.layers.push({hand:true,ending:false,r:{id:"manual"}});step(100);assert(!life.a
 c.layers=[];step(3200);assert(life.auto);step(100,.1,false);assert(!life.auto);assert.equal(life.qualified,0);
 c.resources=["emote-shy","mark-flower","mark-exceting"].map(id=>({id,available:true}));
 const contexts=[];c.say=context=>contexts.push(context);
-life.rub(true);assert(life.rubbing);assert(c.layers.some(l=>l.rub));const mood=life.rubMood;now+=5000;life.update(20);assert.notEqual(life.rubMood,mood);now+=6000;life.update(20);assert(contexts.includes("rubContinue"));life.rub(false);assert(contexts.includes("rubStart")&&contexts.includes("rubEnd"));assert(c.layers.filter(l=>l.rub).every(l=>l.ending));
+life.rub(true);assert(life.rubbing);assert(c.layers.some(l=>l.rub));const rubLayers=c.layers.filter(l=>l.rub);now+=5000;life.update(20);assert.deepEqual(c.layers.filter(l=>l.rub),rubLayers);assert(rubLayers.every(l=>!l.ending));now+=6000;life.update(20);assert(contexts.includes("rubContinue"));life.rub(false);assert(contexts.includes("rubStart")&&contexts.includes("rubEnd"));assert(c.layers.filter(l=>l.rub).every(l=>l.ending));
+life.rub(true);assert.equal(c.layers.filter(l=>l.rub).length,2,"Quick restart must reuse fading rub layers");life.rub(false);
+const eyeValues={ParamExpression20:0,ParamExpression21:0};
+const eyeIds=Object.keys(eyeValues);
+const eyes=new Life({layers:[],resources:[],report:()=>{},say:()=>{},input:{index:id=>eyeIds.indexOf(id)},core:{getParameterValueByIndex:i=>eyeValues[eyeIds[i]],setParameterValueByIndex:(i,value)=>eyeValues[eyeIds[i]]=value}});
+eyes.rubbing=true;eyes.rubWeight=.2;eyes.apply();assert.equal(eyeValues.ParamExpression21,.2);assert.equal(eyeValues.ParamExpression20,0,"Happy branch must not fade toward troubled");
+eyes.rubWeight=1;eyes.apply();assert.equal(eyeValues.ParamExpression21,1);assert.equal(eyeValues.ParamExpression20,0);
+eyes.rubTroubled=true;eyes.apply();assert.equal(eyeValues.ParamExpression20,1);
+eyes.rubbing=false;eyes.rubVisits=[];
+for(let n=1;n<=5;n++){now+=1000;eyes.rub(true);eyes.rub(true);assert.equal(eyes.rubVisits.length,n);assert.equal(eyes.rubTroubled,n>=5);eyes.rub(false);}
+now+=21000;eyes.rub(true);assert.equal(eyes.rubVisits.length,1);assert(!eyes.rubTroubled);
+now+=60000;eyes.rub(true);assert(!eyes.rubTroubled,"Holding one rub must never escalate");eyes.rub(false);
 life.rub(true,3);now+=3100;life.update(20);assert(!life.rubbing);
 const resource={id:"motion-cloth off",available:true,duration:2400,values:[{id:"coat",index:0,category:"外观",value:t=>Math.min(1,t)},{id:"bg",index:1,category:"手部／道具",value:()=>1}]};c.resources=[resource];
 life.prepare({token:"one",action:resource.id});assert.equal(report.at(-1).original.coat,.2);assert.equal(report.at(-1).values.coat,1);

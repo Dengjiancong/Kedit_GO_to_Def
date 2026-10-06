@@ -63,6 +63,15 @@ namespace Kedit.Console
             catch (UnauthorizedAccessException) { }
         }
 
+        internal static void GestureTrace(string message) {
+            try {
+                Directory.CreateDirectory(DataDirectory);
+                string path=Path.Combine(DataDirectory,"gesture-diagnostic.log");
+                if(File.Exists(path)&&new FileInfo(path).Length>256*1024)File.WriteAllText(path,"");
+                File.AppendAllText(path,DateTime.Now.ToString("HH:mm:ss.fff")+" "+message+Environment.NewLine);
+            } catch(IOException) {} catch(UnauthorizedAccessException) {}
+        }
+
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr LoadLibrary(string fileName);
     }

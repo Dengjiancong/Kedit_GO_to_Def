@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v19.00-Amiya.v002)
+; Kedit 助手 - 终极完整版 (v19.00-Amiya.v003)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v19.00-Amiya.v002"
+Global CurrentVersion := "v19.00-Amiya.v003"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -491,6 +491,26 @@ ConvertLeadingSpacesToTabs(Text, ByRef ConvertedTabs, ByRef ConvertedLines) {
     }
 
     return Result
+}
+
+; 此条件变体在启动时预先建立，优先于随后动态注册的编辑器中键变体。
+; ~ 保留原始按下与松开，不用 SendInput 模拟一次点击。
+#If PetOwnsMiddleButton()
+~MButton::return
+#If
+
+PetOwnsMiddleButton() {
+    MouseGetPos,,, PetMouseHwnd
+    if (!PetMouseHwnd)
+        return false
+    PetRoot := DllCall("GetAncestor", "Ptr", PetMouseHwnd, "UInt", 2, "Ptr")
+    WinGetTitle, PetTitle, ahk_id %PetRoot%
+    if (PetTitle != "Kedit Live2D 桌宠")
+        return false
+    WinGet, PetProcess, ProcessName, ahk_id %PetRoot%
+    WinGet, PetStyle, ExStyle, ahk_id %PetRoot%
+    ; WS_EX_TRANSPARENT：穿透开启时不接管，让下方应用继续处理。
+    return (PetProcess = "Kedit.Console.exe" && !(PetStyle & 0x20))
 }
 
 Label_SmartClick:
