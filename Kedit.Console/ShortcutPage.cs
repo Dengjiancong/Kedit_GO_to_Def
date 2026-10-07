@@ -24,9 +24,24 @@ namespace Kedit.Console {
             new KeditShortcut("SpacesToTabs","行首空格转 Tab","^\\","按 4 列制表位整理所选文本的行首缩进，保持正文视觉位置。","spaces-to-tabs","⇥"),
             new KeditShortcut("SmartClick","智能点击 / 跳转定义","~MButton","执行原有智能点击功能。鼠标键建议保留 ~ 前缀，例如 ~MButton，以保留原按键功能。","smart-click","◎")
         };
+        static readonly KeditShortcut[] vsShortcuts={
+            new KeditShortcut("VS_Peek","跳转 / 预览定义","MButton","选择 F12 跳转或 Alt+F12 预览；默认中键保留原窗口识别逻辑。","vs-definition","↗"),
+            new KeditShortcut("VS_Back","回退","^b","发送 Ctrl+-。","vs-back","↶"),
+            new KeditShortcut("VS_Build","生成","F7","发送原版 Ctrl+B。","vs-build","⚒"),
+            new KeditShortcut("VS_ToggleComment","注释 / 取消注释","^/","调用 VS 原生注释快捷键。","vs-comment","/"),
+            new KeditShortcut("VS_BookmarkToggle","建立 / 取消书签","^F2","发送 Ctrl+K、Ctrl+K。","vs-bookmark","▣"),
+            new KeditShortcut("VS_BookmarkNext","下一个书签","F2","发送 Ctrl+K、Ctrl+P。","vs-next","↓"),
+            new KeditShortcut("VS_BookmarkPrevious","上一个书签","+F2","发送 Ctrl+K、Ctrl+N。","vs-previous","↑"),
+            new KeditShortcut("VS_Redo","重做","^y","发送 Ctrl+Shift+Z。","vs-redo","↷")
+        };
+        bool vsPage;
+        string savedAction="GoTo";
+        ComboBox definitionChoice;
+        KeditShortcut[] CurrentList {get{return vsPage?vsShortcuts:keditShortcuts;}}
+        string currentMediaPage="home";
         int selectedShortcut;
-        KeditShortcut CurrentShortcut {get{return keditShortcuts[selectedShortcut];}}
-        void SelectShortcut(int index){if(!CanLeave())return;selectedShortcut=index;NavigateLive("Kedit");}
+        KeditShortcut CurrentShortcut {get{return CurrentList[selectedShortcut];}}
+        void SelectShortcut(int index,bool vs=false){if(!CanLeave())return;vsPage=vs;selectedShortcut=index;NavigateLive(vs?"Visual\nStudio":"Kedit");}
         readonly bool liveMode;
         IntPtr ahkWindow;
         string settingsFile;
@@ -41,20 +56,24 @@ namespace Kedit.Console {
         internal void OpenRoute(int route,IntPtr source){
             if(source!=IntPtr.Zero)ahkWindow=source;
             if(settingsFile==null){var args=Environment.GetCommandLineArgs();long handle;if(args.Length>2&&long.TryParse(args[2],out handle))ahkWindow=new IntPtr(handle);for(int i=1;i+1<args.Length;i++)if(args[i]=="--settings")settingsFile=Path.GetFullPath(args[i+1]);if(settingsFile==null)settingsFile=Path.Combine(root,"Kedit_Settings.ini");}
-            if(route>0 && route<=keditShortcuts.Length)SelectShortcut(route-1);else Navigate("首页");
+            if(route>0 && route<=keditShortcuts.Length)SelectShortcut(route-1);else if(route>=101&&route<=108)SelectShortcut(route-101,true);else Navigate("首页");
         }
         void NavigateLive(string page){
             if(settingsFile==null){settingsFile=Path.Combine(root,"Kedit_Settings.ini");var args=Environment.GetCommandLineArgs();long handle;if(args.Length>2&&long.TryParse(args[2],out handle))ahkWindow=new IntPtr(handle);for(int i=1;i+1<args.Length;i++)if(args[i]=="--settings")settingsFile=Path.GetFullPath(args[i+1]);}
+            if(page=="Kedit"&&vsPage){vsPage=false;selectedShortcut=0;}else if(page.StartsWith("Visual")&&!vsPage){vsPage=true;selectedShortcut=0;}
+            bool shortcut=page=="Kedit"||page.StartsWith("Visual");definitionChoice=null;
             recording=false;home=page=="首页";folded=false;dirty=false;
             foreach(var pair in tiles)pair.Value.Tag=pair.Key==page;
             if(legacyPanel!=null)legacyPanel.Visibility=Visibility.Collapsed;
-            news.Visibility=home?Visibility.Visible:Visibility.Collapsed;settingsToggle.Visibility=page=="Kedit"?Visibility.Visible:Visibility.Collapsed;
-            panel.Visibility=page=="Kedit"?Visibility.Visible:Visibility.Collapsed;nav.Visibility=page=="Kedit"?Visibility.Visible:Visibility.Collapsed;
+            news.Visibility=home?Visibility.Visible:Visibility.Collapsed;settingsToggle.Visibility=shortcut?Visibility.Visible:Visibility.Collapsed;
+            panel.Visibility=shortcut?Visibility.Visible:Visibility.Collapsed;nav.Visibility=shortcut?Visibility.Visible:Visibility.Collapsed;
             form.Children.Clear();formHeader.Children.Clear();formFooter.Children.Clear();subnav.Children.Clear();
             title.FontSize=home?34:23;title.Text=home?"KEDIT\n让操作，随心而动。":page.Replace("\n"," ");
-            if(home){LoadMedia(Path.Combine(root,"side.mp4"));return;}
-            if(page!="Kedit"){
-                LoadMedia("");var app=(App)Application.Current;
+            if(home){currentMediaPage="home";LoadPageMedia(Path.Combine(root,"side.mp4"));return;}
+            if(page=="桌宠OSD"){ShowPetSection();return;}
+            if(!shortcut){
+                currentMediaPage=page=="更新"?"updates":"other";
+                LoadPageMedia("");var app=(App)Application.Current;
                 if(legacyPanel==null){var content=app.Legacy.DetachPages();legacyPanel=new Border{Child=content,Margin=new Thickness(24,90,24,56),Background=B("#EE151D29")};scene.Children.Add(legacyPanel);}
                 app.Legacy.ShowCategory(page=="桌宠OSD"?"pet":page.StartsWith("Visual")?"vs":page=="更新"?"system":"other");legacyPanel.Visibility=Visibility.Visible;return;
             }
@@ -62,17 +81,29 @@ namespace Kedit.Console {
             savedKey=ReadShortcut();key.TextChanged-=Changed;key.Text=savedKey;key.TextChanged+=Changed;
             title.Text=CurrentShortcut.Title+" · "+savedKey;
             formHeader.Children.Add(Text(CurrentShortcut.Title,23));formHeader.Children.Add(Text("当前："+savedKey+"　默认："+CurrentShortcut.Default,13));
-            form.Children.Add(Text("仅在 Kedit 中生效。"+CurrentShortcut.Description,13));
+            form.Children.Add(Text((vsPage?"适用于 Visual Studio。":"仅在 Kedit 中生效。")+CurrentShortcut.Description,13));
+            if(CurrentShortcut.Id=="VS_Peek"){var value=new StringBuilder(32);GetPrivateProfileString("Settings","VSDefinitionAction","GoTo",value,32,settingsFile);savedAction=value.ToString()=="Peek"?"Peek":"GoTo";definitionChoice=new ComboBox {Margin=new Thickness(0,0,0,12)};definitionChoice.Items.Add("跳转到定义（F12）");definitionChoice.Items.Add("预览定义（Alt+F12）");definitionChoice.SelectedIndex=savedAction=="Peek"?1:0;definitionChoice.SelectionChanged+=delegate{dirty=key.Text!=savedKey||(definitionChoice.SelectedIndex==1?"Peek":"GoTo")!=savedAction;};form.Children.Add(definitionChoice);}
             form.Children.Add(Text("快捷键（支持直接输入 AHK 代码）",12));key.FontSize=14;key.Padding=new Thickness(8);form.Children.Add(key);
             key.PreviewKeyDown-=RecordShortcut;key.PreviewKeyDown+=RecordShortcut;
             form.Children.Add(Button("录入键盘快捷键",()=>{recording=true;key.Focus();status.Text="请按组合键；Esc 取消录入。鼠标键请使用下方代码。";}));
             form.Children.Add(Text("Ctrl：^　Alt：!　Shift：+　Win：#\n鼠标：MButton / XButton1 / XButton2\n示例：^F1、!f、~MButton",12,"#ADB5C6"));
             form.Children.Add(Button("恢复默认 "+CurrentShortcut.Default+"（保存后生效）",()=>key.Text=CurrentShortcut.Default));
-            formFooter.Children.Add(Button("保存",Save,true));formFooter.Children.Add(Button("取消修改",()=>{key.Text=savedKey;dirty=false;status.Text="已取消修改";}));
+            formFooter.Children.Add(Button("保存",Save,true));formFooter.Children.Add(Button("取消修改",()=>{key.Text=savedKey;if(definitionChoice!=null)definitionChoice.SelectedIndex=savedAction=="Peek"?1:0;dirty=false;status.Text="已取消修改";}));
             status.Foreground=B("#C5C9D0");status.TextWrapping=TextWrapping.Wrap;status.Text=IsWindow(ahkWindow)?"修改后点击保存，由快捷键主程序应用。":"主程序未连接，暂时无法保存。";formFooter.Children.Add(status);
             subnav.Children.Add(Button("☰",()=>{navFolded=!navFolded;nav.Width=navFolded?45:160;panel.Margin=new Thickness(0,110,navFolded?106:176,72);foreach(var child in subnav.Children){var b=child as Button;if(b!=null&&b.Tag!=null)b.Content=navFolded?b.Tag:b.ToolTip;}}));
-            for(int i=0;i<keditShortcuts.Length;i++){int index=i;var item=keditShortcuts[i];var entry=Button(item.Icon,()=>SelectShortcut(index));entry.Tag=item.Icon;entry.ToolTip=item.Title;entry.Content=navFolded?entry.Tag:entry.ToolTip;entry.FontSize=12;entry.Height=32;entry.Margin=new Thickness(0,2,0,2);if(i==selectedShortcut)entry.Background=B("#526175");subnav.Children.Add(entry);}
-            string media=Path.Combine(root,"Kedit.Console","Demos",CurrentShortcut.Media+".mp4");if(!File.Exists(media))media=Path.ChangeExtension(media,"gif");LoadMedia(media);if(!File.Exists(media))form.Children.Add(Text("演示待补充",13,"#BBC4D2"));dirty=false;
+            for(int i=0;i<CurrentList.Length;i++){int index=i;var item=CurrentList[i];bool vs=vsPage;var entry=Button(item.Icon,()=>SelectShortcut(index,vs));entry.Tag=item.Icon;entry.ToolTip=item.Title;entry.Content=navFolded?entry.Tag:entry.ToolTip;entry.FontSize=12;entry.Height=32;entry.Margin=new Thickness(0,2,0,2);if(i==selectedShortcut)entry.Background=B("#526175");subnav.Children.Add(entry);}
+            string media=Path.Combine(root,"Kedit.Console","Demos",CurrentShortcut.Media+".mp4");if(!File.Exists(media))media=Path.ChangeExtension(media,"gif");currentMediaPage=(vsPage?"vs.":"kedit.")+CurrentShortcut.Id;LoadPageMedia(media);if(!File.Exists(media)&&!pageMedia.Has(currentMediaPage))form.Children.Add(Text("演示待补充",13,"#BBC4D2"));dirty=false;
+        }
+        int petSection;
+        static readonly string[] petSections={"显示与位置","鼠标跟随与挥剑","打字互动","表情与道具","陪伴对白","音乐陪伴","定时提醒与换装","OSD 提示"};
+        void ShowPetSection(){
+            home=false;panel.Visibility=Visibility.Visible;settingsToggle.Visibility=Visibility.Visible;nav.Visibility=Visibility.Visible;
+            title.Text="桌宠 OSD / "+petSections[petSection];formHeader.Children.Add(Text(petSections[petSection],23));formHeader.Children.Add(Text(petSection==6?"日程使用页面内保存按钮":"修改立即生效",12,"#BBC4D2"));
+            form.Children.Add(((App)Application.Current).Legacy.PetSection(petSection));
+            subnav.Children.Add(Button("☰",()=>{navFolded=!navFolded;NavigateLive("桌宠OSD");}));
+            nav.Width=navFolded?45:160;panel.Margin=new Thickness(0,110,navFolded?106:176,72);
+            for(int i=0;i<petSections.Length;i++){int index=i;var b=Button(navFolded?(i+1).ToString():petSections[i],()=>{petSection=index;NavigateLive("桌宠OSD");});b.ToolTip=petSections[i];if(i==petSection)b.Background=B("#526175");subnav.Children.Add(b);}
+            currentMediaPage="pet."+new[]{"display","follow","typing","props","care","music","schedule","osd"}[petSection];LoadPageMedia("");
         }
         void RecordShortcut(object sender,KeyEventArgs e){
             if(!recording)return;e.Handled=true;var k=e.Key==Key.System?e.SystemKey:e.Key;
@@ -104,18 +135,22 @@ namespace Kedit.Console {
                 Navigate("桌宠OSD");UpdateLayout();Capture(Path.Combine(output,"legacy-pet.png"));await ((App)Application.Current).Legacy.CheckEmbeddedPet(output);Navigate("Kedit");
                 for(int i=0;i<keditShortcuts.Length;i++){OpenRoute(i+1,IntPtr.Zero);if(CurrentShortcut.Id!=keditShortcuts[i].Id)throw new Exception("route mismatch");key.Text="^!F"+(i+1);SaveShortcut();if(dirty||ReadShortcut()!=key.Text)throw new Exception("save "+CurrentShortcut.Id+": "+status.Text);key.Text=CurrentShortcut.Default;SaveShortcut();if(dirty||ReadShortcut()!=CurrentShortcut.Default)throw new Exception("restore default "+CurrentShortcut.Id+": "+status.Text);}
                 UpdateLayout();Capture(Path.Combine(output,"all-kedit.png"));
-                File.WriteAllText(Path.Combine(output,"result.txt"),"PASS: all 10 Kedit routes and saves; native IPC save, conflict draft, persisted reload, home route, unsaved-change choices, embedded pet controls and lifecycle");
+                for(int i=0;i<vsShortcuts.Length;i++){OpenRoute(101+i,IntPtr.Zero);key.Text="^!F"+(i+1);if(definitionChoice!=null)definitionChoice.SelectedIndex=1;SaveShortcut();if(dirty||ReadShortcut()!=key.Text)throw new Exception("VS save "+CurrentShortcut.Id+": "+status.Text);key.Text=CurrentShortcut.Default;SaveShortcut();if(dirty)throw new Exception("VS restore "+CurrentShortcut.Id+": "+status.Text);}
+                OpenRoute(101,IntPtr.Zero);if(definitionChoice.SelectedIndex!=1)throw new Exception("VS definition action not persisted");UpdateLayout();Capture(Path.Combine(output,"vs-page.png"));
+                for(int i=0;i<petSections.Length;i++){petSection=i;Navigate("桌宠OSD");UpdateLayout();if(settingsToggle.Visibility!=Visibility.Visible)throw new Exception("pet collapse button missing");Capture(Path.Combine(output,"pet-section-"+i+".png"));}
+
+                File.WriteAllText(Path.Combine(output,"result.txt"),"PASS: 10 Kedit and 8 VS routes/save/defaults, VS action persistence, 8 pet sections; native IPC save, conflict draft, persisted reload, home route, unsaved-change choices, embedded pet controls and lifecycle");
             }catch(Exception ex){File.WriteAllText(Path.Combine(output,"result.txt"),"FAIL: "+ex);}
             finally{dirty=false;((App)Application.Current).ExitConsole();}
         }
         void SaveShortcut(){
             string value=key.Text.Trim();if(value.Length==0||value.Contains("|")||value.Contains("\n")||value.Contains("\r")){status.Text="请输入有效快捷键。";return;}
             if(!IsWindow(ahkWindow)){status.Text="快捷键主程序未连接，请从托盘重新打开中控。";return;}
-            string command="save_kedit_hotkey|"+CurrentShortcut.Id+"|"+value;IntPtr text=Marshal.StringToHGlobalUni(command);
+            string command=vsPage?"save_vs_hotkey|"+CurrentShortcut.Id+"|"+value+"|"+(definitionChoice!=null&&definitionChoice.SelectedIndex==1?"Peek":"GoTo"):"save_kedit_hotkey|"+CurrentShortcut.Id+"|"+value;IntPtr text=Marshal.StringToHGlobalUni(command);
             try{var data=new CopyData{Bytes=(command.Length+1)*2,Text=text};IntPtr result;
                 if(SendMessageTimeout(ahkWindow,0x4A,new System.Windows.Interop.WindowInteropHelper(this).Handle,ref data,2,4000,out result)==IntPtr.Zero){status.Text="主程序响应超时，结果未确认；草稿已保留，请重新打开页面核对。";return;}
                 int code=result.ToInt32();if(code!=1){status.Text=code==2?"快捷键格式无效或无法注册。":code==3?"该快捷键与 Kedit 现有快捷键或保留键冲突。":code==4?"配置文件写入失败，已恢复原快捷键。":"主程序未支持此操作，请重启更新后的快捷键软件。";return;}
-                savedKey=value;dirty=false;title.Text=CurrentShortcut.Title+" · "+value;((TextBlock)formHeader.Children[1]).Text="当前："+value+"　默认："+CurrentShortcut.Default;status.Text="已保存并生效";
+                savedKey=value;if(definitionChoice!=null)savedAction=definitionChoice.SelectedIndex==1?"Peek":"GoTo";dirty=false;title.Text=CurrentShortcut.Title+" · "+value;((TextBlock)formHeader.Children[1]).Text="当前："+value+"　默认："+CurrentShortcut.Default;status.Text="已保存并生效";
             }finally{Marshal.FreeHGlobal(text);}
         }
     }

@@ -51,6 +51,7 @@
     <Compile Include="App.xaml.cs" />
     <Compile Include="DesignPreview.cs" />
     <Compile Include="ShortcutPage.cs" />
+    <Compile Include="PageMedia.cs" />
     <Compile Include="PreviewCrop.cs" />
     <Compile Include="MainWindow.xaml.cs" />
     <Compile Include="Pet\PetRuntime.cs" />
@@ -88,4 +89,5 @@
     </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="PageMedia.targets" />
 </Project>

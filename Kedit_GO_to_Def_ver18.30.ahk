@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v19.00-Amiya.v005)
+; Kedit 助手 - 终极完整版 (v19.00-Amiya.v006)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v19.00-Amiya.v005"
+Global CurrentVersion := "v19.00-Amiya.v006"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -98,14 +98,14 @@ AddKeditMenu("SmartClick", "设置: 默认 中键 (跳转至定义)")
 
 ; --- Visual Studio 的设置入口
 Menu, Tray, Add  ; 分隔线
-Menu, Tray, Add, 设置: VS 跳转/预览定义 (默认中键), SetKey_VS_Peek
-Menu, Tray, Add, 设置: VS 回退 (默认Ctrl+B), SetKey_VS_Back
-Menu, Tray, Add, 设置: VS 生成/Ctrl+B (默认F7), SetKey_VS_Build
-Menu, Tray, Add, 设置: VS 注释/取消注释 (默认Ctrl+/), SetKey_VS_ToggleComment
-Menu, Tray, Add, 设置: VS 建立书签 (默认Ctrl+F2), SetKey_VS_BookmarkToggle
-Menu, Tray, Add, 设置: VS 下一个书签 (默认F2), SetKey_VS_BookmarkNext
-Menu, Tray, Add, 设置: VS 上一个书签 (默认Shift+F2), SetKey_VS_BookmarkPrevious
-Menu, Tray, Add, 设置: VS 重做 (默认Ctrl+Y), SetKey_VS_Redo
+AddKeditMenu("VS_Peek", "设置: VS 跳转/预览定义 (默认中键)")
+AddKeditMenu("VS_Back", "设置: VS 回退 (默认Ctrl+B)")
+AddKeditMenu("VS_Build", "设置: VS 生成/Ctrl+B (默认F7)")
+AddKeditMenu("VS_ToggleComment", "设置: VS 注释/取消注释 (默认Ctrl+/)")
+AddKeditMenu("VS_BookmarkToggle", "设置: VS 建立书签 (默认Ctrl+F2)")
+AddKeditMenu("VS_BookmarkNext", "设置: VS 下一个书签 (默认F2)")
+AddKeditMenu("VS_BookmarkPrevious", "设置: VS 上一个书签 (默认Shift+F2)")
+AddKeditMenu("VS_Redo", "设置: VS 重做 (默认Ctrl+Y)")
 
 ; --- Kedit 以外的设置入口
 Menu, Tray, Add  ; 分隔线
@@ -1259,35 +1259,43 @@ return
 ; Visual Studio 快捷键设置入口
 ; =======================================================
 SetKey_VS_Peek:
-    ChangeHotkey("VS_Peek", "VS 定义操作快捷键`n(默认中键；动作可选 F12 或 Alt+F12)", Key_VS_Peek, VSDefinitionAction)
+    ConsoleKeditPage := 101
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_VS_Back:
-    ChangeHotkey("VS_Back", "VS 回退功能替换`n(功能: 发送 Ctrl + -)", Key_VS_Back)
+    ConsoleKeditPage := 102
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_VS_Build:
-    ChangeHotkey("VS_Build", "VS 生成/旧Ctrl+B替换`n(功能: 发送原版 Ctrl+B)", Key_VS_Build)
+    ConsoleKeditPage := 103
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_VS_ToggleComment:
-    ChangeHotkey("VS_ToggleComment", "VS 注释/取消注释 (智能切换)`n(默认 Ctrl+/；调用 VS 原生 Ctrl+K,Ctrl+C/U)", Key_VS_ToggleComment)
+    ConsoleKeditPage := 104
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_VS_BookmarkToggle:
-    ChangeHotkey("VS_BookmarkToggle", "VS 建立/取消书签`n(发送 Ctrl+K, Ctrl+K；默认 Ctrl+F2)", Key_VS_BookmarkToggle)
+    ConsoleKeditPage := 105
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_VS_BookmarkNext:
-    ChangeHotkey("VS_BookmarkNext", "VS 下一个书签`n(发送 Ctrl+K, Ctrl+P；默认 F2)", Key_VS_BookmarkNext)
+    ConsoleKeditPage := 106
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_VS_BookmarkPrevious:
-    ChangeHotkey("VS_BookmarkPrevious", "VS 上一个书签`n(发送 Ctrl+K, Ctrl+N；默认 Shift+F2)", Key_VS_BookmarkPrevious)
+    ConsoleKeditPage := 107
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_VS_Redo:
-    ChangeHotkey("VS_Redo", "VS 重做`n(发送 Ctrl+Shift+Z；默认 Ctrl+Y)", Key_VS_Redo)
+    ConsoleKeditPage := 108
+    Gosub, OpenConsoleRoute
 return
 
 ; =======================================================
@@ -2101,9 +2109,9 @@ RefreshKeditMenus() {
     global
     if (!IsObject(KeditMenuLabels))
         return
-    Titles := {FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义"}
+    Titles := {FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_Redo:"VS 重做"}
     for Name, OldCaption in KeditMenuLabels {
-        Caption := "设置: " . Titles[Name] . " (" . Key_%Name% . ")"
+        Caption := "设置: " . (Titles.HasKey(Name)?Titles[Name]:KeditMenuTitles[Name]) . " (" . Key_%Name% . ")"
         Menu, Tray, Rename, %OldCaption%, %Caption%
         KeditMenuLabels[Name] := Caption
     }
@@ -2131,12 +2139,16 @@ SaveFindClipboardFromConsole(NewKey) {
     return SaveKeditHotkeyFromConsole("FindClipboard", NewKey)
 }
 
-SaveKeditHotkeyFromConsole(KeyName, NewKey) {
+SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     global
-    Labels := {FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick"}
+    Labels := {FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_Redo:"Label_VS_Redo"}
     if (!Labels.HasKey(KeyName))
         return 0
     TargetLabel := Labels[KeyName]
+    IsVS := SubStr(KeyName,1,3) = "VS_"
+    Context := IsVS ? "ahk_exe devenv.exe" : "ahk_exe kedit.exe"
+    if (DefinitionAction != "GoTo" && DefinitionAction != "Peek")
+        return 2
     Critical
     NewKey := Trim(NewKey)
     Identity := NormalizeConsoleHotkey(NewKey)
@@ -2144,7 +2156,7 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey) {
         return 2
     if (Identity = "reserved")
         return 3
-    for _, Name in ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "CtrlQ"] {
+    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "CtrlQ"]) {
         if (Name = KeyName)
             continue
         if (NormalizeConsoleHotkey(Key_%Name%) = Identity
@@ -2165,14 +2177,27 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey) {
         FileDelete, %PendingIni%
         return 4
     }
+    if (KeyName = "VS_Peek") {
+        IniWrite, %DefinitionAction%, %PendingIni%, Settings, VSDefinitionAction
+        if (ErrorLevel) {
+            FileDelete, %PendingIni%
+            return 4
+        }
+    }
+    OldContext := KeyName = "VS_Peek" && OldKey = "MButton" ? "" : Context
+    NewContext := KeyName = "VS_Peek" && NewKey = "MButton" ? "" : Context
+    OldBinding := OldContext = "" ? "$MButton" : OldKey
+    NewBinding := NewContext = "" ? "$MButton" : NewKey
     State := HotkeysSuspended ? "Off" : "On"
-    Hotkey, IfWinActive, ahk_exe kedit.exe
+    Hotkey, IfWinActive, %OldContext%
     try {
-        Hotkey, %OldKey%, Off
-        Hotkey, %NewKey%, %TargetLabel%, %State%
+        Hotkey, %OldBinding%, Off
+        Hotkey, IfWinActive, %NewContext%
+        Hotkey, %NewBinding%, %TargetLabel%, %State%
     } catch e {
         try {
-            Hotkey, %OldKey%, %TargetLabel%, %State%
+            Hotkey, IfWinActive, %OldContext%
+            Hotkey, %OldBinding%, %TargetLabel%, %State%
         }
         Hotkey, IfWinActive
         FileDelete, %PendingIni%
@@ -2180,14 +2205,18 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey) {
     }
     FileMove, %PendingIni%, %IniFile%, 1
     if (ErrorLevel) {
-        Hotkey, %NewKey%, Off
-        Hotkey, %OldKey%, %TargetLabel%, %State%
+        Hotkey, IfWinActive, %NewContext%
+        Hotkey, %NewBinding%, Off
+        Hotkey, IfWinActive, %OldContext%
+            Hotkey, %OldBinding%, %TargetLabel%, %State%
         Hotkey, IfWinActive
         FileDelete, %PendingIni%
         return 4
     }
     Hotkey, IfWinActive
     Key_%KeyName% := NewKey
+    if (KeyName = "VS_Peek")
+        VSDefinitionAction := DefinitionAction
     RefreshKeditMenus()
     return 1
 }
@@ -2206,6 +2235,8 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
         return SaveFindClipboardFromConsole(SubStr(Command, 21))
     if (RegExMatch(Command, "^save_kedit_hotkey\|([A-Za-z0-9_]+)\|(.+)$", SaveMatch))
         return SaveKeditHotkeyFromConsole(SaveMatch1, SaveMatch2)
+    if (RegExMatch(Command, "^save_vs_hotkey\|(VS_[A-Za-z]+)\|([^|]+)\|(GoTo|Peek)$", VSMatch))
+        return SaveKeditHotkeyFromConsole(VSMatch1, VSMatch2, VSMatch3)
     AppendConsoleCommandLog("received: " . Command)
 
     if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {

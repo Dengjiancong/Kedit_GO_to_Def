@@ -29,6 +29,35 @@ for Name, Value in {ShiftF2:"XButton2", AltF:"!f", CtrlW:"^w", AltA:"!a", Column
     Hotkey, %Value%, %Action%, On
 }
 Hotkey, ^b, Label_GoToDef, On
+VSDefinitionAction := "GoTo"
+Hotkey, IfWinActive, ahk_exe devenv.exe
+Key_VS_Peek := "MButton"
+Hotkey, MButton, Label_VS_DefinitionAction, On
+AddKeditMenu("VS_Peek","VS_Peek")
+Key_VS_Back := "^b"
+Hotkey, ^b, Label_VS_NavigateBack, On
+AddKeditMenu("VS_Back","VS_Back")
+Key_VS_Build := "F7"
+Hotkey, F7, Label_VS_SendCtrlB, On
+AddKeditMenu("VS_Build","VS_Build")
+Key_VS_ToggleComment := "^/"
+Hotkey, ^/, Label_VS_ToggleComment, On
+AddKeditMenu("VS_ToggleComment","VS_ToggleComment")
+Key_VS_BookmarkToggle := "^F2"
+Hotkey, ^F2, Label_VS_BookmarkToggle, On
+AddKeditMenu("VS_BookmarkToggle","VS_BookmarkToggle")
+Key_VS_BookmarkNext := "F2"
+Hotkey, F2, Label_VS_BookmarkNext, On
+AddKeditMenu("VS_BookmarkNext","VS_BookmarkNext")
+Key_VS_BookmarkPrevious := "+F2"
+Hotkey, +F2, Label_VS_BookmarkPrevious, On
+AddKeditMenu("VS_BookmarkPrevious","VS_BookmarkPrevious")
+Key_VS_Redo := "^y"
+Hotkey, ^y, Label_VS_Redo, On
+AddKeditMenu("VS_Redo","VS_Redo")
+Hotkey, IfWinActive
+Hotkey, $MButton, Label_VS_DefinitionAction, On
+
 for _, Name in ["FindClipboard", "GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "ToggleComment", "SpacesToTabs", "SmartClick"]
     AddKeditMenu(Name, Name)
 
@@ -71,6 +100,22 @@ Label_ColumnInsert:
 ProcessCommentToggle:
 Label_SpacesToTabs:
 Label_SmartClick:
+Label_VS_DefinitionAction:
+Label_VS_NavigateBack:
+Label_VS_SendCtrlB:
+Label_VS_ToggleComment:
+Label_VS_BookmarkToggle:
+Label_VS_BookmarkNext:
+Label_VS_BookmarkPrevious:
+Label_VS_Redo:
+SetKey_VS_Peek:
+SetKey_VS_Back:
+SetKey_VS_Build:
+SetKey_VS_ToggleComment:
+SetKey_VS_BookmarkToggle:
+SetKey_VS_BookmarkNext:
+SetKey_VS_BookmarkPrevious:
+SetKey_VS_Redo:
 Label_FindClipboard:
 return
 Check(Condition, Name) {
@@ -119,6 +164,22 @@ Label_ColumnInsert:
 ProcessCommentToggle:
 Label_SpacesToTabs:
 Label_SmartClick:
+Label_VS_DefinitionAction:
+Label_VS_NavigateBack:
+Label_VS_SendCtrlB:
+Label_VS_ToggleComment:
+Label_VS_BookmarkToggle:
+Label_VS_BookmarkNext:
+Label_VS_BookmarkPrevious:
+Label_VS_Redo:
+SetKey_VS_Peek:
+SetKey_VS_Back:
+SetKey_VS_Build:
+SetKey_VS_ToggleComment:
+SetKey_VS_BookmarkToggle:
+SetKey_VS_BookmarkNext:
+SetKey_VS_BookmarkPrevious:
+SetKey_VS_Redo:
 Label_FindClipboard:
 AutoCheckForUpdateInitial:
 AutoCheckForUpdate:

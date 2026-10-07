@@ -32,7 +32,7 @@ namespace Kedit.Console
         private ShortcutItem selected;
         private bool applyingState;
         private bool applyingPet;
-        private bool PetPageReady { get { return PetPage != null && PetPage.IsLoaded; } }
+        private bool PetPageReady { get { return (PetPage != null && PetPage.IsLoaded)||(embeddedPetRoot!=null&&embeddedPetRoot.IsLoaded); } }
         private PetController Pet { get { return ((App)Application.Current).Pet; } }
 
         public MainWindow()
@@ -123,6 +123,33 @@ namespace Kedit.Console
             return match.Success ? match.Groups[1].Value : fallback;
         }
 
+        Grid embeddedPetRoot;
+        internal UIElement PetSection(int section){
+            if(embeddedPetRoot==null){
+                embeddedPetRoot=new Grid {Resources=Resources};var groups=new StackPanel[8];for(int i=0;i<8;i++){groups[i]=new StackPanel();embeddedPetRoot.Children.Add(groups[i]);}
+                var original=(StackPanel)PetPage.Content;var main=(StackPanel)((Border)original.Children[2]).Child;
+                var items=new System.Collections.Generic.List<UIElement>();foreach(UIElement item in main.Children)items.Add(item);main.Children.Clear();int g=0;
+                foreach(var item in items){if(item==PetMouseFollow)g=1;if(item==PetTyping)g=2;groups[g].Children.Add(item);}
+                var last=groups[2].Children[groups[2].Children.Count-1];groups[2].Children.Remove(last);groups[0].Children.Add(last);
+                var companion=(StackPanel)((Expander)original.Children[3]).Content;items.Clear();foreach(UIElement item in companion.Children)items.Add(item);companion.Children.Clear();g=3;
+                foreach(var item in items){if(item==PetCare)g=4;var text=item as TextBlock;if(text!=null&&text.Text.StartsWith("持剑甩动"))g=1;if(item==PetCareFrequency)g=4;if(text!=null&&text.Text.Contains("试衣间"))g=3;groups[g].Children.Add(item);}
+                foreach(UIElement element in original.Children){var expander=element as Expander;if(expander!=null&&Convert.ToString(expander.Header).Contains("试衣间")){var resources=expander.Content as UIElement;expander.Content=null;groups[3].Children.Add(resources);}}
+                var automation=(PetAutomationPanel)PetAutomationHost.Content;groups[3].Children.Add(automation.DetachSection(0));groups[6].Children.Add(automation.DetachSection(1));groups[5].Children.Add(automation.DetachSection(2));
+                SystemPage.Children.Remove(OsdToggle);groups[7].Children.Add(OsdToggle);
+                original.Children.Remove(PetStatus);groups[0].Children.Add(PetStatus);
+                foreach(var group in groups)FitPetControls(group);
+            }
+            for(int i=0;i<embeddedPetRoot.Children.Count;i++)embeddedPetRoot.Children[i].Visibility=i==section?Visibility.Visible:Visibility.Collapsed;
+            return embeddedPetRoot;
+        }
+        static void FitPetControls(DependencyObject root){
+            var text=root as TextBlock;if(text!=null){text.TextWrapping=TextWrapping.Wrap;if(text.FontSize>16)text.FontSize=14;}
+            var check=root as CheckBox;if(check!=null&&check.Content is string)check.Content=new TextBlock {Text=(string)check.Content,TextWrapping=TextWrapping.Wrap,Foreground=check.Foreground};
+            var combo=root as ComboBox;if(combo!=null){combo.MaxWidth=290;combo.HorizontalAlignment=HorizontalAlignment.Stretch;}
+            var panel=root as Panel;if(panel!=null)foreach(UIElement child in panel.Children)FitPetControls(child);
+            var content=root as ContentControl;if(content!=null&&content.Content is DependencyObject)FitPetControls((DependencyObject)content.Content);
+            var border=root as Border;if(border!=null&&border.Child!=null)FitPetControls(border.Child);
+        }
         internal UIElement DetachPages(){
             var pages=(Grid)ListPage.Parent;((Grid)pages.Parent).Children.Remove(pages);pages.Resources=Resources;pages.Margin=new Thickness(12);return pages;
         }

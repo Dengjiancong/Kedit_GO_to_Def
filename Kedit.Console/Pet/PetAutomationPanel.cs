@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -88,6 +88,7 @@ namespace Kedit.Console {
             var o=pet.LatestOccurrence(editing);var w=pet.Automation.Wardrobe;status.Text=(o==null?"今天尚无执行记录。":"今天的记录："+State(o.Status)+(o.Status=="snoozed"?" · "+o.Next.ToString("HH:mm"):""))+(w==null?"":w.RestoreAt==default(DateTime)?" · 当前外观无自动恢复期限":" · 外观恢复："+w.RestoreAt.ToString("MM-dd HH:mm"));
         }
         private static string State(string s){switch(s){case "pending":return "已到点，等待停手或开始动作";case "snoozed":return "已延期";case "ignored":return "今天已忽略";case "executed":return "已触发";case "cancelled":return "修改设置后已取消";case "missed":return "当时桌宠未就绪或已错过时间，未补播";case "expired":return "等待超过有效期，已结束";default:return s;}}
+        internal UIElement DetachSection(int index){var page=pages[index];Children.Remove(page);page.Visibility=Visibility.Visible;return page;}
         private void SelectPage(int selected){for(int i=0;i<3;i++){pages[i].Visibility=i==selected?Visibility.Visible:Visibility.Collapsed;if(navigation[i]!=null)navigation[i].Foreground=i==selected?Brushes.Gold:Brushes.White;}ScrollToPage();}
         private void ScrollToPage(){if(!IsLoaded)return;Dispatcher.BeginInvoke(new Action(delegate{UpdateLayout();DependencyObject parent=this;while(parent!=null&&!(parent is ScrollViewer))parent=VisualTreeHelper.GetParent(parent);var viewer=parent as ScrollViewer;if(viewer!=null&&viewer.Content is Visual)viewer.ScrollToVerticalOffset(TransformToAncestor((Visual)viewer.Content).Transform(new Point()).Y);}),System.Windows.Threading.DispatcherPriority.Loaded);}
         internal void ShowForDiagnostics(bool music){SelectPage(music?2:1);if(music)musicBehavior.BringIntoView();else summary.BringIntoView();}

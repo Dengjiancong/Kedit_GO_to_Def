@@ -1,0 +1,38 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <UsingTask TaskName="CollectPageMedia" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+    <ParameterGroup><Root ParameterType="System.String" Required="true"/><Assets ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true"/></ParameterGroup>
+    <Task>
+      <Reference Include="System.Web.Extensions"/>
+      <Reference Include="PresentationCore"/>
+      <Reference Include="WindowsBase"/><Reference Include="System.Xaml"/>
+      <Using Namespace="System"/><Using Namespace="System.IO"/><Using Namespace="System.Collections.Generic"/><Using Namespace="Microsoft.Build.Utilities"/>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var directory=Path.Combine(Root,"mp4");var manifest=Path.Combine(directory,"pages.json");
+        if(!File.Exists(manifest)){Log.LogError("Page media manifest missing: "+manifest);return false;}
+        var items=new List<Microsoft.Build.Framework.ITaskItem>();var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var first=new TaskItem(manifest);first.SetMetadata("LogicalName","PageMedia/pages.json");items.Add(first);
+        try {
+          var map=new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<Dictionary<string,string>>(File.ReadAllText(manifest));
+          foreach(var pair in map){
+            string file=pair.Value;var path=Path.Combine(directory,file??"");
+            if(string.IsNullOrWhiteSpace(file)||Path.GetFileName(file)!=file||!File.Exists(path)){Log.LogError("Page "+pair.Key+": missing/invalid media "+file);continue;}
+            if(!seen.Add(file))continue;
+            try {
+              string ext=Path.GetExtension(file).ToLowerInvariant();
+              using(var stream=File.OpenRead(path)){
+                if(ext==".gif") {var gif=new System.Windows.Media.Imaging.GifBitmapDecoder(stream,System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);if(gif.Frames.Count==0)throw new Exception("empty GIF");foreach(var frame in gif.Frames){int stride=(frame.PixelWidth*frame.Format.BitsPerPixel+7)/8;frame.CopyPixels(new byte[stride*frame.PixelHeight],stride,0);}}
+                else if(ext==".mp4") {bool ftyp=false,moov=false,mdat=false;var reader=new BinaryReader(stream);while(stream.Position<stream.Length){long start=stream.Position;if(stream.Length-start<8)throw new Exception("truncated MP4 atom");byte[] size=reader.ReadBytes(4);long length=((long)size[0]<<24)|((long)size[1]<<16)|((long)size[2]<<8)|size[3];string type=System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));int header=8;if(length==1){length=0;for(int i=0;i<8;i++)length=(length<<8)|reader.ReadByte();header=16;}if(length==0)length=stream.Length-start;if(length<header||length>stream.Length-start)throw new Exception("invalid MP4 atom length");ftyp|=type=="ftyp";moov|=type=="moov";mdat|=type=="mdat"&&length>header;stream.Position=start+length;}if(!ftyp||!moov||!mdat)throw new Exception("missing MP4 data/index");}
+                else throw new Exception("only MP4/GIF supported");
+              }
+              var item=new TaskItem(path);item.SetMetadata("LogicalName","PageMedia/"+file);items.Add(item);
+            }catch(Exception ex){Log.LogError("Page "+pair.Key+" / "+file+": "+ex.Message);}
+          }
+        }catch(Exception ex){Log.LogError("Invalid page media manifest: "+ex.Message);}
+        Assets=items.ToArray();return !Log.HasLoggedErrors;
+      ]]></Code>
+    </Task>
+  </UsingTask>
+  <Target Name="PreparePageMedia" BeforeTargets="AssignTargetPaths">
+    <CollectPageMedia Root="$(MSBuildProjectDirectory)\.."><Output TaskParameter="Assets" ItemName="EmbeddedResource"/></CollectPageMedia>
+  </Target>
+</Project>

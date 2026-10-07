@@ -22,3 +22,9 @@
 /Kedit.Console/PetWeb/vendor/
 !/tools/*.json
 !/tools/*.js
+
+# Version page mappings/docs; large authoring media stays local unless explicitly added.
+!/mp4/
+/mp4/*
+!/mp4/pages.json
+!/mp4/README.md
