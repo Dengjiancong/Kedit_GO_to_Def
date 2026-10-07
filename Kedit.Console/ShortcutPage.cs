@@ -101,10 +101,10 @@ namespace Kedit.Console {
                 ChooseLeaveForTest("放弃修改");if(!CanLeave()||dirty)throw new Exception("discard draft");
                 key.Text=savedKey;dirty=false;Navigate("首页");if(settingsToggle.Visibility!=Visibility.Collapsed)throw new Exception("home controls");
                 Navigate("Kedit");if(key.Text!="^F8")throw new Exception("reload saved value");UpdateLayout();Capture(Path.Combine(output,"f1-page.png"));
-                Navigate("桌宠OSD");UpdateLayout();Capture(Path.Combine(output,"legacy-pet.png"));Navigate("Kedit");
+                Navigate("桌宠OSD");UpdateLayout();Capture(Path.Combine(output,"legacy-pet.png"));await ((App)Application.Current).Legacy.CheckEmbeddedPet(output);Navigate("Kedit");
                 for(int i=0;i<keditShortcuts.Length;i++){OpenRoute(i+1,IntPtr.Zero);if(CurrentShortcut.Id!=keditShortcuts[i].Id)throw new Exception("route mismatch");key.Text="^!F"+(i+1);SaveShortcut();if(dirty||ReadShortcut()!=key.Text)throw new Exception("save "+CurrentShortcut.Id+": "+status.Text);key.Text=CurrentShortcut.Default;SaveShortcut();if(dirty||ReadShortcut()!=CurrentShortcut.Default)throw new Exception("restore default "+CurrentShortcut.Id+": "+status.Text);}
                 UpdateLayout();Capture(Path.Combine(output,"all-kedit.png"));
-                File.WriteAllText(Path.Combine(output,"result.txt"),"PASS: all 10 Kedit routes and saves; native IPC save, conflict draft, persisted reload, home route, unsaved-change choices, embedded pet page");
+                File.WriteAllText(Path.Combine(output,"result.txt"),"PASS: all 10 Kedit routes and saves; native IPC save, conflict draft, persisted reload, home route, unsaved-change choices, embedded pet controls and lifecycle");
             }catch(Exception ex){File.WriteAllText(Path.Combine(output,"result.txt"),"FAIL: "+ex);}
             finally{dirty=false;((App)Application.Current).ExitConsole();}
         }

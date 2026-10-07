@@ -32,6 +32,7 @@ namespace Kedit.Console
         private ShortcutItem selected;
         private bool applyingState;
         private bool applyingPet;
+        private bool PetPageReady { get { return PetPage != null && PetPage.IsLoaded; } }
         private PetController Pet { get { return ((App)Application.Current).Pet; } }
 
         public MainWindow()
@@ -352,36 +353,58 @@ namespace Kedit.Console
         {
             PetFollowAmount.Value = amount; PetFollowSensitivity.Value = sensitivity; PetFollowSpeed.Value = speed;
         }
+        internal async System.Threading.Tasks.Task CheckEmbeddedPet(string directory){
+            await System.Threading.Tasks.Task.Delay(100);
+            if(!PetPageReady)throw new Exception("Embedded pet page did not load");
+            bool follow=Pet.Settings.MouseFollow;PetMouseFollow.IsChecked=!follow;
+            if(Pet.Settings.MouseFollow==follow)throw new Exception("Embedded follow toggle ignored");
+            PetMouseFollow.IsChecked=follow;
+            double size=Pet.Settings.Size;PetSizeSlider.Value=size==360?380:360;
+            if(Pet.Settings.Size==size)throw new Exception("Embedded size slider ignored");
+            PetSizeSlider.Value=size;
+            string model=null;var args=Environment.GetCommandLineArgs();for(int i=0;i+1<args.Length;i++)if(args[i]=="--pet-model")model=args[i+1];
+            if(model==null){Pet.SelectModel("");PetEnabledToggle.IsChecked=true;if(!Pet.Status.StartsWith("无法开启桌宠"))throw new Exception("Embedded enable handler ignored");return;}
+            Pet.SelectModel(model);
+            try{
+                PetEnabledToggle.IsChecked=true;
+                if(!Pet.HasWindow)throw new Exception("Embedded enable failed: "+Pet.Status);
+                for(int i=0;i<100&&!Pet.IsReady;i++)await System.Threading.Tasks.Task.Delay(200);
+                if(!Pet.IsReady)throw new Exception("Embedded pet renderer failed: "+Pet.Status);
+                Pet.Capture(Path.Combine(directory,"embedded-pet.png"),true);
+                PetEnabledToggle.IsChecked=false;
+                if(Pet.HasWindow||Pet.Settings.Enabled)throw new Exception("Embedded disable ignored");
+            }finally{Pet.SetEnabled(false);}
+        }
         private void ChoosePetModel_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new Microsoft.Win32.OpenFileDialog {
                 Title = "选择 Live2D 模型入口", Filter = "Live2D 模型 (*.model3.json)|*.model3.json", CheckFileExists = true
             };
-            if (dialog.ShowDialog(this) == true) Pet.SelectModel(dialog.FileName);
+            if (dialog.ShowDialog(((App)Application.Current).Shell ?? (Window)this) == true) Pet.SelectModel(dialog.FileName);
         }
-        private void PetEnabled_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetEnabled(PetEnabledToggle.IsChecked == true); }
-        private void PetOptions_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && IsLoaded) Pet.SetOptions(PetTopmostToggle.IsChecked == true, PetClickThroughToggle.IsChecked == true); }
+        private void PetEnabled_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && PetPageReady) Pet.SetEnabled(PetEnabledToggle.IsChecked == true); }
+        private void PetOptions_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && PetPageReady) Pet.SetOptions(PetTopmostToggle.IsChecked == true, PetClickThroughToggle.IsChecked == true); }
         private void PetInteractions_Changed(object sender, RoutedEventArgs e) { SavePetInteractions(); }
         private void PetTypingScope_Changed(object sender, SelectionChangedEventArgs e) { SavePetInteractions(); }
         private void PetScroll_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (!applyingPet && IsLoaded) Pet.SetScroll((int)PetScrollRate.Value, (int)PetScrollSeconds.Value);
+            if (!applyingPet && PetPageReady) Pet.SetScroll((int)PetScrollRate.Value, (int)PetScrollSeconds.Value);
         }
         private void PetFollow_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (!applyingPet && IsLoaded) Pet.SetFollow(PetFollowAmount.Value, PetFollowSensitivity.Value, PetFollowSpeed.Value);
+            if (!applyingPet && PetPageReady) Pet.SetFollow(PetFollowAmount.Value, PetFollowSensitivity.Value, PetFollowSpeed.Value);
         }
         private void PetResetInteractions_Click(object sender, RoutedEventArgs e) { Pet.ResetInteractions(); }
         private void SavePetInteractions()
         {
-            if (!applyingPet && IsLoaded) Pet.SetInteractions(PetMouseFollow.IsChecked == true, PetHeadFollow.IsChecked == true,
+            if (!applyingPet && PetPageReady) Pet.SetInteractions(PetMouseFollow.IsChecked == true, PetHeadFollow.IsChecked == true,
                 PetTyping.IsChecked == true, Convert.ToString(PetTypingScope.SelectedValue));
         }
-        private void PetSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { if (!applyingPet && IsLoaded) Pet.SetSize(e.NewValue); }
+        private void PetSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { if (!applyingPet && PetPageReady) Pet.SetSize(e.NewValue); }
         private void PetFrameLimit_Changed(object sender, SelectionChangedEventArgs e)
         {
             int limit;
-            if (!applyingPet && IsLoaded && int.TryParse(Convert.ToString(PetFrameLimit.SelectedValue), out limit)) Pet.SetFrameLimit(limit);
+            if (!applyingPet && PetPageReady && int.TryParse(Convert.ToString(PetFrameLimit.SelectedValue), out limit)) Pet.SetFrameLimit(limit);
         }
         private void PreviewPet_Click(object sender, RoutedEventArgs e) { Pet.Preview(); }
         private void ResetPetPosition_Click(object sender, RoutedEventArgs e) { Pet.ResetPosition(); }
@@ -403,16 +426,16 @@ namespace Kedit.Console
         private void SavePetCare()
         {
             int minutes;
-            if (!applyingPet && IsLoaded && int.TryParse(Convert.ToString(PetCareFrequency.SelectedValue), out minutes))
+            if (!applyingPet && PetPageReady && int.TryParse(Convert.ToString(PetCareFrequency.SelectedValue), out minutes))
                 Pet.SetCare(PetCare.IsChecked == true, minutes, PetRest.IsChecked == true);
         }
         private void PetPresentation_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (!applyingPet && IsLoaded) Pet.SetPresentation(PetBubbleOffset.Value, PetMouthAmount.Value);
+            if (!applyingPet && PetPageReady) Pet.SetPresentation(PetBubbleOffset.Value, PetMouthAmount.Value);
         }
         private void PetSword_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if(!applyingPet && IsLoaded)Pet.SetSword(PetSwordSensitivity.Value,PetSwordAmount.Value,PetSwordHead.Value,PetSwordHeadSensitivity.Value,PetSwordHeadSpeed.Value);
+            if(!applyingPet && PetPageReady)Pet.SetSword(PetSwordSensitivity.Value,PetSwordAmount.Value,PetSwordHead.Value,PetSwordHeadSensitivity.Value,PetSwordHeadSpeed.Value);
         }
         private void PetCare_Changed(object sender, RoutedEventArgs e) { SavePetCare(); }
         private void PetCareFrequency_Changed(object sender, SelectionChangedEventArgs e) { SavePetCare(); }

@@ -1,4 +1,4 @@
-﻿param([switch]$UI)
+﻿param([switch]$UI,[string]$PetModel)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $dir=Join-Path $root '.pet-test\f1-migration'
@@ -96,7 +96,7 @@ if($UI){
 OnMessage(0x4A, "ReceiveConsoleCommand")
 NumericHwnd := A_ScriptHwnd + 0
 FileAppend, %NumericHwnd%, server-hwnd.txt
-SetTimer, StopFixture, -30000
+SetTimer, StopFixture, -50000
 return
 StopFixture:
 ExitApp
@@ -138,10 +138,11 @@ UpdateHotkeys() {
         $handle=Get-Content $hwndPath
         $output=Join-Path $dir 'ui'
         $arguments='side.mp4 '+$handle+' --settings "'+$dir+'\fixture.ini" --data-dir "'+$output+'" --self-test-f1 --find-clipboard'
+        if($PetModel){$arguments+=' --pet-model "'+$PetModel+'"'}
         $report=Join-Path $output 'result.txt'
         if(Test-Path $report){Remove-Item -LiteralPath $report}
         $uiProcess=Start-Process (Join-Path $root 'Kedit.Console\bin\MigrationF1\Kedit.Console.exe') -ArgumentList $arguments -WindowStyle Hidden -PassThru
-        if(!$uiProcess.WaitForExit(20000)){$uiProcess.Kill();throw 'UI checks timed out'}
+        if(!$uiProcess.WaitForExit(40000)){$uiProcess.Kill();throw 'UI checks timed out'}
         $message=Get-Content $report
         if($message -notlike 'PASS:*'){throw ($message -join "`n")}
         $message
