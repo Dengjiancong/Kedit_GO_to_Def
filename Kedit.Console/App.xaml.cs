@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -13,6 +13,8 @@ namespace Kedit.Console
         internal bool Exiting { get; private set; }
         private Mutex singleInstance;
         private Forms.NotifyIcon tray;
+        internal DesignPreview Shell;
+        internal MainWindow Legacy;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -23,18 +25,20 @@ namespace Kedit.Console
                 if (e.Args[i] == "--data-dir") data = Path.GetFullPath(e.Args[i + 1]);
             PetRuntime.Configure(data);
             bool isolatedTest = Array.IndexOf(e.Args, "--self-test-pet") >= 0 && Array.IndexOf(e.Args, "--data-dir") >= 0;
+            bool f1Test=Array.IndexOf(e.Args,"--self-test-f1")>=0 && Array.IndexOf(e.Args,"--data-dir")>=0;
             bool created;
             singleInstance = new Mutex(true, "Local\\Kedit.Console." + System.Security.Principal.WindowsIdentity.GetCurrent().User.Value +
-                (isolatedTest ? ".diagnostics." + System.Diagnostics.Process.GetCurrentProcess().Id : ""), out created);
+                (isolatedTest || f1Test ? ".diagnostics." + System.Diagnostics.Process.GetCurrentProcess().Id : ""), out created);
             if (!created) {
                 var existing = FindWindow(null, "Kedit 中控");
-                if (existing != IntPtr.Zero) PostMessage(existing, 0x8002, IntPtr.Zero, IntPtr.Zero);
+                if (existing != IntPtr.Zero) PostMessage(existing, 0x8002, IntPtr.Zero, Array.IndexOf(e.Args,"--find-clipboard")>=0?new IntPtr(1):IntPtr.Zero);
                 Shutdown(); return;
             }
             Pet = new PetController();
             var window = new MainWindow();
-            if (isolatedTest) window.Title = "Kedit 中控（独立测试）";
-            MainWindow = window;
+            if (isolatedTest || f1Test) window.Title = "Kedit 中控（独立测试）";
+            Legacy=window;
+            if(!isolatedTest){new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();Shell=new DesignPreview(true);MainWindow=Shell;}else MainWindow=window;
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("打开 Kedit 中控", null, delegate { ShowConsole(); });
             menu.Items.Add("显示 / 关闭桌宠", null, delegate { Pet.SetEnabled(!Pet.Settings.Enabled); });
@@ -44,7 +48,7 @@ namespace Kedit.Console
             menu.Items.Add("退出中控与桌宠", null, delegate { ExitConsole(); });
             tray = new Forms.NotifyIcon { Text = "Kedit 中控与桌宠", Icon = System.Drawing.SystemIcons.Application, ContextMenuStrip = menu, Visible = true };
             tray.DoubleClick += delegate { ShowConsole(); };
-            window.Show();
+            if(Shell!=null){Shell.Show();Shell.OpenRoute(Array.IndexOf(e.Args,"--find-clipboard")>=0,IntPtr.Zero);}else window.Show();
             if (Pet.Settings.Enabled) Pet.SetEnabled(true);
             // Developer-only, explicit diagnostic flag: export our own visual, never the desktop.
             for (int i = 0; i + 1 < e.Args.Length; i++) {
@@ -54,8 +58,9 @@ namespace Kedit.Console
             }
         }
 
-        internal void ShowConsole() { MainWindow.Show(); MainWindow.WindowState = WindowState.Normal; MainWindow.Activate(); }
-        internal void ExitConsole() { Exiting = true; Shutdown(); }
+        internal void ShowConsole() { ShowConsole(false,IntPtr.Zero); }
+        internal void ShowConsole(bool find,IntPtr source) { if(Shell!=null)Shell.OpenRoute(find,source);MainWindow.Show();MainWindow.WindowState=WindowState.Normal;MainWindow.Activate(); }
+        internal void ExitConsole() { if(!Exiting && Shell!=null && !Shell.PrepareExit())return;Exiting = true; Shutdown(); }
         protected override void OnExit(ExitEventArgs e)
         {
             Exiting = true;

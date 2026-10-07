@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
@@ -40,7 +40,7 @@ namespace Kedit.Console
             foreach (var item in shortcuts) currentKeys[item.Key] = item.DefaultKey;
             ShowCategory("kedit");
             var pipeThread = new Thread(PipeServerLoop) { IsBackground = true };
-            pipeThread.Start();
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-f1")<0)pipeThread.Start();
             Closed += MainWindow_Closed;
             Closing += delegate(object sender, System.ComponentModel.CancelEventArgs e) {
                 var app = (App)Application.Current;
@@ -122,6 +122,9 @@ namespace Kedit.Console
             return match.Success ? match.Groups[1].Value : fallback;
         }
 
+        internal UIElement DetachPages(){
+            var pages=(Grid)ListPage.Parent;((Grid)pages.Parent).Children.Remove(pages);pages.Resources=Resources;pages.Margin=new Thickness(12);return pages;
+        }
         private void Category_Click(object sender, RoutedEventArgs e)
         {
             var button = (Button)sender;
@@ -129,7 +132,7 @@ namespace Kedit.Console
             ShowCategory((string)button.Tag);
         }
 
-        private void ShowCategory(string newCategory)
+        internal void ShowCategory(string newCategory)
         {
             category = newCategory;
             DemoVideo.Stop();
@@ -280,7 +283,7 @@ namespace Kedit.Console
         private IntPtr ConsoleMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             if (msg == 0x8001) { Pet.Notify(wParam.ToInt32()); handled = true; }
-            if (msg == 0x8002) { ((App)Application.Current).ShowConsole(); handled = true; }
+            if (msg == 0x8002) { ((App)Application.Current).ShowConsole(lParam.ToInt32()==1,wParam); handled = true; }
             return IntPtr.Zero;
         }
 

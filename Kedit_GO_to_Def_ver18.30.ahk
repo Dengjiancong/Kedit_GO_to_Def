@@ -93,7 +93,8 @@ Menu, Tray, Add, 设置: 默认 Alt+A (另存为), SetKey_AltA ; <--- 新增菜�
 Menu, Tray, Add, 设置: 默认 Alt+I (列填入数据), SetKey_ColumnInsert ; [新增代码]
 Menu, Tray, Add, 设置: 默认 Ctrl+/ (注释/取消注释), SetKey_ToggleComment	; [新增代码] --- 注释切换菜单
 Menu, Tray, Add, 设置: 默认 Ctrl+\ (行首空格转 Tab), SetKey_SpacesToTabs
-Menu, Tray, Add, 设置: 默认 F1 (查找剪贴板内容), SetKey_FindClipboard
+FindClipboardMenu := "设置: 查找剪贴板内容 (" . Key_FindClipboard . ")"
+Menu, Tray, Add, %FindClipboardMenu%, SetKey_FindClipboard
 Menu, Tray, Add, 设置: 默认 中键 (跳转至定义), SetKey_SmartClick
 
 ; --- Visual Studio 的设置入口
@@ -1085,6 +1086,11 @@ ProcessKeditWindow(winTitle, delay)
 
 UpdateHotkeys() {
     global
+    if (FindClipboardMenu != "") {
+        CurrentFindMenu := "设置: 查找剪贴板内容 (" . Key_FindClipboard . ")"
+        Menu, Tray, Rename, %FindClipboardMenu%, %CurrentFindMenu%
+        FindClipboardMenu := CurrentFindMenu
+    }
     HotkeyState := HotkeysSuspended ? "Off" : "On"
     ; --- [新增代码] 第一组：全局快捷键 ---
     Hotkey, IfWinActive
@@ -1235,7 +1241,8 @@ SetKey_SpacesToTabs:
 return
 
 SetKey_FindClipboard:
-    ChangeHotkey("FindClipboard", "查找剪贴板内容`n(依次发送 Ctrl+F、Ctrl+V、回车，默认 F1)", Key_FindClipboard)
+    ConsoleOpenFind := true
+    Gosub, OpenConsoleRoute
 return
 
 SetQuickOpen_All:
@@ -2007,10 +2014,12 @@ ToggleAutoUpdateCheck:
 return
 
 LaunchKeditConsole:
+    ConsoleOpenFind := false
+OpenConsoleRoute:
     ; Check the hidden console before extracting its EXE (which may still be running).
     ExistingConsole := DllCall("FindWindow", "Ptr", 0, "Str", "Kedit 中控", "Ptr")
     if (ExistingConsole) {
-        DllCall("PostMessage", "Ptr", ExistingConsole, "UInt", 0x8002, "Ptr", 0, "Ptr", 0)
+        DllCall("PostMessage", "Ptr", ExistingConsole, "UInt", 0x8002, "Ptr", A_ScriptHwnd, "Ptr", ConsoleOpenFind ? 1 : 0)
         ConsoleStateAttempts := 0
         SetTimer, SendConsoleState, 500
         return
@@ -2026,7 +2035,8 @@ LaunchKeditConsole:
 
     ConsoleVideoPath := GetTempPath("side.mp4")
     ConsoleHwnd := A_ScriptHwnd + 0
-    Run, "%ConsolePath%" "%ConsoleVideoPath%" "%ConsoleHwnd%", , UseErrorLevel, KeditConsolePID
+    ConsoleRouteArg := ConsoleOpenFind ? " --find-clipboard" : ""
+    Run, "%ConsolePath%" "%ConsoleVideoPath%" "%ConsoleHwnd%" --settings "%IniFile%"%ConsoleRouteArg%, , UseErrorLevel, KeditConsolePID
     if (ErrorLevel) {
         MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
         return
@@ -2071,16 +2081,94 @@ AppendConsolePipeLog(Message) {
     FileAppend, %A_Now% %A_MSec% %Message%`n, %LogPath%
 }
 
+
+; Canonical identity for the first migrated shortcut; scope-aware conflict check.
+NormalizeConsoleHotkey(Key) {
+    if (!RegExMatch(Key, "i)^[~*$]*([!^+#]*)([^\s|]+)$", Match))
+        return ""
+    Base := Match2
+    StringLower, Base, Base
+    if (Base = "pause" || GetKeyVK(Base) = 19)
+        return "reserved"
+    if (!GetKeyVK(Base) && !RegExMatch(Base, "i)^(lbutton|rbutton|mbutton|xbutton1|xbutton2|wheelup|wheeldown|wheelleft|wheelright)$"))
+        return ""
+    Mods := ""
+    for _, Symbol in ["^", "!", "+", "#"]
+        if (InStr(Match1, Symbol))
+            Mods .= Symbol
+    VK := GetKeyVK(Base)
+    return Mods . (VK ? "vk" . VK : Base)
+}
+
+SaveFindClipboardFromConsole(NewKey) {
+    global
+    Critical
+    NewKey := Trim(NewKey)
+    Identity := NormalizeConsoleHotkey(NewKey)
+    if (Identity = "")
+        return 2
+    if (Identity = "reserved")
+        return 3
+    for _, Name in ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "CtrlQ"] {
+        if (NormalizeConsoleHotkey(Key_%Name%) = Identity
+            || ((InStr(NewKey, "*") || InStr(Key_%Name%, "*"))
+            && RegExReplace(NormalizeConsoleHotkey(Key_%Name%), "^[!^+#]+") = RegExReplace(Identity, "^[!^+#]+")))
+            return 3
+    }
+    OldKey := Key_FindClipboard
+    PendingIni := IniFile . ".f1-pending"
+    FileDelete, %PendingIni%
+    if (FileExist(IniFile)) {
+        FileCopy, %IniFile%, %PendingIni%, 1
+        if (ErrorLevel)
+            return 4
+    }
+    IniWrite, %NewKey%, %PendingIni%, Hotkeys, FindClipboard
+    if (ErrorLevel) {
+        FileDelete, %PendingIni%
+        return 4
+    }
+    State := HotkeysSuspended ? "Off" : "On"
+    Hotkey, IfWinActive, ahk_exe kedit.exe
+    try {
+        Hotkey, %OldKey%, Off
+        Hotkey, %NewKey%, Label_FindClipboard, %State%
+    } catch e {
+        try {
+            Hotkey, %OldKey%, Label_FindClipboard, %State%
+        }
+        Hotkey, IfWinActive
+        FileDelete, %PendingIni%
+        return 2
+    }
+    FileMove, %PendingIni%, %IniFile%, 1
+    if (ErrorLevel) {
+        Hotkey, %NewKey%, Off
+        Hotkey, %OldKey%, Label_FindClipboard, %State%
+        Hotkey, IfWinActive
+        FileDelete, %PendingIni%
+        return 4
+    }
+    Hotkey, IfWinActive
+    Key_FindClipboard := NewKey
+    NewMenu := "设置: 查找剪贴板内容 (" . NewKey . ")"
+    Menu, Tray, Rename, %FindClipboardMenu%, %NewMenu%
+    FindClipboardMenu := NewMenu
+    return 1
+}
+
 ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
     global EnableAutoUpdateCheck, EnableOSD, IniFile
         , Key_GoToDef, Key_VS_BookmarkToggle, Key_VS_BookmarkNext
         , Key_VS_BookmarkPrevious, Key_VS_Redo
 
-    DataSize := NumGet(lParam, A_PtrSize, "UInt")
-    DataPtr := NumGet(lParam, A_PtrSize * 2, "Ptr")
+    DataSize := NumGet(lParam + 0, A_PtrSize, "UInt")
+    DataPtr := NumGet(lParam + 0, A_PtrSize * 2, "Ptr")
     if (!DataPtr || DataSize < 2)
         return 0
     Command := StrGet(DataPtr, "UTF-16")
+    if (SubStr(Command, 1, 20) = "save_find_clipboard|")
+        return SaveFindClipboardFromConsole(SubStr(Command, 21))
     AppendConsoleCommandLog("received: " . Command)
 
     if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {

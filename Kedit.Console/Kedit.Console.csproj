@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -50,6 +50,7 @@
     <Page Include="MainWindow.xaml" />
     <Compile Include="App.xaml.cs" />
     <Compile Include="DesignPreview.cs" />
+    <Compile Include="ShortcutPage.cs" />
     <Compile Include="PreviewCrop.cs" />
     <Compile Include="MainWindow.xaml.cs" />
     <Compile Include="Pet\PetRuntime.cs" />
