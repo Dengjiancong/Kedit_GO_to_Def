@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "revision": 1,
+  "revision": 2,
   "updated_at": "2026-10-08",
   "default_model_id": "amiya-bunny",
   "models": [
@@ -21,7 +21,8 @@
         "platform": "哔哩哔哩",
         "url": "https://space.bilibili.com/283810584?spm_id_from=333.788.upinfo.head.click"
       },
-      "original_download_page": "https://www.aplaybox.com/details/model/XieIXWh6Noz1"
+      "original_download_page": "https://www.aplaybox.com/details/model/XieIXWh6Noz1",
+      "fallback_path": "Z:\\misc\\testing\\ATE\\K2\\DJC\\Miscellaneous\\Kedit_Go_to_Definition\\兔兔模型\\model_by_泡芙妙妙屋_d0dfb8a6167ae67df251f6a89ee27330.zip"
     }
   ]
 }

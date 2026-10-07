@@ -73,7 +73,8 @@
     <EmbeddedResource Include="PetWeb\**\*">
       <LogicalName>PetWeb/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="PreviewAssets\*.png">
+    <EmbeddedResource Include="..\photo\default_logo.png"><LogicalName>PreviewAssets/default_logo.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="PreviewAssets\*.png" Exclude="PreviewAssets\avatar.png">
       <LogicalName>PreviewAssets/%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\.packages\Microsoft.Web.WebView2.1.0.3537.50\lib\net462\Microsoft.Web.WebView2.Core.dll">

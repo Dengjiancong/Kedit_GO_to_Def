@@ -33,3 +33,7 @@
 !/Gitea/
 !/Gitea/*.json
 !/Gitea/*.md
+
+!/photo/
+/photo/*
+!/photo/default_logo.png

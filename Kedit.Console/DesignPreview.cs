@@ -18,7 +18,7 @@ namespace Kedit.Console {
         GifBitmapDecoder decoder;int frame;bool paused,dirty,home=true,folded;
         readonly StackPanel form=new StackPanel();readonly StackPanel formHeader=new StackPanel(),formFooter=new StackPanel();readonly Border panel=new Border();
         readonly StackPanel subnav=new StackPanel();readonly TextBlock title=new TextBlock();readonly TextBlock status=new TextBlock();
-        Border nav;bool navFolded=true,adminUnlocked;Button debugMedia,settingsToggle;StackPanel debugTools; readonly System.Collections.Generic.Dictionary<string,Button> tiles=new System.Collections.Generic.Dictionary<string,Button>();
+        Border nav;bool navFolded=true,adminUnlocked;Button debugMedia,settingsToggle;WrapPanel debugTools; readonly System.Collections.Generic.Dictionary<string,Button> tiles=new System.Collections.Generic.Dictionary<string,Button>();
         readonly Border news=new Border();readonly TextBox key=new TextBox(),target=new TextBox();
         string savedKey="Ctrl + Alt + O",savedTarget="D:\\Projects";
         string root;
@@ -94,15 +94,15 @@ namespace Kedit.Console {
             var bottom=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(0,0,20,15)};scene.Children.Add(bottom);
             settingsToggle=Button("收起设置",()=>{folded=!folded;settingsToggle.Content=folded?"展开设置":"收起设置";panel.Visibility=home||folded?Visibility.Collapsed:Visibility.Visible;});bottom.Children.Add(settingsToggle);bottom.Children.Add(Button("暂停 / 播放",()=>{paused=!paused;Playback();}));
             foreach(Button control in bottom.Children)control.Margin=new Thickness(6,4,6,4);
-            debugTools=new StackPanel {Orientation=Orientation.Horizontal,Visibility=Visibility.Collapsed,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(36,0,0,15)};scene.Children.Add(debugTools);
-            debugMedia=Button("选择 GIF / MP4",ChooseMedia);debugTools.Children.Add(debugMedia);debugTools.Children.Add(Button("刷新公告",async ()=>await RefreshCloudHome()));debugTools.Children.Add(Button("云端状态",()=>MessageBox.Show(this,cloudResult)));debugTools.Children.Add(Button("素材项目目录",ChooseMediaProject));debugTools.Children.Add(Button("恢复该页默认素材",()=>{try{pageMedia.Reset(currentMediaPage);LoadPageMedia(mediaFallback);}catch(Exception ex){MessageBox.Show(this,ex.Message);}}));debugTools.Children.Add(Button("页面素材清单",()=>MessageBox.Show(this,pageMedia.Listing(),"页面素材清单")));debugTools.Children.Add(Button("重播",()=>{if(!adminUnlocked)return;frame=0;video.Position=TimeSpan.Zero;paused=false;Playback();}));debugTools.Children.Add(Button("分类图标",ManageTiles));foreach(Button b in debugTools.Children)b.Margin=new Thickness(0,4,8,4);mediaInfo=Text("",11);mediaInfo.Margin=new Thickness(36,0,200,52);mediaInfo.VerticalAlignment=VerticalAlignment.Bottom;mediaInfo.IsHitTestVisible=false;mediaInfo.Visibility=Visibility.Collapsed;scene.Children.Add(mediaInfo);
+            debugTools=new WrapPanel {Width=780,Orientation=Orientation.Horizontal,Visibility=Visibility.Collapsed,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(36,0,0,15)};scene.Children.Add(debugTools);Panel.SetZIndex(debugTools,100);
+            debugMedia=Button("选择 GIF / MP4",ChooseMedia);debugTools.Children.Add(debugMedia);debugTools.Children.Add(Button("刷新公告",async ()=>await RefreshCloudHome()));debugTools.Children.Add(Button("云端状态",()=>MessageBox.Show(this,cloudResult)));debugTools.Children.Add(Button("素材项目目录",ChooseMediaProject));debugTools.Children.Add(Button("恢复该页默认素材",()=>{try{pageMedia.Reset(currentMediaPage);LoadPageMedia(mediaFallback);}catch(Exception ex){MessageBox.Show(this,ex.Message);}}));debugTools.Children.Add(Button("页面素材清单",()=>MessageBox.Show(this,pageMedia.Listing(),"页面素材清单")));debugTools.Children.Add(Button("重播",()=>{if(!adminUnlocked)return;frame=0;video.Position=TimeSpan.Zero;paused=false;Playback();}));debugTools.Children.Insert(0,Button("图标预览 / 编辑",ManageTiles));foreach(Button b in debugTools.Children)b.Margin=new Thickness(0,4,8,4);mediaInfo=Text("",11);mediaInfo.Margin=new Thickness(36,0,200,96);mediaInfo.VerticalAlignment=VerticalAlignment.Bottom;mediaInfo.IsHitTestVisible=false;mediaInfo.Visibility=Visibility.Collapsed;scene.Children.Add(mediaInfo);
             video.MediaEnded+=delegate{video.Position=TimeSpan.Zero;Playback();};video.MediaFailed+=delegate{playingMediaIdentity=null;status.Text="媒体无法播放，请选择本地 GIF / MP4。";};frames.Tick+=delegate{if(decoder==null)return;gif.Source=decoder.Frames[frame];var meta=decoder.Frames[frame].Metadata as BitmapMetadata;int delay=10;try{if(meta!=null&&meta.ContainsQuery("/grctlext/Delay"))delay=Convert.ToInt32(meta.GetQuery("/grctlext/Delay"));}catch{}frames.Interval=TimeSpan.FromMilliseconds(Math.Max(20,delay*10));frame=(frame+1)%decoder.Frames.Count;};
             StateChanged+=delegate{Playback();};Closed+=delegate{frames.Stop();video.Close();Application.Current.Shutdown();};Closing+=delegate(object s,System.ComponentModel.CancelEventArgs e){if(!CanLeave()){e.Cancel=true;return;}if(liveMode && !((App)Application.Current).Exiting && ((App)Application.Current).Pet.Settings.Enabled){e.Cancel=true;Hide();video.Pause();}};
             foreach(var input in new[]{key,target}){input.Background=B("#10151D");input.Foreground=Brushes.White;input.BorderBrush=B("#4B5364");input.CaretBrush=Brushes.White;input.Margin=new Thickness(0,4,0,14);}
             Navigate("首页");
             if(liveMode && Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-f1")>=0)Loaded+=delegate{RunF1Checks();};
             SourceInitialized+=delegate {var source=System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle);source.AddHook(DpiMessage);};
-            LocationChanged+=delegate{FitScreen();};
+            LocationChanged+=delegate{QueueScreenFit();};
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--capture-preview")>=0)Loaded+=async delegate {
                 string dir=Path.Combine(root,".pet-test","control-design-1280");Directory.CreateDirectory(dir);
                 await System.Threading.Tasks.Task.Delay(2500);Capture(Path.Combine(dir,"home.png"));
@@ -137,7 +137,9 @@ namespace Kedit.Console {
             if(Math.Abs(current.X-start.X)<SystemParameters.MinimumHorizontalDragDistance && Math.Abs(current.Y-start.Y)<SystemParameters.MinimumVerticalDragDistance)return;
             dragOrigin=null;e.Handled=true;DragMove();
         }
-        IntPtr DpiMessage(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled){if(msg==0x02E0)Dispatcher.BeginInvoke(new Action(FitScreen));return IntPtr.Zero;}
+        DispatcherTimer screenFitTimer;
+        void QueueScreenFit(){if(screenFitTimer==null){screenFitTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(200)};screenFitTimer.Tick+=delegate{screenFitTimer.Stop();FitScreen();};Closed+=delegate{screenFitTimer.Stop();};}screenFitTimer.Stop();screenFitTimer.Start();}
+        IntPtr DpiMessage(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled){if(msg==0x02E0)QueueScreenFit();return IntPtr.Zero;}
         void FitScreen(){var src=PresentationSource.FromVisual(this);if(src==null)return;var area=System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle).WorkingArea;var logical=src.CompositionTarget.TransformFromDevice.Transform(new Vector(area.Width,area.Height));double scale=Math.Min(1,Math.Min((logical.X-32)/1280,(logical.Y-32)/720));if(Math.Abs(Width-1280*scale)>.5){Width=1280*scale;Height=720*scale;}}
         void Capture(string path){var bmp=new RenderTargetBitmap(1280,720,96,96,PixelFormats.Pbgra32);bmp.Render(stage);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(bmp));using(var f=File.Create(path))png.Save(f);}
         string FindRoot(){var d=new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);while(d!=null){if(File.Exists(Path.Combine(d.FullName,"Kedit.Console","Kedit.Console.csproj")))return d.FullName;d=d.Parent;}return AppDomain.CurrentDomain.BaseDirectory;}
@@ -152,16 +154,21 @@ namespace Kedit.Console {
         }
         void Changed(object s,TextChangedEventArgs e){if(liveMode){if(shortcutDisplay!=null)shortcutDisplay.Text=FriendlyKey(key.Text);dirty=key.Text!=savedKey||(definitionChoice!=null&&(definitionChoice.SelectedIndex==1?"Peek":"GoTo")!=savedAction);return;}dirty=key.Text!=savedKey||target.Text!=savedTarget;status.Text=dirty?"有未保存修改":"预览草稿";}
         void AdminAccess(){
-            if(adminUnlocked){adminUnlocked=false;debugTools.Visibility=Visibility.Collapsed;mediaInfo.Visibility=Visibility.Collapsed;pageMedia=new PageMedia(root);LoadPageMedia(mediaFallback);return;}
+            if(adminUnlocked){adminUnlocked=false;debugTools.Visibility=Visibility.Collapsed;mediaInfo.Visibility=Visibility.Collapsed;pageMedia=new PageMedia(root);LoadPageMedia(mediaFallback);foreach(var name in tiles.Keys)RefreshTile(name);return;}
             var dialog=new Window {Owner=this,Title="管理员调试",Width=350,Height=220,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=B("#191D26"),ShowInTaskbar=false};
             var layout=new StackPanel {Margin=new Thickness(24)};dialog.Content=layout;layout.Children.Add(Text("输入管理员密码",18));var password=new PasswordBox {Padding=new Thickness(8),Background=B("#10151D"),Foreground=Brushes.White};layout.Children.Add(password);var error=Text("仅解锁本次窗口的调试工具",12,"#A9B4C6");error.Margin=new Thickness(0,10,0,0);layout.Children.Add(error);
             Action unlock=()=>{if(password.Password=="QWEASD"){adminUnlocked=true;debugTools.Visibility=Visibility.Visible;mediaInfo.Visibility=Visibility.Visible;RestoreMediaProject();dialog.DialogResult=true;}else {error.Text="密码不正确，请重试";password.Clear();password.Focus();}};
             layout.Children.Add(Button("解锁",unlock,true));password.KeyDown+=delegate(object sender,System.Windows.Input.KeyEventArgs e){if(e.Key==System.Windows.Input.Key.Enter){unlock();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape)dialog.Close();};dialog.Loaded+=delegate{password.Focus();};dialog.ShowDialog();
         }
         string TileKey(string name){return name=="avatar"?"avatar":name=="Kedit"?"kedit":name.StartsWith("Visual")?"vs":name=="桌宠OSD"?"pet":name=="更新"?"update":"other";}
-        string TileFile(string name){return Path.Combine(root,"Kedit.Console","PreviewAssets",TileKey(name)+".png");}
+        readonly System.Collections.Generic.Dictionary<string,object> tileDefaults=new System.Collections.Generic.Dictionary<string,object>();
+        string TileFile(string name){
+            if(adminUnlocked){if(pageMedia.ProjectDirectory==null)return null;return name=="avatar"?Path.Combine(pageMedia.ProjectDirectory,"photo","default_logo.png"):Path.Combine(pageMedia.ProjectDirectory,"Kedit.Console","PreviewAssets",TileKey(name)+".png");}
+            return name=="avatar"?Path.Combine(PetRuntime.DataDirectory??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Kedit"),"avatar.png"):null;
+        }
+
         void Tile(Button b,string name){
-            tiles[name]=b;b.Width=51;b.Height=51;b.HorizontalAlignment=HorizontalAlignment.Center;b.BorderBrush=B("#35373C");b.BorderThickness=new Thickness(1);
+            tiles[name]=b;tileDefaults[name]=b.Content;b.Width=51;b.Height=51;b.HorizontalAlignment=HorizontalAlignment.Center;b.BorderBrush=B("#35373C");b.BorderThickness=new Thickness(1);
             var t=new ControlTemplate(typeof(Button));var edge=new FrameworkElementFactory(typeof(Border));edge.Name="chrome";edge.SetValue(Border.CornerRadiusProperty,new CornerRadius(7));
             foreach(string prop in new[]{"Background","BorderBrush","BorderThickness"})edge.SetBinding(prop=="Background"?Border.BackgroundProperty:prop=="BorderBrush"?Border.BorderBrushProperty:Border.BorderThicknessProperty,new System.Windows.Data.Binding(prop){RelativeSource=new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent)});
 
@@ -170,21 +177,40 @@ namespace Kedit.Console {
             var selected=new Trigger {Property=FrameworkElement.TagProperty,Value=true};selected.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Visible,"selection"));t.Triggers.Add(selected);t.VisualTree=layers;AddFeedback(t,false);b.Template=t;RefreshTile(name);
         }
         void RefreshTile(string name){
-            try {BitmapImage bitmap=null;string file=TileFile(name);if(File.Exists(file)){bitmap=new BitmapImage();bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;bitmap.UriSource=new Uri(file);bitmap.EndInit();}
-                else using(var input=typeof(DesignPreview).Assembly.GetManifestResourceStream("PreviewAssets/"+TileKey(name)+".png")){if(input!=null){bitmap=new BitmapImage();bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;bitmap.StreamSource=input;bitmap.EndInit();}}
-                if(bitmap!=null){bitmap.Freeze();tiles[name].Content=new Image {Source=bitmap,Width=47,Height=47,Stretch=Stretch.UniformToFill,Clip=new RectangleGeometry(new Rect(0,0,47,47),5,5)};}
+            tiles[name].ToolTip=name=="avatar"?(adminUnlocked?"编辑发布默认头像（下次构建生效）":"选择并裁切个人头像"):name.Replace("\n"," ");
+            try {BitmapImage bitmap=null;string file=TileFile(name);if(File.Exists(file)){bitmap=new BitmapImage();bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;using(var stream=File.OpenRead(file)){bitmap.StreamSource=stream;bitmap.EndInit();}}
+                else using(var input=typeof(DesignPreview).Assembly.GetManifestResourceStream(name=="avatar"?"PreviewAssets/default_logo.png":"PreviewAssets/"+TileKey(name)+".png")){if(input!=null){bitmap=new BitmapImage();bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;bitmap.StreamSource=input;bitmap.EndInit();}}
+                if(bitmap==null){tiles[name].Content=tileDefaults[name];}else{bitmap.Freeze();tiles[name].Content=new Image {Source=bitmap,Width=47,Height=47,Stretch=Stretch.UniformToFill,Clip=new RectangleGeometry(new Rect(0,0,47,47),5,5)};}
             }catch(Exception ex){MessageBox.Show(this,"图标读取失败："+ex.Message);}
         }
-        void SelectTile(string name,Window owner=null){if(name!="avatar"&&!adminUnlocked)return;var d=new OpenFileDialog {Filter="图片|*.png;*.jpg;*.jpeg;*.bmp"};if(d.ShowDialog(owner??this)!=true)return;
-            try{var crop=new PreviewCrop(owner??this,d.FileName);if(crop.ShowDialog()==true){PreviewCrop.Save(crop.Result,TileFile(name));RefreshTile(name);}}catch(Exception ex){MessageBox.Show(this,"图片未保存："+ex.Message);}}
-        void ManageTiles(){if(!adminUnlocked)return;var dialog=new Window {Owner=this,Title="分类图标 · 保存后随下次构建打包",Width=330,Height=390,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=B("#191D26"),ResizeMode=ResizeMode.NoResize};var list=new StackPanel {Margin=new Thickness(20)};dialog.Content=list;list.Children.Add(Text("为每个分类选择图片并裁切",16));foreach(string name in new[]{"Kedit","Visual\nStudio","桌宠OSD","更新","其他"}){string n=name;list.Children.Add(Button(n.Replace("\n"," "),()=>SelectTile(n,dialog)));}list.Children.Add(Text("保存为项目图标资源；后续构建自动嵌入，不依赖原图片路径。",12));dialog.ShowDialog();}
+        void SelectTile(string name,Window owner=null){if(name!="avatar"&&!adminUnlocked)return;if(adminUnlocked&&pageMedia.ProjectDirectory==null){ChooseMediaProject();if(pageMedia.ProjectDirectory==null)return;}var d=new OpenFileDialog {Filter="图片|*.png;*.jpg;*.jpeg;*.bmp"};if(d.ShowDialog(owner??this)!=true)return;
+            try{if(adminUnlocked&&pageMedia.ProjectDirectory==null)throw new IOException("请先设置素材项目目录，再选择分类图标，以便下次构建打包。");var crop=new PreviewCrop(owner??this,d.FileName);if(crop.ShowDialog()==true){PreviewCrop.Save(crop.Result,TileFile(name));RefreshTile(name);}}catch(Exception ex){MessageBox.Show(this,"图片未保存："+ex.Message);}}
+        void ManageTiles(){
+            if(!adminUnlocked)return;
+            if(pageMedia.ProjectDirectory==null){ChooseMediaProject();if(pageMedia.ProjectDirectory==null)return;}
+            var dialog=new Window{Owner=this,Title="发布图标预览 / 编辑",Width=460,Height=610,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=B("#191D26"),ResizeMode=ResizeMode.NoResize};
+            var list=new StackPanel{Margin=new Thickness(20)};dialog.Content=new ScrollViewer{Content=list,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+            Action render=null;render=()=>{
+                list.Children.Clear();list.Children.Add(Text("正在预览发布默认图标",18));
+                var location=Text(pageMedia.ProjectDirectory,12,"#ADB5C6");location.TextWrapping=TextWrapping.Wrap;list.Children.Add(location);
+                foreach(string name in new[]{"avatar","Kedit","Visual\nStudio","桌宠OSD","更新","其他"}){
+                    string n=name;RefreshTile(n);var row=new Grid{Margin=new Thickness(0,8,0,0)};row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(62)});row.ColumnDefinitions.Add(new ColumnDefinition());
+                    var current=tiles[n].Content as Image;
+                    if(current!=null)row.Children.Add(new Image{Source=current.Source,Width=47,Height=47,Stretch=Stretch.UniformToFill,HorizontalAlignment=HorizontalAlignment.Left,Clip=new RectangleGeometry(new Rect(0,0,47,47),5,5)});
+                    else row.Children.Add(Text(n=="avatar"?"◉":n=="Kedit"?"K":n.StartsWith("Visual")?"∞":n=="桌宠OSD"?"♧":n=="更新"?"↓":"⋯",26));
+                    var edit=Button((n=="avatar"?"默认头像":n.Replace("\n"," "))+" · 选择并裁切",()=>{SelectTile(n,dialog);render();});Grid.SetColumn(edit,1);row.Children.Add(edit);list.Children.Add(row);
+                }
+                var hint=Text("修改立即预览，保存到项目后随下次构建进入 EXE。个人头像不会被覆盖。",12,"#ADB5C6");hint.TextWrapping=TextWrapping.Wrap;hint.Margin=new Thickness(0,14,0,0);list.Children.Add(hint);
+            };render();dialog.ShowDialog();
+        }
+
         PageMedia pageMedia;string mediaFallback="";TextBlock mediaInfo;
         string MediaProjectPreference {get{return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Kedit","media-project.txt");}}
-        void RestoreMediaProject(){try{if(File.Exists(MediaProjectPreference)){string path=File.ReadAllText(MediaProjectPreference).Trim();var candidate=new PageMedia(path);if(candidate.ProjectDirectory==null)throw new IOException("记住的项目目录不存在，请重新设置："+path);pageMedia=candidate;}LoadPageMedia(mediaFallback);}catch(Exception ex){MessageBox.Show(this,ex.Message,"素材项目目录");UpdateMediaInfo();}}
-        void ChooseMediaProject(){if(!adminUnlocked)return;using(var dialog=new System.Windows.Forms.FolderBrowserDialog()){dialog.Description="选择项目根目录（包含 Kedit.Console 和 mp4）";dialog.SelectedPath=pageMedia.ProjectDirectory??root;if(dialog.ShowDialog()!=System.Windows.Forms.DialogResult.OK)return;try{var candidate=new PageMedia(dialog.SelectedPath);if(candidate.ProjectDirectory==null)throw new IOException("请选择包含 Kedit.Console\\Kedit.Console.csproj 的项目根目录。");Directory.CreateDirectory(Path.GetDirectoryName(MediaProjectPreference));File.WriteAllText(MediaProjectPreference,dialog.SelectedPath);pageMedia=candidate;LoadPageMedia(mediaFallback);}catch(Exception ex){MessageBox.Show(this,ex.Message,"素材项目目录未保存");}}}
-        void UpdateMediaInfo(){if(mediaInfo!=null)mediaInfo.Text=pageMedia.Describe(currentMediaPage);}
+        void RestoreMediaProject(){try{if(File.Exists(MediaProjectPreference)){string path=File.ReadAllText(MediaProjectPreference).Trim();var candidate=new PageMedia(path);if(candidate.ProjectDirectory==null)throw new IOException("记住的项目目录不存在，请重新设置："+path);pageMedia=candidate;}LoadPageMedia(mediaFallback);foreach(var name in tiles.Keys)RefreshTile(name);}catch(Exception ex){MessageBox.Show(this,ex.Message,"素材项目目录");UpdateMediaInfo();}}
+        void ChooseMediaProject(){if(!adminUnlocked)return;using(var dialog=new System.Windows.Forms.FolderBrowserDialog()){dialog.Description="选择项目根目录（包含 Kedit.Console 和 mp4）";dialog.SelectedPath=pageMedia.ProjectDirectory??root;if(dialog.ShowDialog()!=System.Windows.Forms.DialogResult.OK)return;try{var candidate=new PageMedia(dialog.SelectedPath);if(candidate.ProjectDirectory==null)throw new IOException("请选择包含 Kedit.Console\\Kedit.Console.csproj 的项目根目录。");Directory.CreateDirectory(Path.GetDirectoryName(MediaProjectPreference));File.WriteAllText(MediaProjectPreference,dialog.SelectedPath);pageMedia=candidate;LoadPageMedia(mediaFallback);foreach(var name in tiles.Keys)RefreshTile(name);}catch(Exception ex){MessageBox.Show(this,ex.Message,"素材项目目录未保存");}}}
+        void UpdateMediaInfo(){if(mediaInfo!=null)mediaInfo.Text=pageMedia.Describe(currentMediaPage)+"\n正在预览发布默认图标，修改将在下次构建后进入 EXE。";}
 
-        void LoadPageMedia(string fallback){mediaFallback=fallback;try{LoadMedia(pageMedia.Resolve(currentMediaPage,fallback));}catch(Exception ex){LoadMedia("");status.Text="素材加载失败："+ex.Message;}}
+        void LoadPageMedia(string fallback){mediaFallback=fallback;try{LoadMedia(pageMedia.Resolve(currentMediaPage,fallback));}catch(Exception ex){LoadMedia("");status.Text="素材加载失败："+ex.Message;}UpdateMediaInfo();}
         void ChooseMedia(){if(!adminUnlocked)return;var d=new OpenFileDialog {Filter="演示动画|*.gif;*.mp4"};if(d.ShowDialog()==true)try{pageMedia.Set(currentMediaPage,d.FileName);LoadPageMedia(mediaFallback);}catch(Exception ex){MessageBox.Show(this,ex.Message,"素材未保存");}}
         string playingMediaIdentity;
         readonly System.Collections.Generic.Dictionary<string,string> mediaFingerprints=new System.Collections.Generic.Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);

@@ -17,7 +17,7 @@ namespace Kedit.Console {
     public sealed class CarouselContent { public int interval_seconds; public string direction; public bool pause_on_hover; public ContentItem[] items; }
     public sealed class HomeContent { public int schema_version; public CarouselContent carousel; public ContentTab[] tabs; }
     public sealed class ModelAuthor { public string name,url,platform; }
-    public sealed class DownloadModel { public string id,name,version,size_display,sha256,download_url,share_url,archive_format,model_entry,original_download_page; public long? size_bytes; public ModelAuthor author; }
+    public sealed class DownloadModel { public string id,name,version,size_display,sha256,download_url,share_url,archive_format,model_entry,original_download_page, fallback_path; public long? size_bytes; public ModelAuthor author; }
     public sealed class ModelContent { public int schema_version; public string default_model_id; public DownloadModel[] models; }
     internal static class CloudContent {
         const string Origin="https://gitea.evadd.xyz:88/EVADD/Kedit_Content/raw/branch/main/";
@@ -45,10 +45,30 @@ namespace Kedit.Console {
         public static BitmapImage Decode(byte[] bytes){using(var s=new MemoryStream(bytes)){var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.DecodePixelWidth=900;image.StreamSource=s;image.EndInit();image.Freeze();return image;}}
         public static async Task<BitmapImage> Picture(string url){Directory.CreateDirectory(Cache);string path=Path.Combine(Cache,Hash(Encoding.UTF8.GetBytes(url))+".image");if(File.Exists(path)){try{return Decode(await Task.Run(()=>File.ReadAllBytes(path)));}catch{}}
             var bytes=await Fetch(url,16*1024*1024,CancellationToken.None,null);var result=Decode(bytes);await Task.Run(()=>File.WriteAllBytes(path,bytes));return result;}
-        public static async Task<string> Install(DownloadModel model,CancellationToken cancel,IProgress<int> progress){
-            if(model==null||model.archive_format!="zip"||!WebUrl(model.download_url)||string.IsNullOrEmpty(model.sha256)||!System.Text.RegularExpressions.Regex.IsMatch(model.sha256,"\\A[0-9A-Fa-f]{64}\\z"))throw new InvalidDataException("尚未配置有效的 ZIP 下载地址和校验值，请使用原下载入口。");
-            var bytes=await Fetch(model.download_url,128*1024*1024,cancel,progress);
-            return await Task.Run(()=>{cancel.ThrowIfCancellationRequested();if(!string.Equals(Hash(bytes),model.sha256,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("模型 SHA-256 校验失败，未安装。");if(model.size_bytes.HasValue&&bytes.LongLength!=model.size_bytes.Value)throw new InvalidDataException("模型文件大小不匹配。");
+        static void VerifyPackage(DownloadModel model,byte[] bytes){if(!string.Equals(Hash(bytes),model.sha256,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("模型 SHA-256 校验失败，未安装。");if(model.size_bytes.HasValue&&bytes.LongLength!=model.size_bytes.Value)throw new InvalidDataException("模型文件大小不匹配。");}
+        static Task<byte[]> ReadCompany(string path,CancellationToken cancel,IProgress<int> progress){return Task.Run(async ()=>{
+            cancel.ThrowIfCancellationRequested();if(string.IsNullOrWhiteSpace(path)||!Path.IsPathRooted(path))throw new IOException("未配置有效的公司网盘路径。");
+            using(var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,65536,true))using(var output=new MemoryStream()){
+                if(input.Length>128L*1024*1024)throw new InvalidDataException("公司网盘文件超过大小限制。");var buffer=new byte[65536];int count;
+                while((count=await input.ReadAsync(buffer,0,buffer.Length,cancel))>0){cancel.ThrowIfCancellationRequested();if(output.Length+count>128L*1024*1024)throw new InvalidDataException("公司网盘文件超过大小限制。");output.Write(buffer,0,count);if(progress!=null)progress.Report(input.Length>0?(int)(output.Length*100/input.Length):0);}return output.ToArray();}
+        },cancel);}
+        public static async Task<string> Install(DownloadModel model,CancellationToken cancel,IProgress<int> progress,bool companyOnly=false,IProgress<string> phase=null){
+            if(model==null||model.archive_format!="zip"||string.IsNullOrEmpty(model.sha256)||!System.Text.RegularExpressions.Regex.IsMatch(model.sha256,"\\A[0-9A-Fa-f]{64}\\z"))throw new InvalidDataException("尚未配置有效的 ZIP 下载地址和校验值，请使用原下载入口。");
+            byte[] bytes=null;
+            string fallback=model.fallback_path;
+            if(string.IsNullOrWhiteSpace(fallback)&&model.id=="amiya-bunny")fallback=@"Z:\misc\testing\ATE\K2\DJC\Miscellaneous\Kedit_Go_to_Definition\兔兔模型\model_by_泡芙妙妙屋_d0dfb8a6167ae67df251f6a89ee27330.zip";
+            if(companyOnly){if(phase!=null)phase.Report("正在从公司网盘复制模型");bytes=await ReadCompany(fallback,cancel,progress);VerifyPackage(model,bytes);}
+            else{
+                Exception primary=null;
+                try{if(phase!=null)phase.Report("正在从公司网盘复制模型");bytes=await ReadCompany(fallback,cancel,progress);VerifyPackage(model,bytes);}
+                catch(Exception error){cancel.ThrowIfCancellationRequested();primary=error;}
+                if(primary!=null){if(phase!=null)phase.Report("公司网盘失败，正在从 NAS 公网下载模型");
+                    try{bytes=await Fetch(model.download_url,128*1024*1024,cancel,progress);VerifyPackage(model,bytes);}
+                    catch(Exception secondary){cancel.ThrowIfCancellationRequested();throw new IOException("公司网盘失败："+primary.Message+"\nNAS 公网失败："+secondary.Message,secondary);}
+                }
+            }
+            if(phase!=null)phase.Report("校验通过，正在解压并检查模型");
+            return await Task.Run(()=>{cancel.ThrowIfCancellationRequested();
                 string directory=Path.Combine(Cache,"Models",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(directory);
                 try{using(var memory=new MemoryStream(bytes))using(var zip=new ZipArchive(memory,ZipArchiveMode.Read,false,Encoding.GetEncoding(936))){long total=0;if(zip.Entries.Count>5000)throw new InvalidDataException("压缩包文件过多。");foreach(var entry in zip.Entries){cancel.ThrowIfCancellationRequested();total+=entry.Length;if(total>512L*1024*1024)throw new InvalidDataException("解压文件过大。");string relative=entry.FullName.Replace('/',Path.DirectorySeparatorChar);string path=Path.GetFullPath(Path.Combine(directory,relative));if(relative.Contains(":")||!path.StartsWith(directory+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("压缩包包含越界路径。");if(string.IsNullOrEmpty(entry.Name)){Directory.CreateDirectory(path);continue;}Directory.CreateDirectory(Path.GetDirectoryName(path));using(var input=entry.Open())using(var output=File.Create(path)){var buffer=new byte[65536];int count;while((count=input.Read(buffer,0,buffer.Length))>0){cancel.ThrowIfCancellationRequested();output.Write(buffer,0,count);}}}}
                     var paths=Directory.GetFiles(directory,"*.model3.json",SearchOption.AllDirectories);if(paths.Length!=1)throw new InvalidDataException("压缩包必须包含唯一模型入口，请手动下载选择。");PetModel.Validate(paths[0]);cancel.ThrowIfCancellationRequested();return paths[0];
