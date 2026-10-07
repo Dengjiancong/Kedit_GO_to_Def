@@ -4,7 +4,7 @@ $root=Split-Path $PSScriptRoot -Parent
 $dir=Join-Path $root '.pet-test\f1-migration'
 New-Item -ItemType Directory -Force $dir | Out-Null
 $source=[IO.File]::ReadAllText((Join-Path $root 'Kedit_GO_to_Def_ver18.30.ahk'))
-$start=$source.IndexOf('NormalizeConsoleHotkey(Key) {')
+$start=$source.IndexOf('AddKeditMenu(Name, Caption) {')
 $end=$source.IndexOf('ReceiveConsoleCommand(wParam,',$start)
 $functions=$source.Substring($start,$end-$start)
 $harness=@'
@@ -22,9 +22,20 @@ FindClipboardMenu := "F1 fixture"
 Menu, Tray, Add, %FindClipboardMenu%, Label_FindClipboard
 Hotkey, IfWinActive, ahk_exe kedit.exe
 Hotkey, F1, Label_FindClipboard, On
+
+for Name, Value in {ShiftF2:"XButton2", AltF:"!f", CtrlW:"^w", AltA:"!a", ColumnInsert:"!i", ToggleComment:"^/", SpacesToTabs:"^\", SmartClick:"~MButton"} {
+    Key_%Name% := Value
+    Action := Name = "ToggleComment" ? "ProcessCommentToggle" : "Label_" . Name
+    Hotkey, %Value%, %Action%, On
+}
+Hotkey, ^b, Label_GoToDef, On
+for _, Name in ["FindClipboard", "GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "ToggleComment", "SpacesToTabs", "SmartClick"]
+    AddKeditMenu(Name, Name)
+
 Check(SaveFindClipboardFromConsole("^F8") = 1, "valid save")
 IniRead, Actual, %IniFile%, Hotkeys, FindClipboard
 Check(Actual = "^F8", "persisted")
+Check(InStr(KeditMenuLabels["FindClipboard"], "^F8"), "tray caption refreshed")
 IniRead, Actual, %IniFile%, Other, Untouched
 Check(Actual = "keep", "preserve unrelated fields")
 Check(SaveFindClipboardFromConsole("~^b") = 3, "scope conflict including pass-through")
@@ -41,6 +52,25 @@ Check(Key_FindClipboard = "+F9", "write failure preserves active value")
 IniFile := OriginalIni
 FileAppend, PASS: F1 transaction and validation`n, result.txt
 ExitApp
+SetKey_FindClipboard:
+SetKey_GoToDef:
+SetKey_ShiftF2:
+SetKey_AltF:
+SetKey_CtrlW:
+SetKey_AltA:
+SetKey_ColumnInsert:
+SetKey_ToggleComment:
+SetKey_SpacesToTabs:
+SetKey_SmartClick:
+Label_GoToDef:
+Label_ShiftF2:
+Label_AltF:
+Label_CtrlW:
+Label_AltA:
+Label_ColumnInsert:
+ProcessCommentToggle:
+Label_SpacesToTabs:
+Label_SmartClick:
 Label_FindClipboard:
 return
 Check(Condition, Name) {
@@ -70,6 +100,25 @@ SetTimer, StopFixture, -30000
 return
 StopFixture:
 ExitApp
+SetKey_FindClipboard:
+SetKey_GoToDef:
+SetKey_ShiftF2:
+SetKey_AltF:
+SetKey_CtrlW:
+SetKey_AltA:
+SetKey_ColumnInsert:
+SetKey_ToggleComment:
+SetKey_SpacesToTabs:
+SetKey_SmartClick:
+Label_GoToDef:
+Label_ShiftF2:
+Label_AltF:
+Label_CtrlW:
+Label_AltA:
+Label_ColumnInsert:
+ProcessCommentToggle:
+Label_SpacesToTabs:
+Label_SmartClick:
 Label_FindClipboard:
 AutoCheckForUpdateInitial:
 AutoCheckForUpdate:

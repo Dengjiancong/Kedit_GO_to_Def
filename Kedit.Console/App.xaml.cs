@@ -31,7 +31,7 @@ namespace Kedit.Console
                 (isolatedTest || f1Test ? ".diagnostics." + System.Diagnostics.Process.GetCurrentProcess().Id : ""), out created);
             if (!created) {
                 var existing = FindWindow(null, "Kedit 中控");
-                if (existing != IntPtr.Zero) PostMessage(existing, 0x8002, IntPtr.Zero, Array.IndexOf(e.Args,"--find-clipboard")>=0?new IntPtr(1):IntPtr.Zero);
+                if (existing != IntPtr.Zero) PostMessage(existing, 0x8002, IntPtr.Zero, new IntPtr(StartupRoute(e.Args)));
                 Shutdown(); return;
             }
             Pet = new PetController();
@@ -48,7 +48,7 @@ namespace Kedit.Console
             menu.Items.Add("退出中控与桌宠", null, delegate { ExitConsole(); });
             tray = new Forms.NotifyIcon { Text = "Kedit 中控与桌宠", Icon = System.Drawing.SystemIcons.Application, ContextMenuStrip = menu, Visible = true };
             tray.DoubleClick += delegate { ShowConsole(); };
-            if(Shell!=null){Shell.Show();Shell.OpenRoute(Array.IndexOf(e.Args,"--find-clipboard")>=0,IntPtr.Zero);}else window.Show();
+            if(Shell!=null){Shell.Show();Shell.OpenRoute(StartupRoute(e.Args),IntPtr.Zero);}else window.Show();
             if (Pet.Settings.Enabled) Pet.SetEnabled(true);
             // Developer-only, explicit diagnostic flag: export our own visual, never the desktop.
             for (int i = 0; i + 1 < e.Args.Length; i++) {
@@ -58,8 +58,10 @@ namespace Kedit.Console
             }
         }
 
+        static int StartupRoute(string[] args){int route;for(int i=0;i+1<args.Length;i++)if(args[i]=="--kedit-page" && int.TryParse(args[i+1],out route))return route;return Array.IndexOf(args,"--find-clipboard")>=0?1:0;}
         internal void ShowConsole() { ShowConsole(false,IntPtr.Zero); }
-        internal void ShowConsole(bool find,IntPtr source) { if(Shell!=null)Shell.OpenRoute(find,source);MainWindow.Show();MainWindow.WindowState=WindowState.Normal;MainWindow.Activate(); }
+        internal void ShowConsole(bool find,IntPtr source){ShowConsole(find?1:0,source);}
+        internal void ShowConsole(int find,IntPtr source) { if(Shell!=null)Shell.OpenRoute(find,source);MainWindow.Show();MainWindow.WindowState=WindowState.Normal;MainWindow.Activate(); }
         internal void ExitConsole() { if(!Exiting && Shell!=null && !Shell.PrepareExit())return;Exiting = true; Shutdown(); }
         protected override void OnExit(ExitEventArgs e)
         {
