@@ -62,6 +62,11 @@ for _, Name in ["FindClipboard", "GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", 
     AddKeditMenu(Name, Name)
 
 Check(SaveFindClipboardFromConsole("^F8") = 1, "valid save")
+Check(NormalizeConsoleHotkey("<!vkBF") = NormalizeConsoleHotkey(">!NumpadDiv"), "Alt and slash aliases")
+Check(SaveFindClipboardFromConsole("^NumpadDiv") = 3, "numpad slash conflict")
+Check(SaveFindClipboardFromConsole("!NumpadDiv") = 1, "slash alias save")
+Check(Key_FindClipboard = "!/", "canonical slash saved")
+Check(SaveFindClipboardFromConsole("^F8") = 1, "restore after alias test")
 IniRead, Actual, %IniFile%, Hotkeys, FindClipboard
 Check(Actual = "^F8", "persisted")
 Check(InStr(KeditMenuLabels["FindClipboard"], "^F8"), "tray caption refreshed")

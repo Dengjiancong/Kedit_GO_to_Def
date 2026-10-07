@@ -1,4 +1,4 @@
-<Window x:Class="Kedit.Console.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+﻿<Window x:Class="Kedit.Console.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Kedit 中控" Width="1080" Height="670" MinWidth="850" MinHeight="540"
         WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ShowInTaskbar="True" Loaded="MainWindow_Loaded">
   <Window.Resources>
@@ -132,7 +132,7 @@
                 <StackPanel>
                   <TextBlock Text="角色模型" Foreground="#FFDD38" FontSize="16"/>
                   <TextBlock x:Name="PetModelPath" Foreground="#BFD8EF" TextWrapping="Wrap" Margin="0,8,0,14"/>
-                  <Button Content="选择模型…" Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Click="ChoosePetModel_Click"/>
+                  <WrapPanel><Button Content="选择模型…" Style="{StaticResource ActionButton}" Click="ChoosePetModel_Click"/><Button Content="下载兔兔模型" Style="{StaticResource ActionButton}" Click="DownloadPetModel_Click" Margin="8,0,0,0"/></WrapPanel>
                   <CheckBox x:Name="PetEnabledToggle" Content="开启桌宠" Foreground="White" FontSize="16" Margin="0,22,0,14" Checked="PetEnabled_Changed" Unchecked="PetEnabled_Changed"/>
                   <WrapPanel>
                     <CheckBox x:Name="PetTopmostToggle" Content="始终置顶" Foreground="White" Margin="0,0,22,12" Checked="PetOptions_Changed" Unchecked="PetOptions_Changed"/>

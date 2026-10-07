@@ -409,7 +409,13 @@ namespace Kedit.Console
             };
             if (dialog.ShowDialog(((App)Application.Current).Shell ?? (Window)this) == true) Pet.SelectModel(dialog.FileName);
         }
-        private void PetEnabled_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && PetPageReady) Pet.SetEnabled(PetEnabledToggle.IsChecked == true); }
+        private void DownloadPetModel_Click(object sender,RoutedEventArgs e){ModelDownloadDialog.Show(((App)Application.Current).Shell??(Window)this,Pet,false);}
+        private void PetEnabled_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && PetPageReady) {
+            if(PetEnabledToggle.IsChecked==true&&string.IsNullOrEmpty(Pet.Settings.ModelPath)&&!Array.Exists(Environment.GetCommandLineArgs(),x=>x=="--self-test-f1")){
+                applyingPet=true;PetEnabledToggle.IsChecked=false;applyingPet=false;
+                var owner=((App)Application.Current).Shell??(Window)this;var dialog=new Window{Owner=owner,Title="尚未选择角色模型",Width=380,SizeToContent=SizeToContent.Height,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};var content=new StackPanel{Margin=new Thickness(20)};dialog.Content=content;content.Children.Add(new TextBlock{Text="可下载默认兔兔模型，也可选择本地模型。",TextWrapping=TextWrapping.Wrap});var download=new Button{Content="下载并使用兔兔",Margin=new Thickness(0,15,0,6)};download.Click+=delegate{dialog.Close();ModelDownloadDialog.Show(owner,Pet,true);};content.Children.Add(download);var local=new Button{Content="选择本地模型",Margin=new Thickness(0,0,0,6)};local.Click+=delegate{dialog.Close();ChoosePetModel_Click(sender,e);if(!string.IsNullOrEmpty(Pet.Settings.ModelPath))Pet.SetEnabled(true);};content.Children.Add(local);var later=new Button{Content="暂不启用"};later.Click+=delegate{dialog.Close();};content.Children.Add(later);dialog.ShowDialog();return;
+            }Pet.SetEnabled(PetEnabledToggle.IsChecked == true);
+        } }
         private void PetOptions_Changed(object sender, RoutedEventArgs e) { if (!applyingPet && PetPageReady) Pet.SetOptions(PetTopmostToggle.IsChecked == true, PetClickThroughToggle.IsChecked == true); }
         private void PetInteractions_Changed(object sender, RoutedEventArgs e) { SavePetInteractions(); }
         private void PetTypingScope_Changed(object sender, SelectionChangedEventArgs e) { SavePetInteractions(); }

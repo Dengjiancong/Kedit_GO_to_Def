@@ -1,0 +1,43 @@
+﻿using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
+
+namespace Kedit.Console {
+    internal sealed partial class DesignPreview {
+        HomeContent homeContent;int slideIndex,tabIndex,pictureRequest;bool cloudRefreshing;
+        Grid slideHost;StackPanel dots,cloudTabs,cloudItems;DispatcherTimer carouselTimer;string cloudResult="尚未刷新";
+        void InitializeCloudHome(){
+            var grid=new Grid();grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(240)});grid.ColumnDefinitions.Add(new ColumnDefinition());news.Child=grid;
+            slideHost=new Grid{ClipToBounds=true,Cursor=System.Windows.Input.Cursors.Hand,Background=B("#273344")};grid.Children.Add(slideHost);
+            slideHost.MouseLeftButtonUp+=delegate{if(homeContent.carousel.items.Length>0)CloudContent.Open(homeContent.carousel.items[slideIndex].target_url);};
+            dots=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(0,0,0,5)};grid.Children.Add(dots);
+            var right=new Grid{Margin=new Thickness(16,9,10,9)};right.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});right.RowDefinitions.Add(new RowDefinition());Grid.SetColumn(right,1);grid.Children.Add(right);
+            cloudTabs=new StackPanel{Orientation=Orientation.Horizontal};right.Children.Add(cloudTabs);cloudItems=new StackPanel();var scroll=new ScrollViewer{Content=cloudItems,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Grid.SetRow(scroll,1);right.Children.Add(scroll);
+            using(var fallback=typeof(CloudContent).Assembly.GetManifestResourceStream("PreviewAssets/kedit.png")){if(fallback!=null){using(var bytes=new System.IO.MemoryStream()){fallback.CopyTo(bytes);slideHost.Background=new ImageBrush(CloudContent.Decode(bytes.ToArray())){Stretch=Stretch.UniformToFill,Opacity=0.4};}}}
+            homeContent=CloudContent.Cached<HomeContent>("home.json");RenderCloudHome();
+            carouselTimer=new DispatcherTimer();carouselTimer.Tick+=delegate{if(!IsVisible||WindowState==WindowState.Minimized||news.Visibility!=Visibility.Visible||(homeContent.carousel.pause_on_hover&&news.IsMouseOver)||homeContent.carousel.items.Length<2)return;slideIndex=(slideIndex+1)%homeContent.carousel.items.Length;ShowCloudSlide(true);};carouselTimer.Interval=TimeSpan.FromSeconds(Math.Max(2,homeContent.carousel.interval_seconds));carouselTimer.Start();Closed+=delegate{carouselTimer.Stop();pictureRequest++;};
+            Loaded+=async delegate{await RefreshCloudHome();};
+        }
+        async Task RefreshCloudHome(){if(cloudRefreshing)return;cloudRefreshing=true;try{var updated=await CloudContent.Refresh<HomeContent>("home.json");homeContent=updated;slideIndex=0;tabIndex=0;RenderCloudHome();carouselTimer.Interval=TimeSpan.FromSeconds(Math.Max(2,Math.Min(60,homeContent.carousel.interval_seconds)));cloudResult="云端公告已更新："+DateTime.Now.ToString("HH:mm:ss");}catch(Exception ex){cloudResult="保留本地内容；云端更新失败："+ex.Message;}finally{cloudRefreshing=false;}}
+        void RenderCloudHome(){cloudTabs.Children.Clear();for(int i=0;i<homeContent.tabs.Length;i++){int index=i;var b=Button(homeContent.tabs[i].title,()=>{tabIndex=index;RenderCloudHome();});b.Background=Brushes.Transparent;b.Foreground=i==tabIndex?Brushes.Yellow:Brushes.LightGray;b.Margin=new Thickness(0,0,10,5);cloudTabs.Children.Add(b);}cloudItems.Children.Clear();if(homeContent.tabs.Length>0){var items=homeContent.tabs[tabIndex].items;if(items.Length==0)cloudItems.Children.Add(Text("暂无内容",12,"#9399A5"));foreach(var item in items){var row=new DockPanel();var date=Text(item.date??"",11,"#9399A5");date.Margin=new Thickness(8,0,0,0);DockPanel.SetDock(date,Dock.Right);row.Children.Add(date);row.Children.Add(new TextBlock{Text=item.title,Foreground=Brushes.LightGray,FontSize=12,TextTrimming=TextTrimming.CharacterEllipsis});var b=Button("",()=>CloudContent.Open(item.target_url));b.Content=row;b.ToolTip=item.title;b.Background=Brushes.Transparent;b.HorizontalContentAlignment=HorizontalAlignment.Stretch;b.Margin=new Thickness(0,1,0,1);cloudItems.Children.Add(b);}}ShowCloudSlide(false);}
+        async void ShowCloudSlide(bool animate){int request=++pictureRequest;dots.Children.Clear();for(int i=0;i<homeContent.carousel.items.Length;i++){int index=i;var b=Button("●",()=>{slideIndex=index;ShowCloudSlide(true);});b.FontSize=9;b.Padding=new Thickness(3,0,3,0);b.Background=Brushes.Transparent;b.Foreground=i==slideIndex?Brushes.White:Brushes.Gray;dots.Children.Add(b);}if(homeContent.carousel.items.Length==0){slideHost.Children.Clear();slideHost.Children.Add(Text("KEDIT · 随心而动",20));return;}var item=homeContent.carousel.items[slideIndex];slideHost.ToolTip=item.title;if(slideHost.Children.Count==0)slideHost.Children.Add(new TextBlock{Text="KEDIT\n"+item.title,Foreground=Brushes.White,FontSize=18,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(16),VerticalAlignment=VerticalAlignment.Center});try{var source=await CloudContent.Picture(item.image_url);if(request!=pictureRequest)return;var image=new Image{Source=source,Stretch=Stretch.UniformToFill};slideHost.Children.Clear();slideHost.Children.Add(image);if(animate){var transform=new TranslateTransform(-240,0);image.RenderTransform=transform;transform.BeginAnimation(TranslateTransform.XProperty,new DoubleAnimation(0,TimeSpan.FromMilliseconds(350)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseOut}});}}catch{if(request==pictureRequest){slideHost.Children.Clear();slideHost.Children.Add(new TextBlock{Text="KEDIT\n"+item.title,Foreground=Brushes.White,FontSize=18,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(16),VerticalAlignment=VerticalAlignment.Center});}}}
+    }
+    internal static class ModelDownloadDialog {
+        public static void Show(Window owner,PetController pet,bool enable){
+            var window=new Window{Owner=owner,Title="下载兔兔模型",Width=440,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=new SolidColorBrush(Color.FromRgb(28,32,40))};
+            var panel=new StackPanel{Margin=new Thickness(22)};window.Content=panel;var info=new TextBlock{Foreground=Brushes.White,TextWrapping=TextWrapping.Wrap};panel.Children.Add(info);var progress=new ProgressBar{Height=6,Margin=new Thickness(0,15,0,15),Maximum=100};panel.Children.Add(progress);var status=new TextBlock{Foreground=Brushes.LightGray,TextWrapping=TextWrapping.Wrap};panel.Children.Add(status);
+            ModelContent content=CloudContent.Cached<ModelContent>("models.json");DownloadModel model=content.models.First(x=>x.id==content.default_model_id);bool running=false,closed=false;var cancellation=new CancellationTokenSource();
+            Action update=()=>{info.Text=model.name+" · "+model.version+" · "+model.size_display+"\n作者："+(model.author==null?"见模型说明":model.author.name)+"\n下载完成后自动选择模型，保留原包署名和使用说明。";};update();
+            Func<string,Action,Button> button=(text,action)=>{var b=new Button{Content=text,Margin=new Thickness(0,8,0,0),Padding=new Thickness(8)};b.Click+=delegate{action();};panel.Children.Add(b);return b;};
+            Button start=null;start=button("下载并使用兔兔",async ()=>{if(running)return;running=true;start.IsEnabled=false;status.Text="下载中…";try{string path=await CloudContent.Install(model,cancellation.Token,new Progress<int>(n=>{progress.IsIndeterminate=n<0;if(n>=0)progress.Value=n;status.Text=n<0?"下载中…":"下载中 "+n+"%（完成后校验并解压）";}));if(closed)return;pet.SelectModel(path);if(enable)pet.SetEnabled(true);status.Text="已安装并选择兔兔模型。";}catch(OperationCanceledException){if(!closed)status.Text="已取消下载。";}catch(Exception ex){if(!closed)status.Text="下载未完成："+ex.Message+"\n可使用下方网页入口。";}finally{running=false;if(!closed)start.IsEnabled=true;}});
+            button("打开 NAS 分享页",()=>CloudContent.Open(model.share_url));button("前往作者原下载页",()=>CloudContent.Open(model.original_download_page));button("作者主页",()=>{if(model.author!=null)CloudContent.Open(model.author.url);});button("取消 / 关闭",()=>window.Close());window.Closed+=delegate{closed=true;cancellation.Cancel();};
+            window.Loaded+=async delegate{try{var updated=await CloudContent.Refresh<ModelContent>("models.json");if(!closed&&!running){model=updated.models.First(x=>x.id==updated.default_model_id);update();status.Text="已取得最新模型信息。";}}catch{if(!closed&&!running)status.Text="云端不可用，使用内置或缓存的模型信息。";}};window.ShowDialog();
+        }
+    }
+}

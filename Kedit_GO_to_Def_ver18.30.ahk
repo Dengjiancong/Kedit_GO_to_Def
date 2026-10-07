@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v19.00-Amiya.v006)
+; Kedit 助手 - 终极完整版 (v19.00-Amiya.v007)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v19.00-Amiya.v006"
+Global CurrentVersion := "v19.00-Amiya.v007"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -258,35 +258,35 @@ RestoreDefaults:
     Hotkey, IfWinActive
     try {
         ; 注册 Ctrl+Q (快速打开目录) 为全局热键
-        Hotkey, %Key_CtrlQ%, Label_CtrlQ, On
+        SetCompatibleHotkey(Key_CtrlQ, "Label_CtrlQ", "On")
     } catch e {
         MsgBox, 16, 错误, 无法注册全局快捷键 (%Key_CtrlQ%)
     }
 
     Hotkey, IfWinActive, ahk_exe kedit.exe
     try {
-        Hotkey, %Key_GoToDef%, Off
-        Hotkey, %Key_ShiftF2%, Off
-        Hotkey, %Key_AltF%, Off
-        Hotkey, %Key_CtrlW%, Off
-        Hotkey, %Key_SmartClick%, Off
-        Hotkey, %Key_ColumnInsert%, Off ; [新增代码] 取消旧热键
-        Hotkey, %Key_ToggleComment%, Off
-        Hotkey, %Key_SpacesToTabs%, Off
-        Hotkey, %Key_FindClipboard%, Off
+        SetCompatibleHotkey(Key_GoToDef, "", "Off")
+        SetCompatibleHotkey(Key_ShiftF2, "", "Off")
+        SetCompatibleHotkey(Key_AltF, "", "Off")
+        SetCompatibleHotkey(Key_CtrlW, "", "Off")
+        SetCompatibleHotkey(Key_SmartClick, "", "Off")
+        SetCompatibleHotkey(Key_ColumnInsert, "", "Off")
+        SetCompatibleHotkey(Key_ToggleComment, "", "Off")
+        SetCompatibleHotkey(Key_SpacesToTabs, "", "Off")
+        SetCompatibleHotkey(Key_FindClipboard, "", "Off")
     }
 
     Hotkey, IfWinActive, ahk_class CabinetWClass
     try {
-        Hotkey, %Key_RunPy%, Off
+        SetCompatibleHotkey(Key_RunPy, "", "Off")
     }
 
     Hotkey, IfWinActive, ahk_exe devenv.exe
     try {
-        Hotkey, %Key_VS_BookmarkToggle%, Off
-        Hotkey, %Key_VS_BookmarkNext%, Off
-        Hotkey, %Key_VS_BookmarkPrevious%, Off
-        Hotkey, %Key_VS_Redo%, Off
+        SetCompatibleHotkey(Key_VS_BookmarkToggle, "", "Off")
+        SetCompatibleHotkey(Key_VS_BookmarkNext, "", "Off")
+        SetCompatibleHotkey(Key_VS_BookmarkPrevious, "", "Off")
+        SetCompatibleHotkey(Key_VS_Redo, "", "Off")
     }
 
     Key_GoToDef    := "XButton1"
@@ -1092,7 +1092,7 @@ UpdateHotkeys() {
     Hotkey, Pause, ToggleManagedHotkeys, On
     try {
         ; 注册 Ctrl+Q (快速打开目录)
-        Hotkey, %Key_CtrlQ%, Label_CtrlQ, %HotkeyState%
+        SetCompatibleHotkey(Key_CtrlQ, "Label_CtrlQ", HotkeyState)
     } catch e {
         MsgBox, 16, 错误, 无法注册全局快捷键 (%Key_CtrlQ%)
     }
@@ -1100,16 +1100,16 @@ UpdateHotkeys() {
     ; --- [新增代码] 第二组：Kedit 专用快捷键 ---
     Hotkey, IfWinActive, ahk_exe kedit.exe
     try {
-        Hotkey, %Key_GoToDef%,    Label_GoToDef,    %HotkeyState%
-        Hotkey, %Key_ShiftF2%,    Label_ShiftF2,    %HotkeyState%
-        Hotkey, %Key_AltF%,       Label_AltF,       %HotkeyState%
-        Hotkey, %Key_CtrlW%, 	  Label_CtrlW, 		%HotkeyState%
-        Hotkey, %Key_AltA%,       Label_AltA,       %HotkeyState% ; <--- 注册新快捷键 [cite: 23]
-        Hotkey, %Key_ColumnInsert%, Label_ColumnInsert, %HotkeyState% ; [新增代码]
-        Hotkey, %Key_SmartClick%, Label_SmartClick, %HotkeyState%
-        Hotkey, %Key_ToggleComment%, ProcessCommentToggle, %HotkeyState%
-        Hotkey, %Key_SpacesToTabs%, Label_SpacesToTabs, %HotkeyState%
-        Hotkey, %Key_FindClipboard%, Label_FindClipboard, %HotkeyState%
+        SetCompatibleHotkey(Key_GoToDef, "Label_GoToDef", HotkeyState)
+        SetCompatibleHotkey(Key_ShiftF2, "Label_ShiftF2", HotkeyState)
+        SetCompatibleHotkey(Key_AltF, "Label_AltF", HotkeyState)
+        SetCompatibleHotkey(Key_CtrlW, "Label_CtrlW", HotkeyState)
+        SetCompatibleHotkey(Key_AltA, "Label_AltA", HotkeyState)
+        SetCompatibleHotkey(Key_ColumnInsert, "Label_ColumnInsert", HotkeyState)
+        SetCompatibleHotkey(Key_SmartClick, "Label_SmartClick", HotkeyState)
+        SetCompatibleHotkey(Key_ToggleComment, "ProcessCommentToggle", HotkeyState)
+        SetCompatibleHotkey(Key_SpacesToTabs, "Label_SpacesToTabs", HotkeyState)
+        SetCompatibleHotkey(Key_FindClipboard, "Label_FindClipboard", HotkeyState)
     } catch e {
         MsgBox, 16, 错误, 加载快捷键失败。
     }
@@ -1117,7 +1117,7 @@ UpdateHotkeys() {
     ; --- [新增代码] 第三组：资源管理器专用快捷键 ---
     Hotkey, IfWinActive, ahk_class CabinetWClass
     try {
-        Hotkey, %Key_RunPy%,      Label_RunPy,      %HotkeyState%
+        SetCompatibleHotkey(Key_RunPy, "Label_RunPy", HotkeyState)
     } catch e {
         MsgBox, 16, 错误, 无法注册资源管理器快捷键 (%Key_RunPy%)
     }
@@ -1135,20 +1135,20 @@ UpdateHotkeys() {
             Hotkey, $MButton, Label_VS_DefinitionAction, %HotkeyState%
         } else {
             Hotkey, IfWinActive, ahk_exe devenv.exe
-            Hotkey, %Key_VS_Peek%, Label_VS_DefinitionAction, %HotkeyState%
+            SetCompatibleHotkey(Key_VS_Peek, "Label_VS_DefinitionAction", HotkeyState)
         }
 
         ; [修改] 使用变量 Key_VS_Back
         Hotkey, IfWinActive, ahk_exe devenv.exe
-        Hotkey, %Key_VS_Back%, Label_VS_NavigateBack, %HotkeyState%
+        SetCompatibleHotkey(Key_VS_Back, "Label_VS_NavigateBack", HotkeyState)
 
         ; [修改] 使用变量 Key_VS_Build
-        Hotkey, %Key_VS_Build%, Label_VS_SendCtrlB, %HotkeyState%
-        Hotkey, %Key_VS_ToggleComment%, Label_VS_ToggleComment, %HotkeyState%
-        Hotkey, %Key_VS_BookmarkToggle%, Label_VS_BookmarkToggle, %HotkeyState%
-        Hotkey, %Key_VS_BookmarkNext%, Label_VS_BookmarkNext, %HotkeyState%
-        Hotkey, %Key_VS_BookmarkPrevious%, Label_VS_BookmarkPrevious, %HotkeyState%
-        Hotkey, %Key_VS_Redo%, Label_VS_Redo, %HotkeyState%
+        SetCompatibleHotkey(Key_VS_Build, "Label_VS_SendCtrlB", HotkeyState)
+        SetCompatibleHotkey(Key_VS_ToggleComment, "Label_VS_ToggleComment", HotkeyState)
+        SetCompatibleHotkey(Key_VS_BookmarkToggle, "Label_VS_BookmarkToggle", HotkeyState)
+        SetCompatibleHotkey(Key_VS_BookmarkNext, "Label_VS_BookmarkNext", HotkeyState)
+        SetCompatibleHotkey(Key_VS_BookmarkPrevious, "Label_VS_BookmarkPrevious", HotkeyState)
+        SetCompatibleHotkey(Key_VS_Redo, "Label_VS_Redo", HotkeyState)
     } catch e {
         MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键。
     }
@@ -1960,7 +1960,7 @@ ChangeQuickOpenSettings(CurrentKey, CurrentPath) {
     ; 4. 关闭旧快捷键
     Hotkey, IfWinActive
     try {
-        Hotkey, %Key_CtrlQ%, Off
+        SetCompatibleHotkey(Key_CtrlQ, "", "Off")
     }
 
     ; 5. 更新变量与 INI
@@ -2118,7 +2118,37 @@ RefreshKeditMenus() {
 }
 
 ; Canonical identity for the first migrated shortcut; scope-aware conflict check.
+CanonicalConsoleKey(Key) {
+    Key := StrReplace(StrReplace(Key, "<!", "!"), ">!", "!")
+    if (RegExMatch(Key, "i)^([~*$!^+#]*)(/|vkBF|vk6F|NumpadDiv)$", Part))
+        return Part1 . "/"
+    return Key
+}
+
+SetCompatibleHotkey(Key, Label := "", State := "On") {
+    Key := CanonicalConsoleKey(Key)
+    Keys := [Key]
+    if (RegExMatch(Key, "^([~*$!^+#]*)/$", Part))
+        Keys.Push(Part1 . "NumpadDiv")
+    Applied := []
+    try {
+        for _, Binding in Keys {
+            if (State = "Off" && Label = "") {
+                Hotkey, %Binding%, Off, UseErrorLevel
+            } else {
+                Hotkey, %Binding%, %Label%, %State%
+                Applied.Push(Binding)
+            }
+        }
+    } catch e {
+        for _, Binding in Applied
+            Hotkey, %Binding%, Off, UseErrorLevel
+        throw e
+    }
+}
+
 NormalizeConsoleHotkey(Key) {
+    Key := CanonicalConsoleKey(Key)
     if (!RegExMatch(Key, "i)^[~*$]*([!^+#]*)([^\s|]+)$", Match))
         return ""
     Base := Match2
@@ -2150,7 +2180,7 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     if (DefinitionAction != "GoTo" && DefinitionAction != "Peek")
         return 2
     Critical
-    NewKey := Trim(NewKey)
+    NewKey := CanonicalConsoleKey(Trim(NewKey))
     Identity := NormalizeConsoleHotkey(NewKey)
     if (Identity = "")
         return 2
@@ -2191,13 +2221,13 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     State := HotkeysSuspended ? "Off" : "On"
     Hotkey, IfWinActive, %OldContext%
     try {
-        Hotkey, %OldBinding%, Off
+        SetCompatibleHotkey(OldBinding, "", "Off")
         Hotkey, IfWinActive, %NewContext%
-        Hotkey, %NewBinding%, %TargetLabel%, %State%
+        SetCompatibleHotkey(NewBinding, TargetLabel, State)
     } catch e {
         try {
             Hotkey, IfWinActive, %OldContext%
-            Hotkey, %OldBinding%, %TargetLabel%, %State%
+            SetCompatibleHotkey(OldBinding, TargetLabel, State)
         }
         Hotkey, IfWinActive
         FileDelete, %PendingIni%
@@ -2206,9 +2236,9 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     FileMove, %PendingIni%, %IniFile%, 1
     if (ErrorLevel) {
         Hotkey, IfWinActive, %NewContext%
-        Hotkey, %NewBinding%, Off
+        SetCompatibleHotkey(NewBinding, "", "Off")
         Hotkey, IfWinActive, %OldContext%
-            Hotkey, %OldBinding%, %TargetLabel%, %State%
+            SetCompatibleHotkey(OldBinding, TargetLabel, State)
         Hotkey, IfWinActive
         FileDelete, %PendingIni%
         return 4

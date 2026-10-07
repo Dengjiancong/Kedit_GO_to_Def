@@ -28,7 +28,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="System.Core" />
+    <Reference Include="System.Core" /><Reference Include="System.Net.Http" /><Reference Include="System.IO.Compression" />
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
@@ -51,7 +51,7 @@
     <Compile Include="App.xaml.cs" />
     <Compile Include="DesignPreview.cs" />
     <Compile Include="ShortcutPage.cs" />
-    <Compile Include="PageMedia.cs" />
+    <Compile Include="PageMedia.cs" /><Compile Include="CloudContent.cs" /><Compile Include="CloudPanels.cs" />
     <Compile Include="PreviewCrop.cs" />
     <Compile Include="MainWindow.xaml.cs" />
     <Compile Include="Pet\PetRuntime.cs" />
@@ -69,6 +69,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="..\Gitea\home.json"><LogicalName>CloudDefaults/home.json</LogicalName></EmbeddedResource><EmbeddedResource Include="..\Gitea\models.json"><LogicalName>CloudDefaults/models.json</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="PetWeb\**\*">
       <LogicalName>PetWeb/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>

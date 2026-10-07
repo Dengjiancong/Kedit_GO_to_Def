@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "updated_at": "2026-10-08",
+  "carousel": {
+    "interval_seconds": 5,
+    "direction": "left_to_right",
+    "pause_on_hover": true,
+    "items": [
+      {
+        "id": "discussion",
+        "title": "Kedit_Go_to_Define 软件讨论区",
+        "image_url": "https://lsky.evadd.xyz:88/i/2026/10/08/6ac68adad52e9.jpg",
+        "target_url": "https://github.com/Dengjiancong/Kedit_GO_to_Def/discussions"
+      },
+      {
+        "id": "repository",
+        "title": "Kedit_Go_to_Define 备用仓库",
+        "image_url": "https://lsky.evadd.xyz:88/i/2026/10/08/6ac68adbc13f6.jpg",
+        "target_url": "https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def"
+      },
+      {
+        "id": "battle",
+        "title": "Kedit_Go_to_Define 对战区",
+        "image_url": "https://lsky.evadd.xyz:88/i/2026/10/08/6ac6925092d56.png",
+        "target_url": "https://pokemon-evadd-xyz--88.psim.us/"
+      }
+    ]
+  },
+  "tabs": [
+    {
+      "id": "announcements",
+      "title": "公告",
+      "items": [
+        {
+          "id": "discussion-entry",
+          "title": "欢迎交流：分享使用体验与改进建议",
+          "date": "2026-10-08",
+          "target_url": "https://github.com/Dengjiancong/Kedit_GO_to_Def/discussions"
+        },
+        {
+          "id": "repository-entry",
+          "title": "备用仓库：项目源码与版本入口",
+          "date": "2026-10-08",
+          "target_url": "https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def"
+        }
+      ]
+    },
+    {
+      "id": "news",
+      "title": "新闻",
+      "items": []
+    },
+    {
+      "id": "information",
+      "title": "资讯",
+      "items": [
+        {
+          "id": "battle-entry",
+          "title": "休息一下：前往宝可梦对战区",
+          "date": "2026-10-08",
+          "target_url": "https://pokemon-evadd-xyz--88.psim.us/"
+        }
+      ]
+    }
+  ]
+}

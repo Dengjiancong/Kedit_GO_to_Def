@@ -28,3 +28,8 @@
 /mp4/*
 !/mp4/pages.json
 !/mp4/README.md
+
+# Built-in cloud content defaults and publishing guide
+!/Gitea/
+!/Gitea/*.json
+!/Gitea/*.md

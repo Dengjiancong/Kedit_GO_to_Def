@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "updated_at": "2026-10-08",
+  "default_model_id": "amiya-bunny",
+  "models": [
+    {
+      "id": "amiya-bunny",
+      "name": "兔兔 · 阿米娅",
+      "version": "1.0",
+      "version_label": "version1.0",
+      "size_display": "7978 KB",
+      "size_bytes": 8168653,
+      "sha256": "B80D0A95857DB779E2FDFF02524ECA85BE57704AC4C6485E7F017B44E1E44DF5",
+      "download_url": "https://pshare.evadd.xyz:88/api/shares/nUNgkN2P/files/63015698-c55b-47c8-9bc8-ea08b50443ff",
+      "share_url": "https://pshare.evadd.xyz:88/s/nUNgkN2P",
+      "archive_format": "zip",
+      "model_entry": null,
+      "author": {
+        "name": "泡芙妙妙屋",
+        "platform": "哔哩哔哩",
+        "url": "https://space.bilibili.com/283810584?spm_id_from=333.788.upinfo.head.click"
+      },
+      "original_download_page": "https://www.aplaybox.com/details/model/XieIXWh6Noz1"
+    }
+  ]
+}
