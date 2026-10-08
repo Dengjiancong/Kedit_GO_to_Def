@@ -52,7 +52,7 @@
     <Compile Include="DesignPreview.cs" />
     <Compile Include="ShortcutPage.cs" /><Compile Include="UsageStatistics.cs" /><Compile Include="UsagePanel.cs" />
     <Compile Include="PageMedia.cs" /><Compile Include="CloudContent.cs" /><Compile Include="CloudPanels.cs" />
-    <Compile Include="PreviewCrop.cs" />
+    <Compile Include="PreviewCrop.cs" /><Compile Include="TileMedia.cs" />
     <Compile Include="MainWindow.xaml.cs" />
     <Compile Include="Pet\PetRuntime.cs" />
     <Compile Include="Pet\PetSettings.cs" />
@@ -74,8 +74,9 @@
       <LogicalName>PetWeb/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\photo\中控任务栏图标.png"><LogicalName>PreviewAssets/taskbar.png</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="..\photo\default_logo.png"><LogicalName>PreviewAssets/default_logo.png</LogicalName></EmbeddedResource>
-    <EmbeddedResource Include="PreviewAssets\*.png" Exclude="PreviewAssets\avatar.png">
+    <EmbeddedResource Include="..\photo\default_logo.gif*"><LogicalName>PreviewAssets/%(Filename)%(Extension)</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\photo\default_logo.png" Condition="Exists('..\photo\default_logo.png')"><LogicalName>PreviewAssets/default_logo.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="PreviewAssets\*.png;PreviewAssets\*.gif;PreviewAssets\*.gif.crop;PreviewAssets\*.share" Exclude="PreviewAssets\avatar.*">
       <LogicalName>PreviewAssets/%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\.packages\Microsoft.Web.WebView2.1.0.3537.50\lib\net462\Microsoft.Web.WebView2.Core.dll">
