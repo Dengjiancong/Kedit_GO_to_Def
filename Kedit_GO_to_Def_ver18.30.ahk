@@ -37,6 +37,7 @@ IniRead, Key_AltA,       %IniFile%, Hotkeys, AltA,       !a  ; <--- 新增 Alt+A
 IniRead, Key_ColumnInsert, %IniFile%, Hotkeys, ColumnInsert, !i  ; [新增代码] --- 列选择批量填入
 IniRead, Key_ToggleComment, %IniFile%, Hotkeys, ToggleComment, ^/	; [新增代码] --- 注释/取消注释 (单键切换)
 IniRead, Key_SpacesToTabs, %IniFile%, Hotkeys, SpacesToTabs, ^\ ; 行首每 4 个空格转换为 1 个 Tab
+IniRead, Key_InsertFlowNode, %IniFile%, Hotkeys, InsertFlowNode, !+v
 IniRead, Key_RenumberBins, %IniFile%, Hotkeys, RenumberBins, !+b
 IniRead, Key_FindClipboard, %IniFile%, Hotkeys, FindClipboard, F1 ; 查找剪贴板内容
 
@@ -95,6 +96,7 @@ AddKeditMenu("AltA", "设置: 默认 Alt+A (另存为)")
 AddKeditMenu("ColumnInsert", "设置: 默认 Alt+I (列填入数据)")
 AddKeditMenu("ToggleComment", "设置: 默认 Ctrl+/ (注释/取消注释)")
 AddKeditMenu("SpacesToTabs", "设置: 默认 Ctrl+\ (行首空格转 Tab)")
+AddKeditMenu("InsertFlowNode", "设置: FLOW 插入测试节点 (默认 Alt+Shift+V)")
 AddKeditMenu("RenumberBins", "设置: FLOW Bin 递增编号 (默认 Alt+Shift+B)")
 AddKeditMenu("FindClipboard", "设置: 查找剪贴板内容")
 AddKeditMenu("SmartClick", "设置: 默认 中键 (跳转至定义)")
@@ -276,6 +278,7 @@ RestoreDefaults:
         SetCompatibleHotkey(Key_ColumnInsert, "", "Off")
         SetCompatibleHotkey(Key_ToggleComment, "", "Off")
         SetCompatibleHotkey(Key_SpacesToTabs, "", "Off")
+        SetCompatibleHotkey(Key_InsertFlowNode, "", "Off")
         SetCompatibleHotkey(Key_RenumberBins, "", "Off")
         SetCompatibleHotkey(Key_FindClipboard, "", "Off")
     }
@@ -303,6 +306,7 @@ RestoreDefaults:
     Key_RunPy      := "F8"
     Key_ToggleComment := "^/"  ; <--- 恢复默认值
     Key_SpacesToTabs := "^\"
+    Key_InsertFlowNode := "!+v"
     Key_RenumberBins := "!+b"
     Key_FindClipboard := "F1"
     Key_VS_ToggleComment := "^/"
@@ -322,6 +326,7 @@ RestoreDefaults:
     IniWrite, %Key_RunPy%,      %IniFile%, Hotkeys, RunPy
     IniWrite, %Key_ToggleComment%, %IniFile%, Hotkeys, ToggleComment ; <--- 写入 INI
     IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
+    IniWrite, %Key_InsertFlowNode%, %IniFile%, Hotkeys, InsertFlowNode
     IniWrite, %Key_RenumberBins%, %IniFile%, Hotkeys, RenumberBins
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
     IniWrite, %Key_VS_ToggleComment%, %IniFile%, Hotkeys, VS_ToggleComment
@@ -376,6 +381,138 @@ return
 ; =======================================================
 ; 按 4 列制表位整理所选文本的行首缩进，并保持正文的视觉列不变
 ; =======================================================
+Label_InsertFlowNode:
+    FlowInsertTrace("hotkey received; busy=" . InsertFlowBusy)
+    if (InsertFlowBusy) {
+        ShowOSD("FLOW 插入：上一轮尚未完成", 1800)
+        return
+    }
+    InsertFlowBusy := true
+    SetTimer, ProcessInsertFlowNode, -1
+return
+
+ProcessInsertFlowNode:
+    try {
+        InsertFlowAtCaret()
+    } catch e {
+        FlowInsertTrace("error: " . e.Message . "; command=" . e.What . "; extra=" . e.Extra . "; line=" . e.Line)
+        ShowOSD("FLOW 插入失败：" . e.Message, 3500)
+    } finally {
+        InsertFlowBusy := false
+        FlowInsertTrace("finished")
+    }
+return
+
+FlowInsertTrace(Message) {
+    FileCreateDir, %A_Temp%\Kedit
+    FileAppend, % A_Now . "." . A_MSec . " pid=" . DllCall("GetCurrentProcessId") . " " . Message . "`r`n", %A_Temp%\Kedit\flow-insert.log, UTF-8
+}
+
+FlowTextShape(Text) {
+    ; Keep separators/whitespace only, never write proprietary node names to logs.
+    Text := RegExReplace(Text, "[A-Za-z_][A-Za-z0-9_]*", "N")
+    Text := RegExReplace(Text, "[0-9]", "#")
+    Text := StrReplace(StrReplace(StrReplace(StrReplace(Text, "`r", "<CR>"), "`n", "<LF>"), "`t", "<TAB>"), " ", ".")
+    return SubStr(Text,1,300)
+}
+
+BuildFlowInsertion(Prefix, Suffix, Name) {
+    if (!RegExMatch(Name, "^[A-Za-z_][A-Za-z0-9_]*$"))
+        return ""
+    if (!RegExMatch(Prefix, "^([ \t]*)([A-Za-z_][A-Za-z0-9_]*)([ \t]*,[ \t]*)$", Head))
+        return ""
+    if (!RegExMatch(Suffix, "^([A-Za-z_][A-Za-z0-9_]*)([ \t]*,[ \t]*)(Bin[0-9]+)([ \t]*;[ \t]*)(//[^\r\n]*)?$", Tail))
+        return ""
+    return Name . Tail2 . Tail3 . Tail4 . Tail5 . "`r`n" . Head1 . Name . Head3 . Tail1 . Tail2 . "Bin31;"
+}
+
+SetFlowClipboard(ByRef Value) {
+    Loop, 5 {
+        try {
+            Clipboard := Value
+            return
+        } catch clipboardError {
+            FlowInsertTrace("clipboard write retry=" . A_Index . "; command=" . clipboardError.What)
+            if (A_Index = 5)
+                throw clipboardError
+            Sleep, 60
+        }
+    }
+}
+
+InsertFlowAtCaret() {
+    if (!WinActive("ahk_exe kedit.exe")) {
+        FlowInsertTrace("aborted: Kedit not active")
+        ShowOSD("FLOW 插入取消：Kedit 已失去焦点", 2000)
+        return
+    }
+    FlowInsertTrace("processing")
+    Name := Trim(Clipboard, " `t`r`n")
+    if (!RegExMatch(Name, "^[A-Za-z_][A-Za-z0-9_]*$")) {
+        ShowOSD("剪贴板必须是单个测试名称")
+        return
+    }
+    FlowInsertTrace("clipboard name validated")
+    FlowInsertTrace("saving clipboard")
+    Saved := ClipboardAll
+    FlowInsertTrace("clipboard saved")
+    Window := WinExist("A")
+    try {
+        SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+        SetFlowClipboard("")
+        FlowInsertTrace("selecting suffix")
+        SendInput, +{End}^c
+        ClipWait, 0.7
+        CopyTimedOut := ErrorLevel
+        if (!WinActive("ahk_id " . Window))
+            return
+        if (CopyTimedOut) {
+            SendInput, {Left}
+            ShowOSD("请将光标放在第二列节点名称前")
+            return
+        }
+        FlowInsertTrace("suffix copied")
+        Suffix := Clipboard
+        ; Read the full row from explicit boundaries. Left/Right do not reliably
+        ; collapse a Kedit selection to its anchor (unlike a standard Edit control).
+        Suffix := RTrim(Suffix, "`r`n")
+        FlowInsertTrace("selecting full row")
+        SendInput, {Home}{Home}+{End}
+        SetFlowClipboard("")
+        SendInput, ^c
+        ClipWait, 0.7
+        RowTimedOut := ErrorLevel
+        FullRow := RowTimedOut ? "" : RTrim(Clipboard, "`r`n")
+        if (!WinActive("ahk_id " . Window))
+            return
+        PrefixLength := StrLen(FullRow)-StrLen(Suffix)
+        Prefix := PrefixLength >= 0 ? SubStr(FullRow, 1, PrefixLength) : ""
+        BoundaryOK := !RowTimedOut && PrefixLength >= 0 && SubStr(FullRow, PrefixLength+1) == Suffix
+        FlowInsertTrace("row boundary=" . BoundaryOK . "; prefix=" . FlowTextShape(Prefix) . "; suffix=" . FlowTextShape(Suffix))
+        Result := BoundaryOK ? BuildFlowInsertion(Prefix, Suffix, Name) : ""
+        if (Result = "") {
+            ; Leave the document unchanged; collapse the probe selection.
+            SendInput, {Home}{Home}
+            if (BoundaryOK && PrefixLength > 0)
+                SendInput, {Right %PrefixLength%}
+            ShowOSD("FLOW 行读取不匹配，未修改；请提供最新诊断日志", 2500)
+            return
+        }
+        SetFlowClipboard(Prefix . Result)
+        SendInput, ^v
+        Sleep, 200
+        ShowOSD("已插入节点: " . Name)
+    } finally {
+        try {
+            SetFlowClipboard(Saved)
+            FlowInsertTrace("clipboard restored")
+        } catch restoreError {
+            FlowInsertTrace("clipboard restore failed: " . restoreError.Message . "; command=" . restoreError.What)
+            ShowOSD("剪贴板恢复失败，请查看诊断日志", 3000)
+        }
+    }
+}
+
 Label_RenumberBins:
     if (IsRenumberBinsBusy) {
         ShowOSD("正在转换缩进，请稍候...")
@@ -1222,6 +1359,8 @@ UpdateHotkeys() {
         SetCompatibleHotkey(Key_SmartClick, "Label_SmartClick", HotkeyState)
         SetCompatibleHotkey(Key_ToggleComment, "ProcessCommentToggle", HotkeyState)
         SetCompatibleHotkey(Key_SpacesToTabs, "Label_SpacesToTabs", HotkeyState)
+        SetCompatibleHotkey(Key_InsertFlowNode, "Label_InsertFlowNode", HotkeyState)
+        FlowInsertTrace("registered key=" . Key_InsertFlowNode . "; state=" . HotkeyState)
         SetCompatibleHotkey(Key_RenumberBins, "Label_RenumberBins", HotkeyState)
         SetCompatibleHotkey(Key_FindClipboard, "Label_FindClipboard", HotkeyState)
     } catch e {
@@ -1355,6 +1494,11 @@ return
 
 SetKey_SpacesToTabs:
     ConsoleKeditPage := 9
+    Gosub, OpenConsoleRoute
+return
+
+SetKey_InsertFlowNode:
+    ConsoleKeditPage := 12
     Gosub, OpenConsoleRoute
 return
 
@@ -2228,7 +2372,7 @@ RefreshKeditMenus() {
     global
     if (!IsObject(KeditMenuLabels))
         return
-    Titles := {RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_Redo:"VS 重做"}
+    Titles := {InsertFlowNode:"FLOW 插入测试节点", RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_Redo:"VS 重做"}
     for Name, OldCaption in KeditMenuLabels {
         Caption := "设置: " . (Titles.HasKey(Name)?Titles[Name]:KeditMenuTitles[Name]) . " (" . Key_%Name% . ")"
         Menu, Tray, Rename, %OldCaption%, %Caption%
@@ -2290,7 +2434,7 @@ SaveFindClipboardFromConsole(NewKey) {
 
 SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     global
-    Labels := {RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_Redo:"Label_VS_Redo"}
+    Labels := {InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_Redo:"Label_VS_Redo"}
     if (!Labels.HasKey(KeyName))
         return 0
     TargetLabel := Labels[KeyName]
@@ -2305,7 +2449,7 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
         return 2
     if (Identity = "reserved")
         return 3
-    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "CtrlQ"]) {
+    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "CtrlQ"]) {
         if (Name = KeyName)
             continue
         if (NormalizeConsoleHotkey(Key_%Name%) = Identity
@@ -3274,8 +3418,6 @@ ShowOSD(Text, DisplayTime := 1200, CompanionCue := "") {  ; 可指定某个快�
         TextW := 140
 
     Gui, OSD:Add, Text, x0 y9 w%TextW% Center BackgroundTrans, %Text%
-    WinSet, Transparent, 150, ahk_id %hOSD%
-    WinSet, Region, 0-0 w%TextW% h40 R10-10, ahk_id %hOSD%
     SysGet, Sw, 0
     SysGet, Sh, 1
     ; PosX: 距离屏幕左边缘 50 像素
@@ -3284,6 +3426,14 @@ ShowOSD(Text, DisplayTime := 1200, CompanionCue := "") {  ; 可指定某个快�
     PosY := Sh * 0.88
 
     Gui, OSD:Show, NoActivate x%PosX% y%PosY% w%TextW% h40
+    ; The HWND must be visible before WinSet when DetectHiddenWindows is Off.
+    ; Cosmetic failures must never abort the caller's editing operation.
+    try {
+        WinSet, Transparent, 150, ahk_id %hOSD%
+        WinSet, Region, 0-0 w%TextW% h40 R10-10, ahk_id %hOSD%
+    } catch osdError {
+        FlowInsertTrace("OSD decoration skipped: " . osdError.What . "; " . osdError.Message)
+    }
 
     ; ★ 核心逻辑：如果传入的时间大于 0，才启动消失倒计时
     ; 如果传入 0，OSD 就会一直悬浮在屏幕上，直到下一次调用 ShowOSD
