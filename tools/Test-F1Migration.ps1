@@ -52,6 +52,9 @@ AddKeditMenu("VS_BookmarkNext","VS_BookmarkNext")
 Key_VS_BookmarkPrevious := "+F2"
 Hotkey, +F2, Label_VS_BookmarkPrevious, On
 AddKeditMenu("VS_BookmarkPrevious","VS_BookmarkPrevious")
+Key_VS_BookmarkClear := "^+F2"
+Hotkey, ^+F2, Label_VS_BookmarkClear, On
+AddKeditMenu("VS_BookmarkClear","VS_BookmarkClear")
 Key_VS_Redo := "^y"
 Hotkey, ^y, Label_VS_Redo, On
 AddKeditMenu("VS_Redo","VS_Redo")
@@ -61,6 +64,12 @@ Hotkey, $MButton, Label_VS_DefinitionAction, On
 for _, Name in ["FindClipboard", "GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "ToggleComment", "SpacesToTabs", "SmartClick", "RenumberBins", "InsertFlowNode"]
     AddKeditMenu(Name, Name)
 
+Check(SaveKeditHotkeyFromConsole("VS_BookmarkClear", "F2") = 3, "clear bookmark detects next conflict")
+Check(SaveKeditHotkeyFromConsole("VS_BookmarkClear", "^!F9") = 1, "save clear bookmark")
+IniRead, Actual, %IniFile%, Hotkeys, VS_BookmarkClear
+Check(Actual = "^!F9", "clear bookmark persisted")
+Check(SaveKeditHotkeyFromConsole("VS_BookmarkNext", "^!F9") = 3, "next detects clear conflict")
+Check(SaveKeditHotkeyFromConsole("VS_BookmarkClear", "^+F2") = 1, "restore clear default")
 Check(SaveFindClipboardFromConsole("^F8") = 1, "valid save")
 Check(NormalizeConsoleHotkey("<!vkBF") = NormalizeConsoleHotkey(">!NumpadDiv"), "Alt and slash aliases")
 Check(SaveFindClipboardFromConsole("^NumpadDiv") = 3, "numpad slash conflict")
@@ -116,6 +125,7 @@ Label_VS_ToggleComment:
 Label_VS_BookmarkToggle:
 Label_VS_BookmarkNext:
 Label_VS_BookmarkPrevious:
+Label_VS_BookmarkClear:
 Label_VS_Redo:
 SetKey_VS_Peek:
 SetKey_VS_Back:
@@ -124,6 +134,7 @@ SetKey_VS_ToggleComment:
 SetKey_VS_BookmarkToggle:
 SetKey_VS_BookmarkNext:
 SetKey_VS_BookmarkPrevious:
+SetKey_VS_BookmarkClear:
 SetKey_VS_Redo:
 Label_FindClipboard:
 return
@@ -184,6 +195,7 @@ Label_VS_ToggleComment:
 Label_VS_BookmarkToggle:
 Label_VS_BookmarkNext:
 Label_VS_BookmarkPrevious:
+Label_VS_BookmarkClear:
 Label_VS_Redo:
 SetKey_VS_Peek:
 SetKey_VS_Back:
@@ -192,6 +204,7 @@ SetKey_VS_ToggleComment:
 SetKey_VS_BookmarkToggle:
 SetKey_VS_BookmarkNext:
 SetKey_VS_BookmarkPrevious:
+SetKey_VS_BookmarkClear:
 SetKey_VS_Redo:
 Label_FindClipboard:
 AutoCheckForUpdateInitial:

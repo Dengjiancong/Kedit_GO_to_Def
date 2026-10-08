@@ -49,6 +49,7 @@ IniRead, Key_VS_ToggleComment, %IniFile%, Hotkeys, VS_ToggleComment, ^/
 IniRead, Key_VS_BookmarkToggle, %IniFile%, Hotkeys, VS_BookmarkToggle, ^F2
 IniRead, Key_VS_BookmarkNext, %IniFile%, Hotkeys, VS_BookmarkNext, F2
 IniRead, Key_VS_BookmarkPrevious, %IniFile%, Hotkeys, VS_BookmarkPrevious, +F2
+IniRead, Key_VS_BookmarkClear, %IniFile%, Hotkeys, VS_BookmarkClear, ^+F2
 IniRead, Key_VS_Redo, %IniFile%, Hotkeys, VS_Redo, ^y
 
 ; --- Kedit以外的快捷键设置
@@ -110,6 +111,7 @@ AddKeditMenu("VS_ToggleComment", "设置: VS 注释/取消注释 (默认Ctrl+/)"
 AddKeditMenu("VS_BookmarkToggle", "设置: VS 建立书签 (默认Ctrl+F2)")
 AddKeditMenu("VS_BookmarkNext", "设置: VS 下一个书签 (默认F2)")
 AddKeditMenu("VS_BookmarkPrevious", "设置: VS 上一个书签 (默认Shift+F2)")
+AddKeditMenu("VS_BookmarkClear", "设置: VS 清除书签 (默认Ctrl+Shift+F2)")
 AddKeditMenu("VS_Redo", "设置: VS 重做 (默认Ctrl+Y)")
 
 ; --- Kedit 以外的设置入口
@@ -293,6 +295,7 @@ RestoreDefaults:
         SetCompatibleHotkey(Key_VS_BookmarkToggle, "", "Off")
         SetCompatibleHotkey(Key_VS_BookmarkNext, "", "Off")
         SetCompatibleHotkey(Key_VS_BookmarkPrevious, "", "Off")
+        SetCompatibleHotkey(Key_VS_BookmarkClear, "", "Off")
         SetCompatibleHotkey(Key_VS_Redo, "", "Off")
     }
 
@@ -313,6 +316,7 @@ RestoreDefaults:
     Key_VS_BookmarkToggle := "^F2"
     Key_VS_BookmarkNext := "F2"
     Key_VS_BookmarkPrevious := "+F2"
+    Key_VS_BookmarkClear := "^+F2"
     Key_VS_Redo := "^y"
     VSDefinitionAction := "GoTo"
 
@@ -333,6 +337,7 @@ RestoreDefaults:
     IniWrite, %Key_VS_BookmarkToggle%, %IniFile%, Hotkeys, VS_BookmarkToggle
     IniWrite, %Key_VS_BookmarkNext%, %IniFile%, Hotkeys, VS_BookmarkNext
     IniWrite, %Key_VS_BookmarkPrevious%, %IniFile%, Hotkeys, VS_BookmarkPrevious
+    IniWrite, %Key_VS_BookmarkClear%, %IniFile%, Hotkeys, VS_BookmarkClear
     IniWrite, %Key_VS_Redo%, %IniFile%, Hotkeys, VS_Redo
     IniWrite, %VSDefinitionAction%, %IniFile%, Settings, VSDefinitionAction
 
@@ -423,7 +428,39 @@ BuildFlowInsertion(Prefix, Suffix, Name) {
         return ""
     if (!RegExMatch(Suffix, "^([A-Za-z_][A-Za-z0-9_]*)([ \t]*,[ \t]*)(Bin[0-9]+)([ \t]*;[ \t]*)(//[^\r\n]*)?$", Tail))
         return ""
-    return Name . Tail2 . Tail3 . Tail4 . Tail5 . "`r`n" . Head1 . Name . Head3 . Tail1 . Tail2 . "Bin31;"
+    SecondColumn := FlowVisualColumn(Prefix)
+    BinColumn := FlowVisualColumn(Prefix . Tail1 . Tail2)
+    Changed := Name . RegExReplace(Tail2, "[ \t]+$", "")
+    Changed .= FlowColumnPadding(FlowVisualColumn(Prefix . Changed), BinColumn)
+    Inserted := Head1 . Name . RegExReplace(Head3, "[ \t]+$", "")
+    Inserted .= FlowColumnPadding(FlowVisualColumn(Inserted), SecondColumn)
+    Inserted .= Tail1 . RegExReplace(Tail2, "[ \t]+$", "")
+    Inserted .= FlowColumnPadding(FlowVisualColumn(Inserted), BinColumn)
+    return Changed . Tail3 . Tail4 . Tail5 . "`r`n" . Inserted . "Bin31;"
+}
+
+FlowVisualColumn(Text) {
+    Column := 0
+    Loop, Parse, Text
+        Column += (A_LoopField = "`t") ? 4 - Mod(Column, 4) : 1
+    return Column
+}
+
+FlowColumnPadding(Column, Target) {
+    if (Column >= Target)
+        return " "
+    Padding := ""
+    while (Column < Target) {
+        Step := 4 - Mod(Column, 4)
+        if (Column + Step <= Target) {
+            Padding .= "`t"
+            Column += Step
+        } else {
+            Padding .= " "
+            Column++
+        }
+    }
+    return Padding
 }
 
 SetFlowClipboard(ByRef Value) {
@@ -1246,14 +1283,21 @@ Label_VS_BookmarkNext:
     ShowOSD("VS: Next Bookmark")
     SendInput ^k
     Sleep, 50
-    SendInput ^p
+    SendInput ^n
 return
 
 Label_VS_BookmarkPrevious:
     ShowOSD("VS: Previous Bookmark")
     SendInput ^k
     Sleep, 50
-    SendInput ^n
+    SendInput ^p
+return
+
+Label_VS_BookmarkClear:
+    ShowOSD("VS: Clear Bookmarks")
+    SendInput ^k
+    Sleep, 50
+    SendInput ^l
 return
 
 Label_VS_Redo:
@@ -1401,6 +1445,7 @@ UpdateHotkeys() {
         SetCompatibleHotkey(Key_VS_BookmarkToggle, "Label_VS_BookmarkToggle", HotkeyState)
         SetCompatibleHotkey(Key_VS_BookmarkNext, "Label_VS_BookmarkNext", HotkeyState)
         SetCompatibleHotkey(Key_VS_BookmarkPrevious, "Label_VS_BookmarkPrevious", HotkeyState)
+        SetCompatibleHotkey(Key_VS_BookmarkClear, "Label_VS_BookmarkClear", HotkeyState)
         SetCompatibleHotkey(Key_VS_Redo, "Label_VS_Redo", HotkeyState)
     } catch e {
         MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键。
@@ -1553,6 +1598,11 @@ return
 
 SetKey_VS_BookmarkPrevious:
     ConsoleKeditPage := 107
+    Gosub, OpenConsoleRoute
+return
+
+SetKey_VS_BookmarkClear:
+    ConsoleKeditPage := 109
     Gosub, OpenConsoleRoute
 return
 
@@ -2323,7 +2373,7 @@ return
 SendConsoleState:
     ; Phase 2：通过本机命名管道向 WPF 中控发送只读状态请求。
     ConsoleStateAttempts++
-    ConsoleRequest := "{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_redo"":""" . Key_VS_Redo . """}`n"
+    ConsoleRequest := "{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_bookmark_clear"":""" . Key_VS_BookmarkClear . """,""vs_redo"":""" . Key_VS_Redo . """}`n"
     PipeHandle := DllCall("CreateFile", "Str", "\\.\pipe\Kedit.Console", "UInt", 0xC0000000
         , "UInt", 0, "Ptr", 0, "UInt", 3, "UInt", 0, "Ptr", 0, "Ptr")
     if (PipeHandle != -1 && PipeHandle != 0) {
@@ -2372,7 +2422,7 @@ RefreshKeditMenus() {
     global
     if (!IsObject(KeditMenuLabels))
         return
-    Titles := {InsertFlowNode:"FLOW 插入测试节点", RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_Redo:"VS 重做"}
+    Titles := {InsertFlowNode:"FLOW 插入测试节点", RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_BookmarkClear:"VS 清除书签", VS_Redo:"VS 重做"}
     for Name, OldCaption in KeditMenuLabels {
         Caption := "设置: " . (Titles.HasKey(Name)?Titles[Name]:KeditMenuTitles[Name]) . " (" . Key_%Name% . ")"
         Menu, Tray, Rename, %OldCaption%, %Caption%
@@ -2434,7 +2484,7 @@ SaveFindClipboardFromConsole(NewKey) {
 
 SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     global
-    Labels := {InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_Redo:"Label_VS_Redo"}
+    Labels := {InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_BookmarkClear:"Label_VS_BookmarkClear", VS_Redo:"Label_VS_Redo"}
     if (!Labels.HasKey(KeyName))
         return 0
     TargetLabel := Labels[KeyName]
@@ -2449,7 +2499,7 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
         return 2
     if (Identity = "reserved")
         return 3
-    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "CtrlQ"]) {
+    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_BookmarkClear","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "CtrlQ"]) {
         if (Name = KeyName)
             continue
         if (NormalizeConsoleHotkey(Key_%Name%) = Identity
@@ -2517,7 +2567,7 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
 ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
     global EnableAutoUpdateCheck, EnableOSD, IniFile
         , Key_GoToDef, Key_VS_BookmarkToggle, Key_VS_BookmarkNext
-        , Key_VS_BookmarkPrevious, Key_VS_Redo
+        , Key_VS_BookmarkPrevious, Key_VS_BookmarkClear, Key_VS_Redo
 
     DataSize := NumGet(lParam + 0, A_PtrSize, "UInt")
     DataPtr := NumGet(lParam + 0, A_PtrSize * 2, "Ptr")
@@ -2566,7 +2616,7 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
         NewKey := Match2
         Allowed := (KeyName = "GoToDef" || KeyName = "VS_BookmarkToggle"
             || KeyName = "VS_BookmarkNext" || KeyName = "VS_BookmarkPrevious"
-            || KeyName = "VS_Redo")
+            || KeyName = "VS_BookmarkClear" || KeyName = "VS_Redo")
         if (!Allowed || NewKey = "")
             return 0
         Key_%KeyName% := NewKey
@@ -2595,7 +2645,7 @@ return
 ReceiveConsoleTextCommand(Command) {
     global EnableAutoUpdateCheck, EnableOSD, IniFile
         , Key_GoToDef, Key_VS_BookmarkToggle, Key_VS_BookmarkNext
-        , Key_VS_BookmarkPrevious, Key_VS_Redo
+        , Key_VS_BookmarkPrevious, Key_VS_BookmarkClear, Key_VS_Redo
     AppendConsoleCommandLog("file received: " . Command)
     if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {
         EnableAutoUpdateCheck := Match1 + 0
@@ -2629,7 +2679,7 @@ ReceiveConsoleTextCommand(Command) {
         NewKey := Match2
         Allowed := (KeyName = "GoToDef" || KeyName = "VS_BookmarkToggle"
             || KeyName = "VS_BookmarkNext" || KeyName = "VS_BookmarkPrevious"
-            || KeyName = "VS_Redo")
+            || KeyName = "VS_BookmarkClear" || KeyName = "VS_Redo")
         if (!Allowed || NewKey = "")
             return
         Key_%KeyName% := NewKey
@@ -3429,8 +3479,8 @@ ShowOSD(Text, DisplayTime := 1200, CompanionCue := "") {  ; 可指定某个快�
     ; The HWND must be visible before WinSet when DetectHiddenWindows is Off.
     ; Cosmetic failures must never abort the caller's editing operation.
     try {
-        WinSet, Transparent, 150, ahk_id %hOSD%
-        WinSet, Region, 0-0 w%TextW% h40 R10-10, ahk_id %hOSD%
+        WinSet, Transparent, Off, ahk_id %hOSD%
+        WinSet, Region, , ahk_id %hOSD%
     } catch osdError {
         FlowInsertTrace("OSD decoration skipped: " . osdError.What . "; " . osdError.Message)
     }

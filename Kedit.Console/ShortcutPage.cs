@@ -32,9 +32,10 @@ namespace Kedit.Console {
             new KeditShortcut("VS_Build","生成","F7","发送原版 Ctrl+B。","vs-build","⚒"),
             new KeditShortcut("VS_ToggleComment","注释 / 取消注释","^/","调用 VS 原生注释快捷键。","vs-comment","/"),
             new KeditShortcut("VS_BookmarkToggle","建立 / 取消书签","^F2","发送 Ctrl+K、Ctrl+K。","vs-bookmark","▣"),
-            new KeditShortcut("VS_BookmarkNext","下一个书签","F2","发送 Ctrl+K、Ctrl+P。","vs-next","↓"),
-            new KeditShortcut("VS_BookmarkPrevious","上一个书签","+F2","发送 Ctrl+K、Ctrl+N。","vs-previous","↑"),
-            new KeditShortcut("VS_Redo","重做","^y","发送 Ctrl+Shift+Z。","vs-redo","↷")
+            new KeditShortcut("VS_BookmarkNext","下一个书签","F2","发送 Ctrl+K、Ctrl+N。","vs-next","↓"),
+            new KeditShortcut("VS_BookmarkPrevious","上一个书签","+F2","发送 Ctrl+K、Ctrl+P。","vs-previous","↑"),
+            new KeditShortcut("VS_Redo","重做","^y","发送 Ctrl+Shift+Z。","vs-redo","↷"),
+            new KeditShortcut("VS_BookmarkClear","清除书签","^+F2","发送 Ctrl+K、Ctrl+L。","vs-clear","▣")
         };
         bool vsPage;
         string savedAction="GoTo";
@@ -58,7 +59,7 @@ namespace Kedit.Console {
         internal void OpenRoute(int route,IntPtr source){
             if(source!=IntPtr.Zero)ahkWindow=source;
             if(settingsFile==null){var args=Environment.GetCommandLineArgs();long handle;if(args.Length>2&&long.TryParse(args[2],out handle))ahkWindow=new IntPtr(handle);for(int i=1;i+1<args.Length;i++)if(args[i]=="--settings")settingsFile=Path.GetFullPath(args[i+1]);if(settingsFile==null)settingsFile=Path.Combine(root,"Kedit_Settings.ini");}
-            if(route>0 && route<=keditShortcuts.Length)SelectShortcut(route-1);else if(route>=101&&route<=108)SelectShortcut(route-101,true);else Navigate("首页");
+            if(route>0 && route<=keditShortcuts.Length)SelectShortcut(route-1);else if(route>=101&&route<101+vsShortcuts.Length)SelectShortcut(route-101,true);else Navigate("首页");
         }
         void NavigateLive(string page){
             if(settingsFile==null){settingsFile=Path.Combine(root,"Kedit_Settings.ini");var args=Environment.GetCommandLineArgs();long handle;if(args.Length>2&&long.TryParse(args[2],out handle))ahkWindow=new IntPtr(handle);for(int i=1;i+1<args.Length;i++)if(args[i]=="--settings")settingsFile=Path.GetFullPath(args[i+1]);}

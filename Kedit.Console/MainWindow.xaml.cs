@@ -23,6 +23,7 @@ namespace Kedit.Console
             new ShortcutItem { Category="vs", Key="VS_BookmarkToggle", JsonKey="vs_bookmark_toggle", Title="设置或取消书签", Description="在 Visual Studio 中设置或取消当前行书签。", DefaultKey="^F2", VideoFile="vs_bookmark_toggle.mp4" },
             new ShortcutItem { Category="vs", Key="VS_BookmarkNext", JsonKey="vs_bookmark_next", Title="下一个书签", Description="在 Visual Studio 中跳转到下一个书签。", DefaultKey="F2", VideoFile="vs_bookmark_next.mp4" },
             new ShortcutItem { Category="vs", Key="VS_BookmarkPrevious", JsonKey="vs_bookmark_previous", Title="上一个书签", Description="在 Visual Studio 中跳转到上一个书签。", DefaultKey="+F2", VideoFile="vs_bookmark_previous.mp4" },
+            new ShortcutItem { Category="vs", Key="VS_BookmarkClear", JsonKey="vs_bookmark_clear", Title="清除书签", Description="在 Visual Studio 中清除全部书签。", DefaultKey="^+F2", VideoFile="vs_bookmark_clear.mp4" },
             new ShortcutItem { Category="vs", Key="VS_Redo", JsonKey="vs_redo", Title="重做", Description="在 Visual Studio 中执行重做。", DefaultKey="^y", VideoFile="vs_redo.mp4" }
         };
 
