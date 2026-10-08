@@ -13,6 +13,7 @@ namespace Kedit.Console {
         HomeContent homeContent;int slideIndex,tabIndex,pictureRequest;bool cloudRefreshing,slideAnimating;Image displayedSlide;
         Grid slideHost;StackPanel dots,cloudTabs,cloudItems;DispatcherTimer carouselTimer;string cloudResult="尚未刷新";
         void InitializeCloudHome(){
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-usage")>=0)return;
             news.CornerRadius=new CornerRadius(16);news.BorderBrush=B("#454348");news.BorderThickness=new Thickness(1);news.Background=B("#ED19191D");
             news.SizeChanged+=delegate{news.Clip=new RectangleGeometry(new Rect(0,0,news.ActualWidth,news.ActualHeight),16,16);};
             var grid=new Grid();grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(250)});grid.ColumnDefinitions.Add(new ColumnDefinition());news.Child=grid;

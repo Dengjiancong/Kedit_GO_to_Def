@@ -185,6 +185,11 @@ Global MaxRetries := 2
 ; ★ MPV 进程管理数组
 Global MPV_PIDs := {}
 
+; 本地统计不依赖中控、OSD 或网络。
+UsageInitialize()
+OnExit("UsageExit")
+SetTimer, UsageFlushTimer, 2000
+
 ; --- 3. 激活动态快捷键 ---
 UpdateHotkeys()
 
@@ -349,32 +354,38 @@ return
 ; 核心逻辑标签 (集成 OSD)
 ; =======================================================
 Label_GoToDef:
+    UsageHit("GoToDef")
     ShowOSD("Back To Edit Point")
     Send ^b
 return
 
 Label_ShiftF2:
+    UsageHit("ShiftF2")
     ShowOSD("Previous Bookmark")
     Send +{F2}
 return
 
 Label_AltF:
+    UsageHit("AltF")
     ; frames3 一轮为 44×30ms，提示稍长于一轮，确保末尾画面也能看到。
     ShowOSD("Find in Files", 1500, "atri3")
     Send !tn
 return
 
 Label_CtrlW:
+    UsageHit("CtrlW")
     ShowOSD("Close Window")
     Send !fc  ; 恢复为 Kedit 的关闭窗口菜单指令 (File -> Close)
 return
 
 Label_AltA:  ; <--- 新增 Alt+A 逻辑标签
+    UsageHit("AltA")
     ShowOSD("Action: Alt+F+A")
     Send !fa
 return
 
 Label_FindClipboard:
+    UsageHit("FindClipboard")
     ShowOSD("Find Clipboard Text")
     SendInput, ^f
     Sleep, 10
@@ -393,6 +404,7 @@ Label_InsertFlowNode:
         return
     }
     InsertFlowBusy := true
+    UsageToken_InsertFlowNode := UsageHit("InsertFlowNode")
     SetTimer, ProcessInsertFlowNode, -1
 return
 
@@ -478,6 +490,7 @@ SetFlowClipboard(ByRef Value) {
 }
 
 InsertFlowAtCaret() {
+    global UsageToken_InsertFlowNode
     if (!WinActive("ahk_exe kedit.exe")) {
         FlowInsertTrace("aborted: Kedit not active")
         ShowOSD("FLOW 插入取消：Kedit 已失去焦点", 2000)
@@ -538,6 +551,7 @@ InsertFlowAtCaret() {
         SetFlowClipboard(Prefix . Result)
         SendInput, ^v
         Sleep, 200
+    UsageHit("InsertFlowNode", true, UsageToken_InsertFlowNode)
         ShowOSD("已插入节点: " . Name)
     } finally {
         try {
@@ -557,6 +571,7 @@ Label_RenumberBins:
     }
 
     IsRenumberBinsBusy := true
+    UsageToken_RenumberBins := UsageHit("RenumberBins")
     SetTimer, ProcessRenumberBins, -1
 return
 
@@ -609,6 +624,7 @@ ProcessRenumberBins:
     BlockInput, Off
 
     SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+    UsageHit("RenumberBins", true, UsageToken_RenumberBins)
     ShowOSD("FLOW Bin 编号: " . RenumberBins_TabCount . " 处")
     SetTimer, RestoreRenumberBinsClipboard, -150
 return
@@ -664,6 +680,7 @@ Label_SpacesToTabs:
     }
 
     IsSpacesToTabsBusy := true
+    UsageToken_SpacesToTabs := UsageHit("SpacesToTabs")
     SetTimer, ProcessSpacesToTabs, -1
 return
 
@@ -706,6 +723,7 @@ ProcessSpacesToTabs:
     BlockInput, Off
 
     SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+    UsageHit("SpacesToTabs", true, UsageToken_SpacesToTabs)
     ShowOSD("缩进整理: " . SpacesToTabs_LineCount . " 行 / " . SpacesToTabs_TabCount . " 个 Tab")
     SetTimer, RestoreSpacesToTabsClipboard, -150
 return
@@ -801,6 +819,7 @@ PetOwnsMiddleButton() {
 }
 
 Label_SmartClick:
+    UsageHit("SmartClick")
     ; =======================================================
     ; 【极速模式】BlockInput + 强制逻辑释放
     ; =======================================================
@@ -894,6 +913,7 @@ RegisterSmartClickBurst(CurrentTick, RequiredClicks := 4, WindowMs := 6000) {
 ; 普通选择模拟列块插入 (完美修复 Tab 制表符对齐错位问题)
 ; =======================================================
 Label_ColumnInsert:
+    UsageHit("ColumnInsert")
     ; --- 🔧 关键配置：你的编辑器一个 Tab(制表符) 占用几个空格的宽度？ ---
     ; 绝大多数现代 IDE 是 4，部分老牌编辑器(如纯正的Kedit)可能是 8。
     ; 如果还是有轻微错位，请把这里改成 8。
@@ -1033,6 +1053,7 @@ Label_ToggleComment:
     }
 
     IsToggleBusy := true
+    UsageToken_ToggleComment := UsageHit("ToggleComment")
 
     ; ★ 架构级防御：使用异步定时器剥离“热键生命周期”
     SetTimer, ProcessCommentToggle, -1
@@ -1239,6 +1260,7 @@ Label_VS_DefinitionAction:
             return
     }
 
+    UsageHit("VS_Peek")
     ShowOSD(VSDefinitionAction = "GoTo" ? "VS: Go To Definition" : "VS: Peek Definition")
     ; 1. 先发送左键点击，将光标定位到鼠标指向的单词上
     SendInput {LButton}
@@ -1261,18 +1283,21 @@ VS_IsCodeEditorAtMouse() {
 }
 
 Label_VS_NavigateBack:
+    UsageHit("VS_Back")
     ShowOSD("VS: Navigate Back")
     ; 发送 Ctrl + -(减号)
     SendInput ^-
 return
 
 Label_VS_SendCtrlB:
+    UsageHit("VS_Build")
     ShowOSD("VS: Send Ctrl+B")
     ; 发送 Ctrl + B (触发 VS 原生的生成或其他功能)
     SendInput ^b
 return
 
 Label_VS_BookmarkToggle:
+    UsageHit("VS_BookmarkToggle")
     ShowOSD("VS: Toggle Bookmark")
     SendInput ^k
     Sleep, 50
@@ -1280,6 +1305,7 @@ Label_VS_BookmarkToggle:
 return
 
 Label_VS_BookmarkNext:
+    UsageHit("VS_BookmarkNext")
     ShowOSD("VS: Next Bookmark")
     SendInput ^k
     Sleep, 50
@@ -1287,6 +1313,7 @@ Label_VS_BookmarkNext:
 return
 
 Label_VS_BookmarkPrevious:
+    UsageHit("VS_BookmarkPrevious")
     ShowOSD("VS: Previous Bookmark")
     SendInput ^k
     Sleep, 50
@@ -1294,6 +1321,7 @@ Label_VS_BookmarkPrevious:
 return
 
 Label_VS_BookmarkClear:
+    UsageHit("VS_BookmarkClear")
     ShowOSD("VS: Clear Bookmarks")
     SendInput ^k
     Sleep, 50
@@ -1301,6 +1329,7 @@ Label_VS_BookmarkClear:
 return
 
 Label_VS_Redo:
+    UsageHit("VS_Redo")
     ShowOSD("VS: Redo")
     SendInput ^+z
 return
@@ -1310,6 +1339,7 @@ Label_VS_ToggleComment:
     if (VSCommentBusy)
         return
     VSCommentBusy := true
+    UsageToken_VS_ToggleComment := UsageHit("VS_ToggleComment")
 
     VSComment_ClipSaved := ClipboardAll
     Clipboard := ""
@@ -1383,7 +1413,7 @@ UpdateHotkeys() {
     HotkeyState := HotkeysSuspended ? "Off" : "On"
     ; --- [新增代码] 第一组：全局快捷键 ---
     Hotkey, IfWinActive
-    Hotkey, Pause, ToggleManagedHotkeys, On
+    Hotkey, Pause, Label_UsagePause, On
     try {
         ; 注册 Ctrl+Q (快速打开目录)
         SetCompatibleHotkey(Key_CtrlQ, "Label_CtrlQ", HotkeyState)
@@ -1401,7 +1431,7 @@ UpdateHotkeys() {
         SetCompatibleHotkey(Key_AltA, "Label_AltA", HotkeyState)
         SetCompatibleHotkey(Key_ColumnInsert, "Label_ColumnInsert", HotkeyState)
         SetCompatibleHotkey(Key_SmartClick, "Label_SmartClick", HotkeyState)
-        SetCompatibleHotkey(Key_ToggleComment, "ProcessCommentToggle", HotkeyState)
+        SetCompatibleHotkey(Key_ToggleComment, "Label_ToggleComment", HotkeyState)
         SetCompatibleHotkey(Key_SpacesToTabs, "Label_SpacesToTabs", HotkeyState)
         SetCompatibleHotkey(Key_InsertFlowNode, "Label_InsertFlowNode", HotkeyState)
         FlowInsertTrace("registered key=" . Key_InsertFlowNode . "; state=" . HotkeyState)
@@ -1468,6 +1498,7 @@ return
 ; Ctrl+Q 快速打开逻辑 (支持文件和文件夹)
 ; =======================================================
 Label_CtrlQ:
+    UsageHit("CtrlQ")
     ; 1. 获取路径属性，检查是否存在
     PathAttr := FileExist(Path_QuickOpen)
 
@@ -2484,7 +2515,7 @@ SaveFindClipboardFromConsole(NewKey) {
 
 SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     global
-    Labels := {InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_BookmarkClear:"Label_VS_BookmarkClear", VS_Redo:"Label_VS_Redo"}
+    Labels := {InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"Label_ToggleComment", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_BookmarkClear:"Label_VS_BookmarkClear", VS_Redo:"Label_VS_Redo"}
     if (!Labels.HasKey(KeyName))
         return 0
     TargetLabel := Labels[KeyName]
@@ -3254,6 +3285,7 @@ return
 ; 资源管理器 - 运行 Python 脚本逻辑
 ; =======================================================
 Label_RunPy:
+    UsageHit("RunPy")
     ; 1. 获取选中文件路径
     Clipboard := ""
     Send, ^c
@@ -3780,3 +3812,126 @@ CloseOwnedConsole(Reason, Code) {
     }
     return 0
 }
+
+
+; ===== Local usage statistics v1: aggregate only, never source/clipboard data =====
+UsageFlushTimer:
+    UsageFlush()
+return
+
+UsageInitialize() {
+    global UsageDirectory, UsageGeneration, UsageRows, UsageFile, UsageDirty
+    UsageDirectory := A_AppData . "\Kedit\Usage"
+    UsageRows := {}
+    UsageGeneration := ""
+    UsageDirty := false
+    UsageFile := DllCall("GetCurrentProcessId") . "-" . A_Now . "-" . A_TickCount
+    try {
+        FileCreateDir, %UsageDirectory%
+        ; CREATE_NEW prevents concurrent readers from overwriting the generation.
+        GenFile := UsageDirectory . "\generation.txt"
+        Handle := DllCall("CreateFile", "Str", GenFile, "UInt", 0x40000000, "UInt", 7, "Ptr", 0, "UInt", 1, "UInt", 0x80, "Ptr", 0, "Ptr")
+        if (Handle != -1) {
+            Data := A_Now . "_" . UsageFile
+            VarSetCapacity(Bytes, StrPut(Data, "UTF-8"))
+            Count := StrPut(Data, &Bytes, "UTF-8") - 1
+            DllCall("WriteFile", "Ptr", Handle, "Ptr", &Bytes, "UInt", Count, "UIntP", Written, "Ptr", 0)
+            DllCall("CloseHandle", "Ptr", Handle)
+        }
+        UsageCheckGeneration()
+    } catch e {
+        ; Statistics must never interrupt a shortcut.
+    }
+}
+
+UsageCheckGeneration() {
+    global UsageDirectory, UsageGeneration, UsageRows, UsageDirty
+    FileRead, Generation, %UsageDirectory%\generation.txt
+    Generation := Trim(Generation, "`r`n `t")
+    if (!RegExMatch(Generation, "^[0-9]{14}_[A-Za-z0-9-]+$"))
+        return false
+    if (Generation != UsageGeneration) {
+        UsageGeneration := Generation
+        UsageRows := {}
+        UsageDirty := true
+    }
+    return true
+}
+
+UsageHit(Id, Success := false, Token := "") {
+    global UsageGeneration, UsageRows, UsageDirty
+    WasCritical := A_IsCritical
+    Critical
+    try {
+        if (!UsageCheckGeneration())
+            return ""
+        if (Success) {
+            Parts := StrSplit(Token, ":")
+            if (Parts[1] != UsageGeneration || !UsageRows.HasKey(Parts[2]))
+                return ""
+            Row := UsageRows[Parts[2]]
+            if (Row.Success < Row.Count)
+                Row.Success++
+        } else {
+            Local := A_Now
+            Offset := Local
+            EnvSub, Offset, %A_NowUTC%, Minutes
+            Bucket := SubStr(Local, 1, 10) . "|" . Id . "|" . Offset
+            if (!UsageRows.HasKey(Bucket))
+                UsageRows[Bucket] := {Count:0, Success:0}
+            UsageRows[Bucket].Count++
+            Token := UsageGeneration . ":" . Bucket
+        }
+        UsageDirty := true
+        return Token
+    } catch e {
+        return ""
+    } finally {
+        if (WasCritical)
+            Critical, %WasCritical%
+        else
+            Critical, Off
+    }
+}
+
+UsageFlush() {
+    global UsageDirectory, UsageGeneration, UsageRows, UsageFile, UsageDirty
+    WasCritical := A_IsCritical
+    Critical
+    try {
+        if (!UsageCheckGeneration() || !UsageDirty)
+            return
+        Text := "KEDIT_USAGE_V1|" . UsageGeneration . "`n"
+        for Bucket, Row in UsageRows
+            Text .= Bucket . "|" . Row.Count . "|" . Row.Success . "`n"
+        File := UsageDirectory . "\" . UsageGeneration . "_" . UsageFile . ".tsv"
+        Temp := File . ".tmp"
+        Stream := FileOpen(Temp, "w", "UTF-8-RAW")
+        if (!IsObject(Stream))
+            return
+        Stream.Write(Text)
+        DllCall("FlushFileBuffers", "Ptr", Stream.__Handle)
+        Stream.Close()
+        if (FileExist(File))
+            FileCopy, %File%, %File%.bak, 1
+        if (DllCall("MoveFileEx", "Str", Temp, "Str", File, "UInt", 9))
+            UsageDirty := false
+    } catch e {
+        ; Keep dirty data in memory and retry on next timer.
+    } finally {
+        if (WasCritical)
+            Critical, %WasCritical%
+        else
+            Critical, Off
+    }
+}
+
+UsageExit(Reason, Code) {
+    UsageFlush()
+    return 0
+}
+
+Label_UsagePause:
+    UsageHit("Pause")
+    Gosub, ToggleManagedHotkeys
+return

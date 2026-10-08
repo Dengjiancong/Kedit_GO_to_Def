@@ -113,6 +113,7 @@ Label_AltF:
 Label_CtrlW:
 Label_AltA:
 Label_ColumnInsert:
+Label_ToggleComment:
 ProcessCommentToggle:
 Label_SpacesToTabs:
 Label_InsertFlowNode:
@@ -183,6 +184,7 @@ Label_AltF:
 Label_CtrlW:
 Label_AltA:
 Label_ColumnInsert:
+Label_ToggleComment:
 ProcessCommentToggle:
 Label_SpacesToTabs:
 Label_InsertFlowNode:
