@@ -162,7 +162,7 @@ namespace Kedit.Console {
             Action unlock=()=>{if(password.Password=="QWEASD"){adminUnlocked=true;debugTools.Visibility=Visibility.Visible;mediaInfo.Visibility=Visibility.Visible;RestoreMediaProject();dialog.DialogResult=true;}else {error.Text="密码不正确，请重试";password.Clear();password.Focus();}};
             layout.Children.Add(Button("解锁",unlock,true));password.KeyDown+=delegate(object sender,System.Windows.Input.KeyEventArgs e){if(e.Key==System.Windows.Input.Key.Enter){unlock();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape)dialog.Close();};dialog.Loaded+=delegate{password.Focus();};dialog.ShowDialog();
         }
-        string TileKey(string name){return name=="avatar"?"avatar":name=="Kedit"?"kedit":name.StartsWith("Visual")?"vs":name=="桌宠OSD"?"pet":name=="更新"?"update":"other";}
+        string TileKey(string name){return name=="avatar"?"avatar":name=="Kedit"?"kedit":name.StartsWith("Visual")?"vs":name=="桌宠OSD"?"pet":name=="更新"?"update":name=="使用统计"?"usage":"other";}
         readonly System.Collections.Generic.Dictionary<string,object> tileDefaults=new System.Collections.Generic.Dictionary<string,object>();
         string TileFile(string name){
             if(adminUnlocked){if(pageMedia.ProjectDirectory==null)return null;return name=="avatar"?Path.Combine(pageMedia.ProjectDirectory,"photo","default_logo.png"):Path.Combine(pageMedia.ProjectDirectory,"Kedit.Console","PreviewAssets",TileKey(name)+".png");}
