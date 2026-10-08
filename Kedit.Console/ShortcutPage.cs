@@ -22,7 +22,8 @@ namespace Kedit.Console {
             new KeditShortcut("ColumnInsert","列填入数据","!i","对列选择区域批量填入数据。","column-insert","▥"),
             new KeditShortcut("ToggleComment","注释 / 取消注释","^/","智能切换所选代码的注释状态。","toggle-comment","/"),
             new KeditShortcut("SpacesToTabs","行首空格转 Tab","^\\","按 4 列制表位整理所选文本的行首缩进，保持正文视觉位置。","spaces-to-tabs","⇥"),
-            new KeditShortcut("SmartClick","智能点击 / 跳转定义","~MButton","执行原有智能点击功能。鼠标键建议保留 ~ 前缀，例如 ~MButton，以保留原按键功能。","smart-click","◎")
+            new KeditShortcut("SmartClick","智能点击 / 跳转定义","~MButton","执行原有智能点击功能。鼠标键建议保留 ~ 前缀，例如 ~MButton，以保留原按键功能。","smart-click","◎"),
+            new KeditShortcut("RenumberBins","FLOW Bin 递增编号","!+b","仅处理选区中分号前的 Bin 数字；每个 FLOW 从 Bin4 开始。保留逗号前的 Bin、空白与注释。","renumber-bins","#")
         };
         static readonly KeditShortcut[] vsShortcuts={
             new KeditShortcut("VS_Peek","跳转 / 预览定义","MButton","选择 F12 跳转或 Alt+F12 预览；默认中键保留原窗口识别逻辑。","vs-definition","↗"),

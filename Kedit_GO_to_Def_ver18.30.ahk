@@ -37,6 +37,7 @@ IniRead, Key_AltA,       %IniFile%, Hotkeys, AltA,       !a  ; <--- 新增 Alt+A
 IniRead, Key_ColumnInsert, %IniFile%, Hotkeys, ColumnInsert, !i  ; [新增代码] --- 列选择批量填入
 IniRead, Key_ToggleComment, %IniFile%, Hotkeys, ToggleComment, ^/	; [新增代码] --- 注释/取消注释 (单键切换)
 IniRead, Key_SpacesToTabs, %IniFile%, Hotkeys, SpacesToTabs, ^\ ; 行首每 4 个空格转换为 1 个 Tab
+IniRead, Key_RenumberBins, %IniFile%, Hotkeys, RenumberBins, !+b
 IniRead, Key_FindClipboard, %IniFile%, Hotkeys, FindClipboard, F1 ; 查找剪贴板内容
 
 ; [新增代码] --- Visual Studio 专用快捷键设置
@@ -94,6 +95,7 @@ AddKeditMenu("AltA", "设置: 默认 Alt+A (另存为)")
 AddKeditMenu("ColumnInsert", "设置: 默认 Alt+I (列填入数据)")
 AddKeditMenu("ToggleComment", "设置: 默认 Ctrl+/ (注释/取消注释)")
 AddKeditMenu("SpacesToTabs", "设置: 默认 Ctrl+\ (行首空格转 Tab)")
+AddKeditMenu("RenumberBins", "设置: FLOW Bin 递增编号 (默认 Alt+Shift+B)")
 AddKeditMenu("FindClipboard", "设置: 查找剪贴板内容")
 AddKeditMenu("SmartClick", "设置: 默认 中键 (跳转至定义)")
 
@@ -274,6 +276,7 @@ RestoreDefaults:
         SetCompatibleHotkey(Key_ColumnInsert, "", "Off")
         SetCompatibleHotkey(Key_ToggleComment, "", "Off")
         SetCompatibleHotkey(Key_SpacesToTabs, "", "Off")
+        SetCompatibleHotkey(Key_RenumberBins, "", "Off")
         SetCompatibleHotkey(Key_FindClipboard, "", "Off")
     }
 
@@ -300,6 +303,7 @@ RestoreDefaults:
     Key_RunPy      := "F8"
     Key_ToggleComment := "^/"  ; <--- 恢复默认值
     Key_SpacesToTabs := "^\"
+    Key_RenumberBins := "!+b"
     Key_FindClipboard := "F1"
     Key_VS_ToggleComment := "^/"
     Key_VS_BookmarkToggle := "^F2"
@@ -318,6 +322,7 @@ RestoreDefaults:
     IniWrite, %Key_RunPy%,      %IniFile%, Hotkeys, RunPy
     IniWrite, %Key_ToggleComment%, %IniFile%, Hotkeys, ToggleComment ; <--- 写入 INI
     IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
+    IniWrite, %Key_RenumberBins%, %IniFile%, Hotkeys, RenumberBins
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
     IniWrite, %Key_VS_ToggleComment%, %IniFile%, Hotkeys, VS_ToggleComment
     IniWrite, %Key_VS_BookmarkToggle%, %IniFile%, Hotkeys, VS_BookmarkToggle
@@ -371,6 +376,113 @@ return
 ; =======================================================
 ; 按 4 列制表位整理所选文本的行首缩进，并保持正文的视觉列不变
 ; =======================================================
+Label_RenumberBins:
+    if (IsRenumberBinsBusy) {
+        ShowOSD("正在转换缩进，请稍候...")
+        return
+    }
+
+    IsRenumberBinsBusy := true
+    SetTimer, ProcessRenumberBins, -1
+return
+
+ProcessRenumberBins:
+    ; 从热键线程中剥离后释放修饰键，避免 Ctrl 处于按下状态干扰复制/粘贴。
+    SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+
+    if (!WinActive("ahk_exe kedit.exe")) {
+        IsRenumberBinsBusy := false
+        return
+    }
+    RenumberBins_Window := WinExist("A")
+    RenumberBins_ClipSaved := ClipboardAll
+    Clipboard := ""
+
+    BlockInput, On
+    SendInput, ^c
+    BlockInput, Off
+
+    SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+    ClipWait, 2.0
+    if (ErrorLevel) {
+        Clipboard := RenumberBins_ClipSaved
+        IsRenumberBinsBusy := false
+        ShowOSD("未选中文本或复制超时")
+        return
+    }
+
+    RenumberBins_Source := Clipboard
+    RenumberBins_Result := RenumberFlowBins(RenumberBins_Source, RenumberBins_TabCount)
+
+    if (RenumberBins_TabCount = 0) {
+        Clipboard := RenumberBins_ClipSaved
+        IsRenumberBinsBusy := false
+        ShowOSD("没有需要重新编号的 Bin")
+        return
+    }
+
+    if (!WinActive("ahk_id " . RenumberBins_Window)) {
+        Clipboard := RenumberBins_ClipSaved
+        IsRenumberBinsBusy := false
+        return
+    }
+    Clipboard := RenumberBins_Result
+    Sleep, 30
+
+    BlockInput, On
+    SendInput, ^v
+    Sleep, 120
+    BlockInput, Off
+
+    SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
+    ShowOSD("FLOW Bin 编号: " . RenumberBins_TabCount . " 处")
+    SetTimer, RestoreRenumberBinsClipboard, -150
+return
+
+RestoreRenumberBinsClipboard:
+    ; 若用户在后台恢复前主动复制了其他内容，则保留用户的新剪贴板。
+    if (Clipboard = RenumberBins_Result)
+        Clipboard := RenumberBins_ClipSaved
+    RenumberBins_ClipSaved := ""
+    IsRenumberBinsBusy := false
+return
+
+
+RenumberFlowBins(Text, ByRef Changed) {
+    Changed := 0
+    ; Mask comments and quoted strings without changing character offsets/newlines.
+    Mask := Text
+    Pattern := "s)/\*.*?(?:\*/|$)|//[^\r\n]*|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])*'"
+    Pos := 1
+    while (Found := RegExMatch(Mask, Pattern, Token, Pos)) {
+        Blank := RegExReplace(Token, "[^\r\n]", " ")
+        Mask := SubStr(Mask, 1, Found-1) . Blank . SubStr(Mask, Found+StrLen(Token))
+        Pos := Found+StrLen(Token)
+    }
+    Next := 4, Offset := 1, Result := ""
+    Loop, Parse, Mask, `n
+    {
+        Line := A_LoopField
+        Original := SubStr(Text, Offset, StrLen(Line))
+        if (RegExMatch(Line, "^\s*FLOW\b"))
+            Next := 4
+        if (RegExMatch(Line, "O)\bBin([0-9]+)(?=[ \t]*;[ \t\r]*$)", Match)) {
+            Value := Next++
+            if (Match.Value(1) != "" . Value) {
+                Original := SubStr(Original,1,Match.Pos(1)-1) . Value . SubStr(Original,Match.Pos(1)+Match.Len(1))
+                Changed++
+            }
+        }
+        Result .= Original
+        Offset += StrLen(Line)
+        if (Offset <= StrLen(Text)) {
+            Result .= "`n"
+            Offset++
+        }
+    }
+    return Result
+}
+
 Label_SpacesToTabs:
     if (IsSpacesToTabsBusy) {
         ShowOSD("正在转换缩进，请稍候...")
@@ -1110,6 +1222,7 @@ UpdateHotkeys() {
         SetCompatibleHotkey(Key_SmartClick, "Label_SmartClick", HotkeyState)
         SetCompatibleHotkey(Key_ToggleComment, "ProcessCommentToggle", HotkeyState)
         SetCompatibleHotkey(Key_SpacesToTabs, "Label_SpacesToTabs", HotkeyState)
+        SetCompatibleHotkey(Key_RenumberBins, "Label_RenumberBins", HotkeyState)
         SetCompatibleHotkey(Key_FindClipboard, "Label_FindClipboard", HotkeyState)
     } catch e {
         MsgBox, 16, 错误, 加载快捷键失败。
@@ -1242,6 +1355,11 @@ return
 
 SetKey_SpacesToTabs:
     ConsoleKeditPage := 9
+    Gosub, OpenConsoleRoute
+return
+
+SetKey_RenumberBins:
+    ConsoleKeditPage := 11
     Gosub, OpenConsoleRoute
 return
 
@@ -2110,7 +2228,7 @@ RefreshKeditMenus() {
     global
     if (!IsObject(KeditMenuLabels))
         return
-    Titles := {FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_Redo:"VS 重做"}
+    Titles := {RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_Redo:"VS 重做"}
     for Name, OldCaption in KeditMenuLabels {
         Caption := "设置: " . (Titles.HasKey(Name)?Titles[Name]:KeditMenuTitles[Name]) . " (" . Key_%Name% . ")"
         Menu, Tray, Rename, %OldCaption%, %Caption%
@@ -2172,7 +2290,7 @@ SaveFindClipboardFromConsole(NewKey) {
 
 SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     global
-    Labels := {FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_Redo:"Label_VS_Redo"}
+    Labels := {RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"ProcessCommentToggle", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_Redo:"Label_VS_Redo"}
     if (!Labels.HasKey(KeyName))
         return 0
     TargetLabel := Labels[KeyName]
@@ -2187,7 +2305,7 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
         return 2
     if (Identity = "reserved")
         return 3
-    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "CtrlQ"]) {
+    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "CtrlQ"]) {
         if (Name = KeyName)
             continue
         if (NormalizeConsoleHotkey(Key_%Name%) = Identity

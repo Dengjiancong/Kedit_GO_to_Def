@@ -23,7 +23,7 @@ Menu, Tray, Add, %FindClipboardMenu%, Label_FindClipboard
 Hotkey, IfWinActive, ahk_exe kedit.exe
 Hotkey, F1, Label_FindClipboard, On
 
-for Name, Value in {ShiftF2:"XButton2", AltF:"!f", CtrlW:"^w", AltA:"!a", ColumnInsert:"!i", ToggleComment:"^/", SpacesToTabs:"^\", SmartClick:"~MButton"} {
+for Name, Value in {RenumberBins:"!+b", ShiftF2:"XButton2", AltF:"!f", CtrlW:"^w", AltA:"!a", ColumnInsert:"!i", ToggleComment:"^/", SpacesToTabs:"^\", SmartClick:"~MButton"} {
     Key_%Name% := Value
     Action := Name = "ToggleComment" ? "ProcessCommentToggle" : "Label_" . Name
     Hotkey, %Value%, %Action%, On
@@ -58,7 +58,7 @@ AddKeditMenu("VS_Redo","VS_Redo")
 Hotkey, IfWinActive
 Hotkey, $MButton, Label_VS_DefinitionAction, On
 
-for _, Name in ["FindClipboard", "GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "ToggleComment", "SpacesToTabs", "SmartClick"]
+for _, Name in ["FindClipboard", "GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "ToggleComment", "SpacesToTabs", "SmartClick", "RenumberBins"]
     AddKeditMenu(Name, Name)
 
 Check(SaveFindClipboardFromConsole("^F8") = 1, "valid save")
@@ -86,6 +86,7 @@ Check(Key_FindClipboard = "+F9", "write failure preserves active value")
 IniFile := OriginalIni
 FileAppend, PASS: F1 transaction and validation`n, result.txt
 ExitApp
+SetKey_RenumberBins:
 SetKey_FindClipboard:
 SetKey_GoToDef:
 SetKey_ShiftF2:
@@ -104,6 +105,7 @@ Label_AltA:
 Label_ColumnInsert:
 ProcessCommentToggle:
 Label_SpacesToTabs:
+Label_RenumberBins:
 Label_SmartClick:
 Label_VS_DefinitionAction:
 Label_VS_NavigateBack:
@@ -150,6 +152,7 @@ SetTimer, StopFixture, -50000
 return
 StopFixture:
 ExitApp
+SetKey_RenumberBins:
 SetKey_FindClipboard:
 SetKey_GoToDef:
 SetKey_ShiftF2:
@@ -168,6 +171,7 @@ Label_AltA:
 Label_ColumnInsert:
 ProcessCommentToggle:
 Label_SpacesToTabs:
+Label_RenumberBins:
 Label_SmartClick:
 Label_VS_DefinitionAction:
 Label_VS_NavigateBack:
