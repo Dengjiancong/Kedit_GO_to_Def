@@ -81,6 +81,7 @@ Global SilentUpdateCheck := false
 Global UpdateCheckSilent := false
 Global ConsoleStateAttempts := 0
 OnMessage(0x4A, "ReceiveConsoleCommand")
+OnExit("CloseOwnedConsole")
 SetTimer, PollConsoleCommand, 500
 
 ; --- 2. 设置托盘菜单 ---
@@ -3445,3 +3446,19 @@ AboutGuiGuiClose:
     Gosub, KillAllMpv
     Gui, AboutGui:Destroy
 return
+
+CloseOwnedConsole(Reason, Code) {
+    Console := DllCall("FindWindow", "Ptr", 0, "Str", "Kedit 中控", "Ptr")
+    if (!Console)
+        return 0
+    ; A synchronous handshake lets the user resolve unsaved edits before exit/reload.
+    Result := DllCall("SendMessage", "Ptr", Console, "UInt", 0x8003, "Ptr", A_ScriptHwnd, "Ptr", 0, "Ptr")
+    if (Result = 0)
+        return 1
+    if (Result = 1) {
+        WinGet, ConsolePid, PID, ahk_id %Console%
+        if (ConsolePid)
+            Process, WaitClose, %ConsolePid%, 5
+    }
+    return 0
+}

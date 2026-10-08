@@ -311,6 +311,7 @@ namespace Kedit.Console
         private IntPtr ConsoleMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             if (msg == 0x8001) { Pet.Notify(wParam.ToInt32()); handled = true; }
+            if(msg==0x8003){handled=true;return new IntPtr(((App)Application.Current).RequestOwnerExit(wParam));}
             if (msg == 0x8002) { ((App)Application.Current).ShowConsole(lParam.ToInt32(),wParam); handled = true; }
             return IntPtr.Zero;
         }
