@@ -283,7 +283,7 @@ namespace Kedit.Console
             if (!applyingState && OsdToggle.IsEnabled) SendCommandToAhk("set_osd=" + (OsdToggle.IsChecked == true ? "1" : "0"));
         }
 
-        private bool SendCommandToAhk(string command)
+        internal bool SendCommandToAhk(string command)
         {
             try
             {

@@ -12,6 +12,7 @@
         var items=new List<Microsoft.Build.Framework.ITaskItem>();var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var first=new TaskItem(manifest);first.SetMetadata("LogicalName","PageMedia/pages.json");items.Add(first);
         try {
+          var framing=Path.Combine(directory,"framing.json");if(File.Exists(framing)){var views=new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<Dictionary<string,Dictionary<string,double>>>(File.ReadAllText(framing));foreach(var view in views){var v=view.Value;if(!v.ContainsKey("Zoom")||!v.ContainsKey("X")||!v.ContainsKey("Y")||double.IsNaN(v["Zoom"])||double.IsNaN(v["X"])||double.IsNaN(v["Y"])||v["Zoom"]<1||v["Zoom"]>4||v["X"]<0||v["X"]>1||v["Y"]<0||v["Y"]>1)throw new Exception("Invalid framing: "+view.Key);}var asset=new TaskItem(framing);asset.SetMetadata("LogicalName","PageMedia/framing.json");items.Add(asset);}
           var map=new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<Dictionary<string,string>>(File.ReadAllText(manifest));
           foreach(var pair in map){
             string file=pair.Value;var path=Path.Combine(directory,file??"");
@@ -22,7 +23,8 @@
               using(var stream=File.OpenRead(path)){
                 if(ext==".gif") {var gif=new System.Windows.Media.Imaging.GifBitmapDecoder(stream,System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);if(gif.Frames.Count==0)throw new Exception("empty GIF");foreach(var frame in gif.Frames){int stride=(frame.PixelWidth*frame.Format.BitsPerPixel+7)/8;frame.CopyPixels(new byte[stride*frame.PixelHeight],stride,0);}}
                 else if(ext==".mp4") {bool ftyp=false,moov=false,mdat=false;var reader=new BinaryReader(stream);while(stream.Position<stream.Length){long start=stream.Position;if(stream.Length-start<8)throw new Exception("truncated MP4 atom");byte[] size=reader.ReadBytes(4);long length=((long)size[0]<<24)|((long)size[1]<<16)|((long)size[2]<<8)|size[3];string type=System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));int header=8;if(length==1){length=0;for(int i=0;i<8;i++)length=(length<<8)|reader.ReadByte();header=16;}if(length==0)length=stream.Length-start;if(length<header||length>stream.Length-start)throw new Exception("invalid MP4 atom length");ftyp|=type=="ftyp";moov|=type=="moov";mdat|=type=="mdat"&&length>header;stream.Position=start+length;}if(!ftyp||!moov||!mdat)throw new Exception("missing MP4 data/index");}
-                else throw new Exception("only MP4/GIF supported");
+                else if(ext==".png"||ext==".jpg"||ext==".jpeg"){var image=System.Windows.Media.Imaging.BitmapDecoder.Create(stream,System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];int stride=(image.PixelWidth*image.Format.BitsPerPixel+7)/8;image.CopyPixels(new byte[stride*image.PixelHeight],stride,0);}
+                else throw new Exception("only MP4/GIF/PNG/JPG/JPEG supported");
               }
               var item=new TaskItem(path);item.SetMetadata("LogicalName","PageMedia/"+file);items.Add(item);
             }catch(Exception ex){Log.LogError("Page "+pair.Key+" / "+file+": "+ex.Message);}

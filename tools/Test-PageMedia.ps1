@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $fixture=Join-Path $root '.pet-test\page-media'
 $project=Join-Path $fixture 'Kedit.Console'
@@ -6,8 +6,11 @@ New-Item -ItemType Directory -Force $project,(Join-Path $fixture 'mp4'),(Join-Pa
 $gif=[Convert]::FromBase64String('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
 [IO.File]::WriteAllBytes((Join-Path $fixture 'mp4\tiny.gif'),$gif)
 [IO.File]::WriteAllBytes((Join-Path $fixture 'external\tiny.gif'),$gif)
+$png=[Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
+[IO.File]::WriteAllBytes((Join-Path $fixture 'mp4\still.png'),$png)
 $manifest=Join-Path $fixture 'mp4\pages.json'
-[IO.File]::WriteAllText($manifest,'{"home":"tiny.gif","pet.display":"tiny.gif"}')
+[IO.File]::WriteAllText($manifest,'{"home":"tiny.gif","pet.display":"tiny.gif","updates":"still.png"}')
+[IO.File]::WriteAllText((Join-Path $fixture 'mp4\framing.json'),' {"home":{"Zoom":2,"X":0.2,"Y":0.8}}')
 $source=[Security.SecurityElement]::Escape((Join-Path $root 'Kedit.Console\PageMedia.cs'))
 $targets=[Security.SecurityElement]::Escape((Join-Path $root 'Kedit.Console\PageMedia.targets'))
 $xml=@"
@@ -34,6 +37,10 @@ if(!$again.Has('vs.VS_Peek')){throw 'selection not persisted'}
 $again.Reset('vs.VS_Peek')
 if($again.Has('vs.VS_Peek') -or !$again.Has('home')){throw 'reset affected other pages'}
 $packed=$type.GetConstructor(@([string])).Invoke([object[]]@([string](Join-Path $fixture 'not-a-project')))
+$still=$packed.Resolve('updates','')
+if(!(Test-Path $still)){throw 'Static image extraction failed'}
+if($packed.GetFraming('home').Zoom -ne 2 -or $packed.GetFraming('home').X -ne 0.2){throw 'embedded framing mismatch'}
+if($packed.GetFraming('pet.display').Zoom -ne 1){throw 'legacy framing default failed'}
 $path=$packed.Resolve('home','')
 if(!(Test-Path $path) -or [Convert]::ToBase64String([IO.File]::ReadAllBytes($path)) -ne [Convert]::ToBase64String($gif)){throw 'embedded extraction failed'}
 [IO.File]::WriteAllText($manifest,'{"pet.follow":"missing.mp4"}')

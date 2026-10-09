@@ -39,7 +39,8 @@ namespace Kedit.Console {
    timer.Tick+=delegate{frame=(frame+1)%media.Frames.Count;Source=media.Frames[frame];timer.Interval=TimeSpan.FromMilliseconds(media.Delays[frame]);};
    Loaded+=delegate{window=Window.GetWindow(this);if(window!=null)window.StateChanged+=State;Update();};Unloaded+=delegate{timer.Stop();if(window!=null)window.StateChanged-=State;window=null;};IsVisibleChanged+=delegate{Update();};
   }
+  bool paused;internal bool Paused {get{return paused;}set{paused=value;Update();}}
   void State(object sender,EventArgs e){Update();}
-  void Update(){if(IsLoaded&&IsVisible&&window!=null&&window.WindowState!=WindowState.Minimized&&media.Frames.Count>1){timer.Interval=TimeSpan.FromMilliseconds(media.Delays[frame]);timer.Start();}else timer.Stop();}
+  void Update(){if(!paused&&IsLoaded&&IsVisible&&window!=null&&window.WindowState!=WindowState.Minimized&&media.Frames.Count>1){timer.Interval=TimeSpan.FromMilliseconds(media.Delays[frame]);timer.Start();}else timer.Stop();}
  }
 }

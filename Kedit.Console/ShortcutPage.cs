@@ -62,6 +62,8 @@ namespace Kedit.Console {
             if(route>0 && route<=keditShortcuts.Length)SelectShortcut(route-1);else if(route>=101&&route<101+vsShortcuts.Length)SelectShortcut(route-101,true);else Navigate("首页");
         }
         void NavigateLive(string page){
+            panel.Margin=new Thickness(0,110,106,72);
+            if(updateCard!=null)updateCard.Visibility=Visibility.Collapsed;
             if(usagePanel!=null)usagePanel.Visibility=Visibility.Collapsed;
             if(settingsFile==null){settingsFile=Path.Combine(root,"Kedit_Settings.ini");var args=Environment.GetCommandLineArgs();long handle;if(args.Length>2&&long.TryParse(args[2],out handle))ahkWindow=new IntPtr(handle);for(int i=1;i+1<args.Length;i++)if(args[i]=="--settings")settingsFile=Path.GetFullPath(args[i+1]);}
             if(page=="Kedit"&&vsPage){vsPage=false;selectedShortcut=0;}else if(page.StartsWith("Visual")&&!vsPage){vsPage=true;selectedShortcut=0;}

@@ -50,7 +50,7 @@
     <Page Include="MainWindow.xaml" />
     <Compile Include="App.xaml.cs" />
     <Compile Include="DesignPreview.cs" />
-    <Compile Include="ShortcutPage.cs" /><Compile Include="UsageStatistics.cs" /><Compile Include="UsagePanel.cs" />
+    <Compile Include="ShortcutPage.cs" /><Compile Include="UpdatesPanel.cs" /><Compile Include="BackgroundFraming.cs" /><Compile Include="UsageStatistics.cs" /><Compile Include="UsagePanel.cs" />
     <Compile Include="PageMedia.cs" /><Compile Include="CloudContent.cs" /><Compile Include="CloudPanels.cs" />
     <Compile Include="PreviewCrop.cs" /><Compile Include="TileMedia.cs" />
     <Compile Include="MainWindow.xaml.cs" />

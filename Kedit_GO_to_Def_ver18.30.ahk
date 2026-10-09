@@ -2677,6 +2677,10 @@ ReceiveConsoleTextCommand(Command) {
     global EnableAutoUpdateCheck, EnableOSD, IniFile
         , Key_GoToDef, Key_VS_BookmarkToggle, Key_VS_BookmarkNext
         , Key_VS_BookmarkPrevious, Key_VS_BookmarkClear, Key_VS_Redo
+    if (Command = "check_updates") {
+        SetTimer, ConsoleCheckUpdates, -1
+        return
+    }
     AppendConsoleCommandLog("file received: " . Command)
     if (RegExMatch(Command, "^set_auto_update=(0|1)$", Match)) {
         EnableAutoUpdateCheck := Match1 + 0
@@ -3934,4 +3938,9 @@ UsageExit(Reason, Code) {
 Label_UsagePause:
     UsageHit("Pause")
     Gosub, ToggleManagedHotkeys
+return
+
+ConsoleCheckUpdates:
+    SilentUpdateCheck := false
+    Gosub, CheckForUpdate
 return

@@ -29,7 +29,7 @@ namespace Kedit.Console {
             return path;
         }
         public void Set(string page,string source){
-            RequireProject();string extension=Path.GetExtension(source).ToLowerInvariant();if(extension!=".mp4"&&extension!=".gif")throw new InvalidDataException("只支持 MP4 / GIF。");
+            RequireProject();string extension=Path.GetExtension(source).ToLowerInvariant();if(extension!=".mp4"&&extension!=".gif"&&extension!=".png"&&extension!=".jpg"&&extension!=".jpeg")throw new InvalidDataException("支持 MP4 / GIF / PNG / JPG / JPEG；WebP 请通过素材选择器导入转换。");
             string directory=Path.Combine(project,"mp4");Directory.CreateDirectory(directory);string full=Path.GetFullPath(source);string file=Path.GetFileName(full);
             if(!string.Equals(Path.GetDirectoryName(full),directory,StringComparison.OrdinalIgnoreCase)){
                 using(var hash=SHA256.Create())using(var input=File.OpenRead(full))file=Path.GetFileNameWithoutExtension(full)+"-"+BitConverter.ToString(hash.ComputeHash(input)).Replace("-","").Substring(0,12)+extension;
@@ -37,6 +37,14 @@ namespace Kedit.Console {
             }
             string old;bool existed=map.TryGetValue(page,out old);map[page]=file;try{Save();}catch{if(existed)map[page]=old;else map.Remove(page);throw;}
         }
+        public sealed class Framing {
+            public double Zoom {get;set;} public double X {get;set;} public double Y {get;set;}
+            public Framing(){Zoom=1;X=.5;Y=.5;}
+            public void Validate(){if(double.IsNaN(Zoom)||double.IsNaN(X)||double.IsNaN(Y)||Zoom<1||Zoom>4||X<0||X>1||Y<0||Y>1)throw new InvalidDataException("背景构图参数无效。");}
+        }
+        Dictionary<string,Framing> ReadFraming(){string json="{}";if(project!=null&&File.Exists(Path.Combine(project,"mp4","framing.json")))json=File.ReadAllText(Path.Combine(project,"mp4","framing.json"));else using(var stream=assembly.GetManifestResourceStream("PageMedia/framing.json"))if(stream!=null)using(var reader=new StreamReader(stream))json=reader.ReadToEnd();var result=new JavaScriptSerializer().Deserialize<Dictionary<string,Framing>>(json);foreach(var item in result.Values)item.Validate();return result;}
+        public Framing GetFraming(string page){Framing value;return ReadFraming().TryGetValue(page,out value)?value:new Framing();}
+        public void SetFraming(string page,Framing value){RequireProject();value.Validate();var map=ReadFraming();map[page]=value;string path=Path.Combine(project,"mp4","framing.json");Directory.CreateDirectory(Path.GetDirectoryName(path));string temp=path+".tmp";File.WriteAllText(temp,new JavaScriptSerializer().Serialize(map));if(File.Exists(path))File.Replace(temp,path,null);else File.Move(temp,path);}
         void RequireProject(){if(project==null)throw new InvalidOperationException("请先点击管理员区的“素材项目目录”，选择包含 Kedit.Console 的项目根目录。");}
         void Save(){string temporary=Manifest+".tmp";File.WriteAllText(temporary,new JavaScriptSerializer().Serialize(map));if(File.Exists(Manifest))File.Replace(temporary,Manifest,null);else File.Move(temporary,Manifest);}
         public void Reset(string page){RequireProject();string old;if(!map.TryGetValue(page,out old))return;map.Remove(page);try{Save();}catch{map[page]=old;throw;}}
