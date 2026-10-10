@@ -101,6 +101,10 @@ namespace Kedit.Console
         {
             PipeStatus.Text = "已连接 Kedit 主程序 · " + command;
             if (command != "get_state") return;
+            var state=new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<Dictionary<string,object>>(request);
+            object version,path,compiled;
+            if(state.TryGetValue("current_version",out version)&&state.TryGetValue("script_path",out path)&&state.TryGetValue("compiled",out compiled))
+                ((App)Application.Current).Updates.Configure(Convert.ToString(version),Convert.ToString(path),Convert.ToString(compiled)=="1");
             applyingState = true;
             AutoUpdateToggle.IsEnabled = true;
             OsdToggle.IsEnabled = true;
@@ -311,6 +315,7 @@ namespace Kedit.Console
 
         private IntPtr ConsoleMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
+            if(msg==0x8004){var app=(App)Application.Current;app.AttachOwner(wParam);if(lParam==IntPtr.Zero)app.ShowConsole(200,wParam);app.Updates.Check();handled=true;}
             if (msg == 0x8001) { Pet.Notify(wParam.ToInt32()); handled = true; }
             if(msg==0x8003){handled=true;return new IntPtr(((App)Application.Current).RequestOwnerExit(wParam));}
             if (msg == 0x8002) { ((App)Application.Current).ShowConsole(lParam.ToInt32(),wParam); handled = true; }

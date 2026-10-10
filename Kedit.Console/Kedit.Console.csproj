@@ -50,7 +50,7 @@
     <Page Include="MainWindow.xaml" />
     <Compile Include="App.xaml.cs" />
     <Compile Include="DesignPreview.cs" />
-    <Compile Include="ShortcutPage.cs" /><Compile Include="UpdatesPanel.cs" /><Compile Include="BackgroundFraming.cs" /><Compile Include="UsageStatistics.cs" /><Compile Include="UsagePanel.cs" />
+    <Compile Include="ShortcutPage.cs" /><Compile Include="UpdatesPanel.cs" /><Compile Include="UpdateService.cs" /><Compile Include="UpdateInstaller.cs" /><Compile Include="BackgroundFraming.cs" /><Compile Include="UsageStatistics.cs" /><Compile Include="UsagePanel.cs" />
     <Compile Include="PageMedia.cs" /><Compile Include="CloudContent.cs" /><Compile Include="CloudPanels.cs" />
     <Compile Include="PreviewCrop.cs" /><Compile Include="TileMedia.cs" />
     <Compile Include="MainWindow.xaml.cs" />
@@ -69,6 +69,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="..\waiting.mp4;..\update_bg.mp4;..\latest_bg.mp4"><LogicalName>UpdateDefaults/%(Filename)%(Extension)</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="..\Gitea\home.json"><LogicalName>CloudDefaults/home.json</LogicalName></EmbeddedResource><EmbeddedResource Include="..\Gitea\models.json"><LogicalName>CloudDefaults/models.json</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="PetWeb\**\*">
       <LogicalName>PetWeb/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>

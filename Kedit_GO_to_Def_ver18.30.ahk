@@ -240,11 +240,9 @@ return
 ; 避免首次打开设置/更新界面时 FileInstall 造成卡顿
 ; =======================================================
 PreinstallAssets:
+    ; 更新三套视频由 WPF 内嵌与按需释放，不再重复打包或在 AHK 启动时解压。
     GetTempPath("mpv.exe")
     GetTempPath("side.mp4")
-    GetTempPath("waiting.mp4")
-    GetTempPath("update_bg.mp4")
-    GetTempPath("latest_bg.mp4")
     GetTempPath("logo.png")
     GetTempPath("btn_yellow.png")
     GetTempPath("companion_success.png")
@@ -2016,12 +2014,6 @@ GetTempPath(FileName) {
                 FileInstall, mpv.exe, %TargetPath%, 1
             else if (FileName = "side.mp4")
                 FileInstall, side.mp4, %TargetPath%, 1
-            else if (FileName = "waiting.mp4")
-                FileInstall, waiting.mp4, %TargetPath%, 1
-            else if (FileName = "update_bg.mp4")
-                FileInstall, update_bg.mp4, %TargetPath%, 1
-            else if (FileName = "latest_bg.mp4")
-                FileInstall, latest_bg.mp4, %TargetPath%, 1
         }
     }
     return TargetPath
@@ -2385,16 +2377,20 @@ OpenConsoleRoute:
     else
         ConsolePath := A_ScriptDir . "\Kedit.Console\bin\Release\Kedit.Console.exe"
     if (!FileExist(ConsolePath)) {
-        MsgBox, 48, Kedit 中控, 尚未找到 WPF 中控程序。`n请先构建:`n%ConsolePath%
+        if (!ConsoleUpdateBackground)
+            MsgBox, 48, Kedit 中控, 尚未找到 WPF 中控程序。`n请先构建:`n%ConsolePath%
         return
     }
 
     ConsoleVideoPath := GetTempPath("side.mp4")
     ConsoleHwnd := A_ScriptHwnd + 0
     ConsoleRouteArg := " --kedit-page " . ConsoleKeditPage
+    if (ConsoleUpdateLaunch)
+        ConsoleRouteArg .= " --check-updates" . (ConsoleUpdateBackground ? " --background-update" : "")
     Run, "%ConsolePath%" "%ConsoleVideoPath%" "%ConsoleHwnd%" --settings "%IniFile%"%ConsoleRouteArg%, , UseErrorLevel, KeditConsolePID
     if (ErrorLevel) {
-        MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
+        if (!ConsoleUpdateBackground)
+            MsgBox, 16, Kedit 中控, 无法启动 WPF 中控程序。
         return
     }
     ConsoleStateAttempts := 0
@@ -2404,7 +2400,8 @@ return
 SendConsoleState:
     ; Phase 2：通过本机命名管道向 WPF 中控发送只读状态请求。
     ConsoleStateAttempts++
-    ConsoleRequest := "{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_bookmark_clear"":""" . Key_VS_BookmarkClear . """,""vs_redo"":""" . Key_VS_Redo . """}`n"
+    ConsoleScriptPath := StrReplace(A_ScriptFullPath, "\", "\\")
+    ConsoleRequest := "{""id"":""ahk-start"",""command"":""get_state"",""protocol"":1,""current_version"":""" . CurrentVersion . """,""script_path"":""" . ConsoleScriptPath . """,""compiled"":" . (A_IsCompiled ? 1 : 0) . ",""auto_update"":" . EnableAutoUpdateCheck . ",""osd"":" . EnableOSD . ",""companion"":" . EnableCompanionOSD . ",""go_to_def"":""" . Key_GoToDef . """,""vs_bookmark_toggle"":""" . Key_VS_BookmarkToggle . """,""vs_bookmark_next"":""" . Key_VS_BookmarkNext . """,""vs_bookmark_previous"":""" . Key_VS_BookmarkPrevious . """,""vs_bookmark_clear"":""" . Key_VS_BookmarkClear . """,""vs_redo"":""" . Key_VS_Redo . """}`n"
     PipeHandle := DllCall("CreateFile", "Str", "\\.\pipe\Kedit.Console", "UInt", 0xC0000000
         , "UInt", 0, "Ptr", 0, "UInt", 3, "UInt", 0, "Ptr", 0, "Ptr")
     if (PipeHandle != -1 && PipeHandle != 0) {
@@ -2677,6 +2674,10 @@ ReceiveConsoleTextCommand(Command) {
     global EnableAutoUpdateCheck, EnableOSD, IniFile
         , Key_GoToDef, Key_VS_BookmarkToggle, Key_VS_BookmarkNext
         , Key_VS_BookmarkPrevious, Key_VS_BookmarkClear, Key_VS_Redo
+    if (Command = "exit_for_update") {
+        SetTimer, ConsoleExitForUpdate, -100
+        return
+    }
     if (Command = "check_updates") {
         SetTimer, ConsoleCheckUpdates, -1
         return
@@ -2737,14 +2738,19 @@ AutoCheckForUpdate:
 return
 
 CheckForUpdate:
-    if (IsCheckingUpdate)
-        return
-    UpdateCheckSilent := SilentUpdateCheck
-    IsCheckingUpdate := true
-    RetryCount := 0
-    WaitingGuiShown := false
-    Global CheckStartTime := A_TickCount
-    GoSub, LaunchVersionChecker
+    ExistingConsole := DllCall("FindWindow", "Ptr", 0, "Str", "Kedit 中控", "Ptr")
+    if (ExistingConsole) {
+        DllCall("PostMessage", "Ptr", ExistingConsole, "UInt", 0x8004, "Ptr", A_ScriptHwnd, "Ptr", SilentUpdateCheck ? 1 : 0)
+        ConsoleStateAttempts := 0
+        SetTimer, SendConsoleState, 500
+    } else {
+        ConsoleUpdateLaunch := true
+        ConsoleUpdateBackground := SilentUpdateCheck
+        ConsoleKeditPage := 200
+        Gosub, OpenConsoleRoute
+        ConsoleUpdateLaunch := false
+        ConsoleUpdateBackground := false
+    }
 return
 
 LaunchVersionChecker:
@@ -3943,4 +3949,8 @@ return
 ConsoleCheckUpdates:
     SilentUpdateCheck := false
     Gosub, CheckForUpdate
+return
+
+ConsoleExitForUpdate:
+    ExitApp
 return

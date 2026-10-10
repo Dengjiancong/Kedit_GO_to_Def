@@ -15,6 +15,8 @@ namespace Kedit.Console
         private Forms.NotifyIcon tray;
         internal DesignPreview Shell;
         internal MainWindow Legacy;
+        internal readonly UpdateService Updates = new UpdateService();
+        internal System.Diagnostics.Process OwnerProcess {get{return ownerProcess;}}
 
         System.Diagnostics.Process ownerProcess;
         System.Windows.Threading.DispatcherTimer ownerWatch;
@@ -31,6 +33,7 @@ namespace Kedit.Console
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            if(UpdateInstaller.Run(e.Args)){Shutdown();return;}
             if(Array.IndexOf(e.Args,"--design-preview")>=0 || (Array.IndexOf(e.Args,"--self-test-usage")>=0 && Array.IndexOf(e.Args,"--usage-test-dir")>=0)) { MainWindow=new DesignPreview();MainWindow.Show();return; }
             string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kedit", "DesktopPet");
             for (int i = 0; i + 1 < e.Args.Length; i++)
@@ -44,7 +47,11 @@ namespace Kedit.Console
                 (isolatedTest || f1Test || lifecycleTest ? ".diagnostics." + System.Diagnostics.Process.GetCurrentProcess().Id : ""), out created);
             if (!created) {
                 var existing = FindWindow(null, "Kedit 中控");
-                if (existing != IntPtr.Zero) PostMessage(existing, 0x8002, IntPtr.Zero, new IntPtr(StartupRoute(e.Args)));
+                if (existing != IntPtr.Zero) {
+                    long parentWindow=0;if(e.Args.Length>1)long.TryParse(e.Args[1],out parentWindow);
+                    if(Array.IndexOf(e.Args,"--check-updates")>=0)PostMessage(existing,0x8004,new IntPtr(parentWindow),new IntPtr(Array.IndexOf(e.Args,"--background-update")>=0?1:0));
+                    else PostMessage(existing,0x8002,new IntPtr(parentWindow),new IntPtr(StartupRoute(e.Args)));
+                }
                 Shutdown(); return;
             }
             long parent;if(e.Args.Length>1&&long.TryParse(e.Args[1],out parent)&&!f1Test&&!isolatedTest)AttachOwner(new IntPtr(parent));
@@ -62,7 +69,7 @@ namespace Kedit.Console
             menu.Items.Add("退出中控与桌宠", null, delegate { ExitConsole(); });
             tray = new Forms.NotifyIcon { Text = "Kedit 中控与桌宠", Icon = System.Drawing.SystemIcons.Application, ContextMenuStrip = menu, Visible = !Owned };
             tray.DoubleClick += delegate { ShowConsole(); };
-            if(Shell!=null){Shell.Show();Shell.OpenRoute(StartupRoute(e.Args),IntPtr.Zero);}else window.Show();
+            if(Shell!=null){Shell.OpenRoute(StartupRoute(e.Args),IntPtr.Zero);if(Array.IndexOf(e.Args,"--background-update")<0)Shell.Show();if(Array.IndexOf(e.Args,"--check-updates")>=0)Updates.Check();}else window.Show();
             if (Pet.Settings.Enabled) Pet.SetEnabled(true);
             // Developer-only, explicit diagnostic flag: export our own visual, never the desktop.
             for (int i = 0; i + 1 < e.Args.Length; i++) {
@@ -80,6 +87,7 @@ namespace Kedit.Console
         protected override void OnExit(ExitEventArgs e)
         {
             Exiting = true;
+            Updates.Dispose();
             if(ownerWatch!=null)ownerWatch.Stop();if(ownerProcess!=null)ownerProcess.Dispose();
             if (Pet != null) Pet.Dispose();
             if (tray != null) tray.Dispose();
