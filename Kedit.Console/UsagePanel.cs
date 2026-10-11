@@ -201,7 +201,8 @@ namespace Kedit.Console {
                 foreach(UpdateStage updateState in Enum.GetValues(typeof(UpdateStage))){previewUpdate=new UpdateSnapshot{Stage=updateState,Current="v19.00-Amiya.v008",Latest="v19.00-Amiya.v009",Bytes=50*1048576,Total=100*1048576,Detail="管理员预览 · 状态展示"};RenderUpdate();UpdateLayout();await Task.Delay(220);Capture(System.IO.Path.Combine(directory,"update-"+updateState+".png"));if(updateCard.Visibility!=Visibility.Visible)throw new Exception("State card hidden");}
                 previewUpdate=new UpdateSnapshot{Stage=UpdateStage.Available};renderedUpdateStage=null;RenderUpdate();string beforeMedia=playingMediaIdentity;var beforeSource=video.Source;previewUpdate.Stage=UpdateStage.Downloading;RenderUpdate();previewUpdate.Bytes=50;RenderUpdate();if(playingMediaIdentity!=beforeMedia||video.Source!=beforeSource)throw new Exception("Progress restarted background");
                 Navigate("首页");if(updateCard.Visibility!=Visibility.Collapsed)throw new Exception("Update card remained on home");if(usagePanel.Visibility!=Visibility.Collapsed)throw new Exception("Statistics overlay remained on home");
-                System.IO.File.WriteAllText(System.IO.Path.Combine(directory,"ui-result.txt"),"PASS: statistics charts, filters, leap date, annual wall, bar wheel forwarding, date popup, rise animation and home navigation");
+                await CheckMediaLoading(directory);
+                System.IO.File.WriteAllText(System.IO.Path.Combine(directory,"ui-result.txt"),"PASS: asynchronous media / stale request / same GIF continuity; statistics charts, filters, leap date, annual wall, bar wheel forwarding, date popup, rise animation and home navigation");
             }catch(Exception ex){System.IO.File.WriteAllText(System.IO.Path.Combine(directory,"ui-result.txt"),"FAIL: "+ex);}
             Application.Current.Shutdown();
         }

@@ -66,7 +66,8 @@ namespace Kedit.Console {
             if(settingsFile==null){var args=Environment.GetCommandLineArgs();long handle;if(args.Length>2&&long.TryParse(args[2],out handle))ahkWindow=new IntPtr(handle);for(int i=1;i+1<args.Length;i++)if(args[i]=="--settings")settingsFile=Path.GetFullPath(args[i+1]);if(settingsFile==null)settingsFile=Path.Combine(root,"Kedit_Settings.ini");}
             if(route>=301&&route<301+otherShortcuts.Length)SelectShortcut(route-301,false,true);else if(route==200)Navigate("更新");else if(route>0 && route<=keditShortcuts.Length)SelectShortcut(route-1);else if(route>=101&&route<101+vsShortcuts.Length)SelectShortcut(route-101,true);else Navigate("首页");
         }
-        void NavigateLive(string page){
+        void NavigateLive(string page){var watch=System.Diagnostics.Stopwatch.StartNew();try{NavigateLiveCore(page);}finally{MediaTiming.Record("controls.ui",page,watch.ElapsedMilliseconds);}}
+        void NavigateLiveCore(string page){
             LeaveUpdatePage();
             panel.Margin=new Thickness(0,110,106,72);
             if(updateCard!=null)updateCard.Visibility=Visibility.Collapsed;
@@ -111,7 +112,7 @@ namespace Kedit.Console {
             status.Foreground=B("#C5C9D0");status.TextWrapping=TextWrapping.Wrap;status.Text=IsWindow(ahkWindow)?"修改后点击保存，由快捷键主程序应用。":"主程序未连接，暂时无法保存。";formFooter.Children.Add(status);
             subnav.Children.Add(Button("☰",()=>{navFolded=!navFolded;nav.Width=navFolded?45:160;panel.Margin=new Thickness(0,110,navFolded?106:176,72);foreach(var child in subnav.Children){var b=child as Button;if(b!=null&&b.Tag!=null)b.Content=navFolded?b.Tag:b.ToolTip;}}));
             for(int i=0;i<CurrentList.Length;i++){int index=i;var item=CurrentList[i];bool vs=vsPage,other=otherPage;var entry=Button(item.Icon,()=>SelectShortcut(index,vs,other));entry.Tag=item.Icon;entry.ToolTip=item.Title;entry.Content=navFolded?entry.Tag:entry.ToolTip;entry.FontSize=12;entry.Height=32;entry.Margin=new Thickness(0,2,0,2);if(i==selectedShortcut)entry.Background=B("#526175");subnav.Children.Add(entry);}
-            string media=Path.Combine(root,"Kedit.Console","Demos",CurrentShortcut.Media+".mp4");if(!File.Exists(media))media=Path.ChangeExtension(media,"gif");currentMediaPage=(otherPage?"other.":vsPage?"vs.":"kedit.")+CurrentShortcut.Id;if(otherPage)media=pageMedia.Resolve("other",media);LoadPageMedia(media);if(!File.Exists(media)&&!pageMedia.Has(currentMediaPage))form.Children.Add(Text("演示待补充",13,"#BBC4D2"));dirty=false;
+            string media=Path.Combine(root,"Kedit.Console","Demos",CurrentShortcut.Media+".mp4");if(!File.Exists(media))media=Path.ChangeExtension(media,"gif");currentMediaPage=(otherPage?"other.":vsPage?"vs.":"kedit.")+CurrentShortcut.Id;LoadPageMedia(media);if(!File.Exists(media)&&!pageMedia.Has(currentMediaPage))form.Children.Add(Text("演示待补充",13,"#BBC4D2"));dirty=false;
         }
         int petSection;
         static readonly string[] petSections={"显示与位置","鼠标跟随与挥剑","打字互动","表情与道具","陪伴对白","音乐陪伴","定时提醒与换装","OSD 提示"};

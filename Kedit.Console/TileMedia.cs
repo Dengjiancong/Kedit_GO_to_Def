@@ -15,9 +15,13 @@ namespace Kedit.Console {
   internal readonly List<int> Delays=new List<int>();
   internal string Identity;
   static readonly Dictionary<string,TileMedia> cache=new Dictionary<string,TileMedia>();
+  static readonly object cacheGate=new object();
+  static readonly LinkedList<string> order=new LinkedList<string>();
+  static long cachedBytes;
+  long Bytes {get{long n=0;foreach(var frame in Frames)n+=(long)frame.PixelWidth*frame.PixelHeight*4;return n;}}
   internal static TileMedia Load(byte[] bytes,string crop=null){
    var result=new TileMedia();using(var hash=SHA256.Create())result.Identity=Convert.ToBase64String(hash.ComputeHash(bytes))+"|"+crop;
-   TileMedia cached;if(cache.TryGetValue(result.Identity,out cached))return cached;
+   TileMedia cached;lock(cacheGate){if(cache.TryGetValue(result.Identity,out cached)){order.Remove(result.Identity);order.AddLast(result.Identity);return cached;}}
    bool gif=bytes.Length>3&&bytes[0]==71&&bytes[1]==73&&bytes[2]==70;
    if(gif){using(var stream=new MemoryStream(bytes))using(var image=System.Drawing.Image.FromStream(stream)){
     int count=image.GetFrameCount(FrameDimension.Time);byte[] delays=null;try{delays=image.GetPropertyItem(0x5100).Value;}catch(ArgumentException){}
@@ -28,7 +32,7 @@ namespace Kedit.Console {
     }result.Delays.Add(delays!=null&&delays.Length>=(i+1)*4?Math.Max(20,BitConverter.ToInt32(delays,i*4)*10):100);}
    }}else{using(var stream=new MemoryStream(bytes))result.Frames.Add(Decode(stream));result.Delays.Add(100);}
    if(!string.IsNullOrEmpty(crop)){string[] p=crop.Split('|');if(p.Length!=4||p[0]!="v1")throw new IOException("图标裁剪信息无效");double scale=double.Parse(p[1],CultureInfo.InvariantCulture),x=double.Parse(p[2],CultureInfo.InvariantCulture),y=double.Parse(p[3],CultureInfo.InvariantCulture);for(int i=0;i<result.Frames.Count;i++)result.Frames[i]=PreviewCrop.Crop(result.Frames[i],scale,x,y);}
-   if(cache.Count>=16)cache.Clear();cache[result.Identity]=result;return result;
+   lock(cacheGate){if(cache.TryGetValue(result.Identity,out cached))return cached;long footprint=result.Bytes;if(footprint<=128L*1024*1024){while(order.Count>0&&(cache.Count>=24||cachedBytes+footprint>128L*1024*1024)){string oldest=order.First.Value;order.RemoveFirst();cachedBytes-=cache[oldest].Bytes;cache.Remove(oldest);}cache[result.Identity]=result;order.AddLast(result.Identity);cachedBytes+=footprint;}}return result;
   }
   static BitmapSource Decode(Stream stream){var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.StreamSource=stream;image.EndInit();image.Freeze();return image;}
  }

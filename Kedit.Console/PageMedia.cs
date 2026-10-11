@@ -16,6 +16,8 @@ namespace Kedit.Console {
             else using(var input=assembly.GetManifestResourceStream("PageMedia/pages.json"))if(input!=null)using(var reader=new StreamReader(input))json=reader.ReadToEnd();
             map=new JavaScriptSerializer().Deserialize<Dictionary<string,string>>(json)??new Dictionary<string,string>();
         }
+        PageMedia(PageMedia source){project=source.project;map=new Dictionary<string,string>(source.map);}
+        public PageMedia Snapshot(){return new PageMedia(this);}
         string Manifest {get{return Path.Combine(project,"mp4","pages.json");}}
         public string ProjectDirectory {get{return project;}}
         public string Describe(string page){string file;return "素材项目："+(project??"未设置（使用 EXE 内置素材）")+"\n当前页面："+page+" → "+(map.TryGetValue(page,out file)?file:"默认素材")+(project==null?"":"\n保存清单："+Manifest);}
