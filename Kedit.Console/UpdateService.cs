@@ -35,7 +35,7 @@ namespace Kedit.Console {
   internal void Configure(string version,string path,bool compiled){State.Current=version;TargetPath=path;Compiled=compiled;if(State.Stage==UpdateStage.Idle)State.Detail="尚未检查，您可以手动检查更新。";if(pending){pending=false;Check();}else if(Changed!=null)Changed();}
   internal Task Check(){if(Busy||State.Stage==UpdateStage.Ready||State.Stage==UpdateStage.Installing)return operation??Task.FromResult(0);if(string.IsNullOrEmpty(State.Current)){pending=true;Publish(UpdateStage.Idle,"等待主程序提供当前版本信息");return Task.FromResult(0);}if(cancellation!=null)cancellation.Dispose();cancellation=new CancellationTokenSource();operation=CheckCore(cancellation.Token);return operation;}
   async Task CheckCore(CancellationToken token){
-   url=null;hash=null;State.Latest="";State.Bytes=State.Total=0;
+   url=null;hash=null;expectedSize=0;State.Latest="";State.Bytes=State.Total=0;
    try {
     string json=null;Exception last=null;
     for(int attempt=1;attempt<=3;attempt++){
@@ -48,10 +48,12 @@ namespace Kedit.Console {
     if(last!=null)throw last;
     var release=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(json);State.Latest=StringValue(release,"tag_name");ReleaseNotes=StringValue(release,"body");State.CheckedAt=DateTime.Now;
     if(!IsNewer(State.Latest,State.Current)){Publish(UpdateStage.Latest,"检查完成："+State.CheckedAt.ToString("yyyy-MM-dd HH:mm"));return;}
+    string checksumUrl=null;
     var assets=release.ContainsKey("assets")?release["assets"] as System.Collections.IEnumerable:null;
-    if(assets!=null)foreach(var item in assets){var asset=item as Dictionary<string,object>;if(asset==null||!StringValue(asset,"name").Equals("Kedit_GO_to_Def.exe",StringComparison.OrdinalIgnoreCase))continue;url=StringValue(asset,"browser_download_url");long.TryParse(StringValue(asset,"size"),out expectedSize);hash=StringValue(asset,"digest");if(hash.StartsWith("sha256:",StringComparison.OrdinalIgnoreCase))hash=hash.Substring(7);else hash="";break;}
+    if(assets!=null)foreach(var item in assets){var asset=item as Dictionary<string,object>;if(asset==null)continue;if(StringValue(asset,"name").Equals("Kedit_GO_to_Def.exe.sha256",StringComparison.OrdinalIgnoreCase)){checksumUrl=AssetUrl(StringValue(asset,"browser_download_url"),activeApi);continue;}if(!StringValue(asset,"name").Equals("Kedit_GO_to_Def.exe",StringComparison.OrdinalIgnoreCase))continue;url=AssetUrl(StringValue(asset,"browser_download_url"),activeApi);long.TryParse(StringValue(asset,"size"),out expectedSize);hash=StringValue(asset,"digest");if(hash.StartsWith("sha256:",StringComparison.OrdinalIgnoreCase))hash=hash.Substring(7);else hash="";}
     Uri uri;if(!Uri.TryCreate(url,UriKind.Absolute,out uri)||uri.Scheme!="https")throw new InvalidDataException("发行版本未提供有效的 HTTPS Kedit_GO_to_Def.exe 文件。");
     if(hash!=""&&!Regex.IsMatch(hash,"^[a-fA-F0-9]{64}$"))throw new InvalidDataException("发行文件的 SHA-256 格式不正确。");
+    if(checksumUrl!=null){using(var client=createClient())using(var response=await client.GetAsync(checksumUrl,token)){response.EnsureSuccessStatusCode();if(response.RequestMessage.RequestUri.Scheme!="https")throw new InvalidDataException("校验文件被重定向到非 HTTPS 地址。");string declared=ParseChecksum(await response.Content.ReadAsStringAsync());if(!string.IsNullOrEmpty(hash)&&!hash.Equals(declared,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("发行资产与校验文件的 SHA-256 不一致。");hash=declared;}}
     Publish(UpdateStage.Available,"发现新版本，是否下载并安装？");
    }catch(Exception ex){url=null;Publish(token.IsCancellationRequested?UpdateStage.Cancelled:UpdateStage.ConnectionFailed,token.IsCancellationRequested?"已取消检查":Explain(ex));}
   }
@@ -91,6 +93,9 @@ namespace Kedit.Console {
   internal async Task<string> Diagnose(){var report="更新来源："+State.Source+"\r\n"+activeApi+"\r\n";foreach(string endpoint in new[]{ReleaseApi,activeApi==ReleaseApi?null:activeApi,url}){if(string.IsNullOrEmpty(endpoint))continue;try{using(var client=createClient())using(var request=new HttpRequestMessage(endpoint==ReleaseApi||endpoint==BackupApi?HttpMethod.Get:HttpMethod.Head,endpoint))using(var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead)){report+=endpoint+"\r\nHTTP "+(int)response.StatusCode+" · "+response.RequestMessage.RequestUri+"\r\n";}}catch(Exception ex){report+=endpoint+"\r\n"+Explain(ex)+"\r\n";}}return report+"\r\n使用系统代理与正常 TLS 证书验证；诊断不下载更新文件，不修改网络配置。";}
   internal static bool IsNewer(string candidate,string installed){var a=VersionParts(candidate);var b=VersionParts(installed);for(int i=0;i<a.Length;i++){if(a[i]!=b[i])return a[i]>b[i];}return false;}
   static int[] VersionParts(string value){var m=Regex.Match(value??"",@"^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-(?:Meme|Amiya)\.v(\d+))?(?:[_-].*)?$",RegexOptions.IgnoreCase);if(!m.Success)throw new InvalidDataException("无法识别版本号："+value);var result=new int[4];for(int i=0;i<4;i++)if(m.Groups[i+1].Success)result[i]=int.Parse(m.Groups[i+1].Value);return result;}
+  // Only repair this known Gitea reverse-proxy origin; never rewrite arbitrary hosts or repositories.
+  internal static string AssetUrl(string value,string api){Uri uri;if(!Uri.TryCreate(value,UriKind.Absolute,out uri))throw new InvalidDataException("发行文件地址无效。");if(api==ReleaseApi&&uri.Host=="192.168.124.224"&&uri.Port==3110&&uri.Scheme=="http"&&uri.AbsolutePath.StartsWith("/EVADD/Kedit_GO_to_Def/releases/download/",StringComparison.Ordinal)){value="https://gitea.evadd.xyz:88"+uri.PathAndQuery;uri=new Uri(value);}if(uri.Scheme!="https"||!string.IsNullOrEmpty(uri.UserInfo))throw new InvalidDataException("发行文件必须使用 HTTPS 公网地址。");return value;}
+  internal static string ParseChecksum(string text){if(text==null||text.Length>4096)throw new InvalidDataException("SHA-256 校验文件格式不正确。");var match=Regex.Match(text.Trim().TrimStart('\uFEFF'),@"\A([a-fA-F0-9]{64})(?:[ \t]+\*?Kedit_GO_to_Def\.exe)?\z",RegexOptions.IgnoreCase);if(!match.Success)throw new InvalidDataException("SHA-256 校验文件必须包含主程序的唯一校验值。");return match.Groups[1].Value;}
   static string StringValue(Dictionary<string,object> obj,string key){object value;return obj!=null&&obj.TryGetValue(key,out value)?Convert.ToString(value):"";}
   static string Explain(Exception ex){return ex is OperationCanceledException?"连接超时或传输停滞，请重试或运行网络诊断。":ex.GetBaseException().Message;}
   public void Dispose(){Cancel();}

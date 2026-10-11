@@ -21,6 +21,10 @@ class TestUpdateService {
  static UpdateService Service(Handler handler,string directory){return new UpdateService(()=>new HttpClient(handler,false),directory);}
  static void Main(string[] args){try{Run(args).GetAwaiter().GetResult();System.Console.WriteLine("PASS: update service, cancellation, failures, versioning, verification, isolated installer replacement/abort");}catch(Exception ex){System.Console.WriteLine(ex);Environment.ExitCode=1;}}
  static async Task Run(string[] args){string root=args[0];Directory.CreateDirectory(root);byte[] exe=File.ReadAllBytes(args[1]);
+  Assert(UpdateService.AssetUrl("http://192.168.124.224:3110/EVADD/Kedit_GO_to_Def/releases/download/v1/Kedit_GO_to_Def.exe",UpdateService.ReleaseApi)=="https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases/download/v1/Kedit_GO_to_Def.exe","Gitea public origin repair");
+  bool rejected=false;try{UpdateService.AssetUrl("http://example.com/update.exe",UpdateService.ReleaseApi);}catch(InvalidDataException){rejected=true;}Assert(rejected,"unrelated HTTP origin rejected");
+  Assert(UpdateService.ParseChecksum(Hash(exe)+"  Kedit_GO_to_Def.exe\n")==Hash(exe),"Gitea checksum attachment");
+  rejected=false;try{UpdateService.ParseChecksum(Hash(exe)+"  other.exe");}catch(InvalidDataException){rejected=true;}Assert(rejected,"checksum filename mismatch");
   Assert(UpdateService.IsNewer("v19.00-Amiya.v009","v19.00-Amiya.v008"),"Amiya revision");Assert(!UpdateService.IsNewer("v19.00-Amiya.v008","v19.00-Amiya.v008"),"same version");Assert(UpdateService.IsNewer("v18.30-Meme.v100_for_test","v18.30-Meme.v009"),"legacy version");
   var handler=new Handler{Payload=exe,Digest="sha256:"+Hash(exe)};using(var service=Service(handler,root)){
    await service.Check();Assert(handler.Calls==0,"check before metadata");service.Configure("v19.00-Amiya.v008","source.ahk",false);while(service.Busy)await Task.Delay(5);Assert(service.State.Stage==UpdateStage.Available,"available");
