@@ -1,97 +1,120 @@
-# Kedit_GO_to_Def
-Cadence PK2测试机所使用的Kedit代码编辑器，当想要跳转到定义处的时候只有鼠标右键选择跳转这一个方法。然而当我们在大量编辑代码的时候，这种方式就显得非常的低效且烦心。因此我做了个快捷键程序来帮助我们程序员可以快速跳转到定义处。
+# Kedit GO to Def
 
-这个软件可以做什么：  
----
-1、默认 点击鼠标中键 即可跳转到定义处（核心功能）  
-2、默认 Ctrl+W 可以关闭当前窗口（可自定义）  
-3、默认 Alt+A 可以另存为（可自定义）（快速新建pattern的时候常用）  
-4、默认 Alt+F 可以快速Find in Files（修改jedec id时常用）  
-5、默认 鼠标侧后健 后退到上一个跳转处（相当于Ctrl+B）  
-6、默认 鼠标侧前键 跳转到上一个Bookmark处（相当于Shift+F2）  
-7、默认 Ctrl+Q 可以快速打开指定路径文件夹（可自定义快捷键与路径）  
-8、默认 Ctrl+/ 可以快速多行注释/多行取消注释【该功能有风险，使用前自行斟酌，并且注释1000行以上时建议打开OSD功能配合使用】  
-9、默认 F8 在资源管理器中可以直接运行.py脚本（自动打开CMD并注入执行指令）  
-10、支持在Visual Studio还原Kedit的使用习惯：预览定义（默认 鼠标中键）、回退（默认 Ctrl+B）、build（默认 F7）  
-11、默认 F1 可以快速查找剪贴板中的文本（可自定义）
-12、默认 Ctrl+\ 可以整理所选文本每行的行首缩进，将空格转换为 Tab，并按 4 列制表位保持文字原有视觉位置（可自定义）
+**让操作，随心而动。**
 
-版本与发布：
----
-- `main` 分支保存源码及每次功能修改的 Git 提交历史。
-- 正式版本继续使用 `ver版本号` 标签和 GitHub Release，并提供编译后的 EXE 与对应版本 AHK 源码，保留原有下载方式。
+为 Kedit 与 Visual Studio 提供快捷键增强，用统一中控管理常用操作，并加入桌宠、OSD 和本地使用统计。
 
-花里胡哨的功能：  
----
-1、OSD功能（可以选择关闭）  
-2、约200MB的软件大小（100MB视频大小，100MB视频播放器大小）  
-  
-已修复的Bug：
----
-1、鼠标中键 有低概率在点击之后其他窗口出现无法激活的状态，这个时候只需要再在Kedit上点击一下中键即可，目前已修复并长期观察再未出现，如果有发现可以提Issues。  
-  
-可能存在的Bug： 
----
-1、在使用 Ctrl+/ 进行 多行注释/解注释 后可能会发生“按键粘滞”，具体的现象是没有按键盘，但是键盘的Ctrl键好像被按死了一样，再手动按一次Ctrl就恢复正常了，这个问题在WinXP上遇过很多次，但是作者在Win10上暂时没遇见过，如果有发现可以提Issues。  
+这个项目最初是为了简化 PK2 开发环境中 Kedit 的跳转定义操作：用一次鼠标中键点击，替代反复打开右键菜单。如今，它逐渐成为一个围绕日常代码编辑习惯的小工具。
 
-To Do： 
----
-- [x] Ctrl+Q 快速打开某个路径，新增自动检测是路径还是文件，是文件的话自动打开文件的功能。
-- [ ] 在每个控制面板中都新增一键屏蔽快捷键的功能。（这个在改版前就要加，到时候新版用JavaScript做的UI会把这个做得更好一些）
-- [x] 大改版，加入 JavaScript 做的 UI，AHK作为底层应用。（已完成但是试用后不够轻便化，取消这个方向）
-- [x] 列选择填充功能（仿照notepad++）。（实现了但是功能实现并不完美）
-- [x] 将代码迁至GitHub库中管理，源码使用 Git 提交记录，正式程序继续通过 Release 发布。
-- [x] 关于页面跳转到Github要自动关闭，另外点击按钮触发范围错误需要修改。（已修复）
-- [ ] 新功能：复制一段文字，实现模拟键盘操作一一输入（快捷搜索用），并附加逻辑，如果是图片则不执行，还要支持各种语言。
+[使用指南 Wiki](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki) · [Gitea 下载](https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases) · [GitHub 下载](https://github.com/Dengjiancong/Kedit_GO_to_Def/releases) · [问题反馈](https://github.com/Dengjiancong/Kedit_GO_to_Def/issues) · [交流讨论](https://github.com/Dengjiancong/Kedit_GO_to_Def/discussions)
 
+## 下载与开始使用
 
+1. 从 **Gitea 主更新源**或 GitHub 发行页选择版本，下载 `Kedit_GO_to_Def.exe`。
+2. 放在方便保存配置的目录运行；升级时保留自己的 `Kedit_Settings.ini`。
+3. 从 Windows 托盘打开中控，查看当前绑定和功能说明。
+4. 在对应编辑器中测试快捷键，再按自己的习惯调整。
 
-<img width="1358" height="700" alt="PixPin_2026-01-02_17-59-09" src="https://github.com/user-attachments/assets/0f73679a-a875-4ec9-9257-b0cf3d0faf58" />
+> **版本说明（2026-10-11）**：以下功能按开发代码 `v19.00-Amiya.v008` 整理，不代表这些功能均已随公开 EXE 发布。当前 Gitea 最新发行标签为 `v18.30-Meme.v200`，GitHub 为 `v18.30-Meme.v009`；下载时以发行页的实时版本及说明为准。
 
+当前中控基于 Windows WPF，目标为 **.NET Framework 4.7.2**；桌宠使用 WebView2。历史 AHK 版本的兼容性不代表新版中控支持 Windows XP。普通用户优先使用编译后的 EXE；源码运行与构建使用 **AutoHotkey v1**，不是 v2。
 
-PK2的历史
----
-PK2 全称 Personal Kalos2，由 Credence 公司研发生产，于 2003 年正式问世。
-工程版 (Personal Kalos 2): 于 2003 年夏季率先推出，主要用于工程研发和验证环境。
-量产版 (Kalos 2): 于 2003 年 10 月 29 日正式发布。该系列测试机台专为非易失性存储器（如 NOR、NAND、串行和嵌入式 Flash）的测试需求而设计。
+## 主要功能
 
-在2003年 PK2 刚推出时，Credence 稳居全球 ATE 行业的“四大家族”之列（与 Advantest、Teradyne、Agilent 齐名），并在北美市场拥有极高的客户满意度。
-在非易失性存储器（Flash）测试细分市场，Credence 占据了相当可观的份额。Kalos 系列是当时市面上最具性价比的并行测试平台之一。
+| 功能 | 可以做什么 |
+| --- | --- |
+| Kedit 快捷键 | 跳转定义、回退、查找剪贴板、另存为、注释、缩进整理等 |
+| FLOW 编辑 | 按 FLOW 重新编号行末 Bin；从剪贴板插入测试节点 |
+| Visual Studio 快捷键 | 跳转／预览定义、回退、生成、注释与书签导航 |
+| 其他快捷键 | 快速打开指定文件或文件夹，在资源管理器中运行 Python 文件 |
+| 统一中控 | 修改绑定、检查冲突、保存配置，以及未保存草稿提示 |
+| 桌宠与 OSD | 可选 Live2D 桌宠、互动与陪伴、按键文字及表情提示 |
+| 本地使用统计 | 功能次数、使用趋势、常用时段、年度活跃墙及导出 |
+| 页面与素材 | 公告轮播、图片／GIF／MP4 背景、构图调整和双状态分类图标 |
+| 更新 | Gitea 优先检查、GitHub 备用检查、下载进度、文件检查及网络诊断 |
 
-2006年是 Credence 在存储器测试市场的历史分水岭，也是 Kalos 系列命运急转直下的一年。
-当时全球最大的 Flash 制造商之一 Intel 突然取消了向 Credence 采购 Flash 测试机台的巨额订单。这一黑天鹅事件对 Credence 的存储器测试业务造成了毁灭性打击。
-面对 Advantest 和 Verigy（2006年从 Agilent 拆分独立）在高端存储测试机（如高速 DDR 和高密度 NAND 测试）上的强势技术压制，以及 Intel 订单的流失，Credence 在 2006 年做出了一个无奈的战略决策：正式宣布退出 Flash 存储器测试市场。
+## 常用默认快捷键
 
-Intel取消订单的根本原因在于
-1. 技术脱节：Intel 走向多层单元（MLV/MLC）技术
-2. 吞吐量与产能危机：无法满足大规模并行测试（Massive Parallel Test）
-3. Intel 的内部战略大调整：告别 NOR，拥抱 NAND
-4. 商业信任与交付能力的隐忧
+已有用户的自定义设置会保留，**以中控显示的当前绑定为准**。Kedit 与 Visual Studio 的功能分别在对应应用中生效。
 
-作为曾经在全球半导体自动化测试设备 (ATE) 领域占据重要地位的厂商，Credence 作为一个独立运营的公司实体于 2008年 结束。
-在面临激烈的市场竞争和行业周期性低谷的压力下，Credence Systems Corporation 于 2008 年 6 月 22 日宣布与其主要竞争对手 LTX Corporation 达成合并协议。
-2008 年 8 月 29 日，两家公司的合并正式完成，联合组建了新的实体 LTX-Credence Corporation，并在纳斯达克以新的股票代码 (LTXC) 上市。
-LTX-Credence 在整合了更多业务后，于 2014 年更名为 Xcerra Corporation。最终在 2018 年，Xcerra 被另一家半导体测试设备巨头 Cohu, Inc. 全资收购。Credence 当年遗留下来的技术资产和经典产品线架构也由此完全融入了 Cohu 的业务体系中。
+### Kedit
 
-<img width="3060" height="3060" alt="IMG_20260612_175246" src="https://github.com/user-attachments/assets/ceaad651-3ec2-41a0-8c6a-9ad4c8641e97" />
+| 按键 | 功能 |
+| --- | --- |
+| 鼠标中键 | 智能点击／跳转定义 |
+| 鼠标侧后键 / 侧前键 | Ctrl+B 回退 / Shift+F2 书签导航 |
+| F1 | 查找剪贴板内容 |
+| Alt+F | 文件中查找 |
+| Ctrl+W | 关闭当前窗口 |
+| Alt+A | 另存为 |
+| Alt+I | 列填入数据 |
+| Ctrl+/ | 注释／取消注释 |
+| Ctrl+\ | 行首空格转 Tab，按 4 列制表位处理 |
+| Alt+Shift+B | FLOW 行末 Bin 从 Bin4 递增，每个 FLOW 重新开始 |
+| Alt+Shift+V | 插入剪贴板中的测试节点，新增行默认 Bin31 |
 
+FLOW 插入需要把光标放在第二列节点名称前；原行 Bin 保留。具体示例见 [FLOW 编辑教程](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki/FLOW编辑教程)。
 
-后语：
----
-这个软件全是工作之余写的（甚至用到了休息时间），最终目的只是为了方便作者自己工作，没有想过作为一款产品去供“顾客”使用。所以如果遇到问题，有bug都是正常现象。  
-有问题有建议可以提，作者也欣然接受，如若工作时间用空档就改一下，但请不要以“顾客角度”提出过分苛刻的要求。  
-  
-后续还会加入更多新内容。（PK2作为debug机还有一段不短的服役期，并且现在也开始着手 Visual Studio 相关的快捷键，加入了如 F8 这样思路的快捷键，相信这个还能玩一段时间）（2026年6月12日注：看来已经没机会了，微笑）
+### Visual Studio 与其他
 
+| 按键 | 场景 | 功能 |
+| --- | --- | --- |
+| 鼠标中键 | Visual Studio | 跳转／预览定义 |
+| Ctrl+B / F7 | Visual Studio | 回退 / 生成 |
+| Ctrl+/ | Visual Studio | 注释／取消注释 |
+| Ctrl+F2 | Visual Studio | 建立／取消书签 |
+| F2 / Shift+F2 | Visual Studio | 下一个 / 上一个书签 |
+| Ctrl+Shift+F2 | Visual Studio | 清除书签 |
+| Ctrl+Y | Visual Studio | 重做 |
+| Ctrl+Q | 快速打开 | 打开配置的文件或文件夹 |
+| F8 | 资源管理器 | 运行选中的 .py 文件，依赖本机 Python 环境 |
+| Pause | 主程序 | 暂停／恢复快捷键 |
 
-个人对于PK2的评价
----
-PK2是我第一个学习的ATE机台，我为他编写快捷键程序，还在上面开发出了前十年来各位优秀的前辈都没开发过的新写法，纵使同事百般责备他的落后，我仍然很喜欢她，很感激他。
-但是时代在变，后浪终将推倒前浪，我们都得向前，再见了PK2，纵使全世界都在数落你，贬低你，我也会永远喜欢你，感激你，铭记你。
-我对你的好感不是因为机台的先进或落后，也不是因为性能的高低，而是因为我通过你学到的，改变的，成长的。
+Visual Studio 命令依赖其键盘映射，与 VS Code 不通用。完整命令对应关系和绑定方法见 [快捷键参考](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki/快捷键参考)。
 
+## 中控、桌宠与统计
 
-鸣谢：
----
-2026年6月12日
-    今天提交了离职申请，公司的大家都对我很好，很感激BY对我的栽培与包容，在这里我遇到了估计这一辈子也难以再遇到的这么好的的领导与同事们。今后应该不会再更新这个快捷键程序了，到目前为止，除了LC和YT觉得好用会继续用，感觉其他人都不感冒，要断档了，哈哈哈。不过也无所谓了，我总有一种小小的没有来头的预感，将来我的快捷键程序会被某个前辈或者后辈重新拾起，并能为他带来小小的帮助或者启发。也感谢您能够发现这个留言，愿您的测试开发之路一路顺利。
+- **中控**：托盘设置入口直接定位功能页。配置面板可收起，非交互背景可以拖动窗口。关闭中控窗口不会退出快捷键程序；从主程序退出时，中控与桌宠一起结束。
+- **桌宠与 OSD**：可以分别启用或关闭。没有模型时可选择本地模型，或下载默认兔兔模型；模型资源和动作以实际模型支持为准。
+- **统计**：只记录本程序接受的功能操作，不采集普通键盘输入、剪贴板、代码内容、文件路径或窗口标题。数据本地保存，支持 JSON／CSV 导出和清空。
+- **活跃墙**：颜色深浅表示使用次数，不代表工作产出或效率排名。
+
+**账号、个人云端同步、多设备合并及公开对比尚未上线**，计划留待后续大版本。当前本地统计无需注册，也不会自动上传。
+
+## 更新与内容来源
+
+程序更新以 [Gitea Release](https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases) 为主，GitHub 作为备用检查来源。自动检查受用户开关控制；检查不等于自动下载。下载后显示实际执行的文件检查结果，已有 SHA-256 时核验哈希。
+
+公告、轮播和模型来源由 [Kedit_Content](https://gitea.evadd.xyz:88/EVADD/Kedit_Content) 维护，与软件 EXE 发布分开。云端内容不可用时，首页保留有效缓存或内置内容。
+
+详见 [更新与下载](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki/更新与下载) 和 [管理员素材配置](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki/管理员素材配置)。
+
+## 开发与构建
+
+项目由 **AutoHotkey v1 + C# WPF** 组成，桌宠使用 WebView2／Live2D 渲染。AHK 负责快捷键及配置应用，中控负责编辑、展示和相关服务。
+
+使用项目的 `Build-Kedit.cmd`，或运行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Build-Kedit.ps1
+```
+
+构建需要相应编译工具和媒体／桌宠依赖；仅克隆源码不保证具备所有大型素材。脚本读取 AHK 中的 `CurrentVersion`，当前源文件名 `Kedit_GO_to_Def_ver18.30.ahk` 不等于实际运行版本号。
+
+构建不会自动发布 Release。测试入口、架构和发布注意事项见 [开发与维护](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki/开发与维护)。
+
+## 问题反馈
+
+欢迎在 [Issues](https://github.com/Dengjiancong/Kedit_GO_to_Def/issues) 提交问题，或在 [Discussions](https://github.com/Dengjiancong/Kedit_GO_to_Def/discussions) 交流建议。
+
+请尽量提供软件版本、Windows 和目标编辑器版本、复现步骤、预期与实际结果，以及必要截图或日志。提交前遮住私人代码、账号和路径，不必上传整份工作项目。
+
+遇到问题可先查看 [常见问题与反馈](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki/常见问题与反馈)。桌宠偶发消失、特定环境下的组合键问题仍需按实际复现情况排查，不把暂时无法复现视为彻底修复。
+
+## 项目缘起与致谢
+
+这是一个从实际编辑需求出发、利用业余时间逐步打磨的项目。它起于对 PK2 和 Kedit 的使用，也记录了作者在测试开发中的学习、工作与成长。感谢使用、反馈和帮助改进它的同事与朋友。
+
+旧首页中的 PK2 回忆、个人后记、图片和致谢均完整保留在 [2026-10-11 README 历史备份](docs/history/README-2026-10-11.md)。该备份用于保存历史，其中的功能状态与计划不作为当前版本说明。
+
+默认兔兔模型作者为 [泡芙妙妙屋](https://space.bilibili.com/283810584)，[作者原下载入口](https://www.aplaybox.com/details/model/XieIXWh6Noz1)。模型及第三方组件遵守各自作者说明和许可，本项目不额外授予其权利。
