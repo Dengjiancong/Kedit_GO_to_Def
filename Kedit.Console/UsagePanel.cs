@@ -72,7 +72,7 @@ namespace Kedit.Console {
             var top=rows.GroupBy(r=>r.Function).OrderByDescending(g=>g.Sum(r=>r.Count)).FirstOrDefault();
             DrawUsageSummary(rows.Sum(r=>r.Count),rows.Where(r=>r.Count>0).Select(r=>r.Hour.Date).Distinct().Count(),top==null?"暂无记录":UsageName(top.Key));
             usageBody.Children.Add(Text("功能使用次数",15));DrawUsageBars(rows);DrawUsageDetails(rows);
-            usageBody.Children.Add(Text((usageView.SelectedIndex==1?"常用时段 · 周期内各小时累计":"使用趋势")+"（触发次数）",15));DrawUsageLine(rows,start,end,period);
+            usageBody.Children.Add(Text((usageView.SelectedIndex==1?"常用时段 · 周期内相同小时合并累计":"使用趋势 · "+(period==0?"当天逐小时":period==3?"全年逐月":"周期内逐日"))+"（触发次数）",15));DrawUsageLine(rows,start,end,period);if(period==0)usageBody.Children.Add(Text("日视图中，两种视图均统计当天 24 小时；切换到周、月或年可查看趋势与常用时段的区别。",11,"#AAB6C8"));
             var annualHeader=new StackPanel{Orientation=Orientation.Horizontal};annualHeader.Children.Add(Text("年度活跃墙 · ",15));
             int selectedYear=usageYear==null?DateTime.Today.Year:(int)usageYear.SelectedItem;int first=Math.Min(usageSnapshot.Started.Year,DateTime.Today.Year);var years=Enumerable.Range(first,DateTime.Today.Year-first+1).ToArray();
             if(!years.Contains(selectedYear))selectedYear=DateTime.Today.Year;
@@ -80,14 +80,15 @@ namespace Kedit.Console {
             DrawUsageYear(filtered,selectedYear);
             usageBody.Children.Add(Text("深浅表示活跃度，不代表工作产出。成功次数仅适用于 FLOW 插入、Bin 编号及缩进整理；其他功能无法确认外部程序执行结果。",11,"#AAB6C8"));
         }
+        static void FastUsageTooltip(DependencyObject element){ToolTipService.SetInitialShowDelay(element,120);ToolTipService.SetBetweenShowDelay(element,0);ToolTipService.SetShowDuration(element,15000);}
         void DrawUsageBars(List<UsageRow> rows){
             var totals=rows.GroupBy(r=>r.Function).Select(g=>new{Id=g.Key,Count=g.Sum(r=>r.Count),Success=g.Sum(r=>r.Success)}).OrderByDescending(x=>x.Count).ToList();
             if(totals.Count==0){usageBody.Children.Add(Text("此周期暂无记录；启用前的日期不补造历史。",12,"#AAB6C8"));return;}
             double width=Math.Max(870,totals.Count*88);var chart=new Canvas{Width=width,Height=215,Margin=new Thickness(0,0,0,14)};long max=Math.Max(1,totals.Max(x=>x.Count));
             for(int i=0;i<totals.Count;i++){var item=totals[i];double x=15+i*88,h=135.0*item.Count/max;string detail=UsageName(item.Id)+" · "+UsageBinding(item.Id)+"\n触发："+item.Count+"\n成功："+(UsageStore.SuccessSupported(item.Id)?item.Success.ToString():"不适用");
-                var bar=new Rectangle{Width=44,Height=Math.Max(1,h),RadiusX=4,RadiusY=4,Fill=B("#57B7D3"),ToolTip=detail};Canvas.SetLeft(bar,x+12);Canvas.SetTop(bar,155-h);chart.Children.Add(bar);AnimateUsageRise(bar,i*12);
+                var bar=new Rectangle{Width=44,Height=Math.Max(1,h),RadiusX=4,RadiusY=4,Fill=B("#57B7D3"),ToolTip=detail};FastUsageTooltip(bar);Canvas.SetLeft(bar,x+12);Canvas.SetTop(bar,155-h);chart.Children.Add(bar);AnimateUsageRise(bar,i*12);
                 var count=Text(item.Count.ToString(),11);Canvas.SetLeft(count,x+12);Canvas.SetTop(count,137-h);chart.Children.Add(count);
-                var label=Text(UsageName(item.Id),11);label.Width=80;label.MaxHeight=45;label.ToolTip=detail;Canvas.SetLeft(label,x);Canvas.SetTop(label,162);chart.Children.Add(label);
+                var label=Text(UsageName(item.Id),11);label.Width=80;label.MaxHeight=45;label.ToolTip=detail;FastUsageTooltip(label);Canvas.SetLeft(label,x);Canvas.SetTop(label,162);chart.Children.Add(label);
             }
             double offset=usageBarScroll==null?0:usageBarScroll.HorizontalOffset;usageBarScroll=new ScrollViewer{Content=chart,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled};usageBody.Children.Add(usageBarScroll);usageBarScroll.ScrollToHorizontalOffset(offset);usageBarScroll.PreviewMouseWheel+=UsageBarWheel;
         }
@@ -150,7 +151,7 @@ namespace Kedit.Console {
         void DrawUsageSummary(long count,int days,string favorite){
             var grid=new Grid{Margin=new Thickness(0,6,0,22)};for(int i=0;i<3;i++)grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(i==2?1.5:1,GridUnitType.Star)});
             string[] labels={"快捷键触发","活跃天数","最常用功能"},values={count.ToString("N0"),days.ToString(),favorite},hints={"次 · 当前周期","天 · 当前周期","按触发次数统计"},colors={"#70CEE5","#8BDBB4","#B4ADEB"};
-            for(int i=0;i<3;i++){var content=new StackPanel();content.Children.Add(Text(labels[i],12,"#A6B9C9"));var value=Text(values[i],i==2?20:28,colors[i]);value.FontWeight=FontWeights.SemiBold;value.TextWrapping=TextWrapping.NoWrap;value.TextTrimming=TextTrimming.CharacterEllipsis;value.ToolTip=values[i];value.Margin=new Thickness(0,0,0,5);content.Children.Add(value);var hint=Text(hints[i],10,"#8096AA");hint.Margin=new Thickness(0);content.Children.Add(hint);var card=new Border{Child=content,Padding=new Thickness(16,12,16,12),Margin=new Thickness(0,0,i==2?0:12,0),CornerRadius=new CornerRadius(12),Background=B("#202B38"),BorderBrush=B("#354657"),BorderThickness=new Thickness(1)};Grid.SetColumn(card,i);grid.Children.Add(card);}usageBody.Children.Add(grid);
+            for(int i=0;i<3;i++){var content=new StackPanel();content.Children.Add(Text(labels[i],12,"#A6B9C9"));var value=Text(values[i],i==2?20:28,colors[i]);value.FontWeight=FontWeights.SemiBold;value.TextWrapping=TextWrapping.NoWrap;value.TextTrimming=TextTrimming.CharacterEllipsis;value.ToolTip=values[i];FastUsageTooltip(value);value.Margin=new Thickness(0,0,0,5);content.Children.Add(value);var hint=Text(hints[i],10,"#8096AA");hint.Margin=new Thickness(0);content.Children.Add(hint);var card=new Border{Child=content,Padding=new Thickness(16,12,16,12),Margin=new Thickness(0,0,i==2?0:12,0),CornerRadius=new CornerRadius(12),Background=B("#202B38"),BorderBrush=B("#354657"),BorderThickness=new Thickness(1)};Grid.SetColumn(card,i);grid.Children.Add(card);}usageBody.Children.Add(grid);
         }
         void DrawUsageLine(List<UsageRow> rows,DateTime start,DateTime end,int period){
             bool clock=usageView.SelectedIndex==1;int n=clock||period==0?24:period==3?12:(end-start).Days;var values=new long[n];foreach(var row in rows){int i=clock||period==0?row.Hour.Hour:period==3?row.Hour.Month-1:(row.Hour.Date-start).Days;if(i>=0&&i<n)values[i]+=row.Count;}
@@ -163,13 +164,13 @@ namespace Kedit.Console {
             var area=figure.Clone();area.Segments.Add(new LineSegment(new Point(points[n-1].X,150),true));area.Segments.Add(new LineSegment(new Point(points[0].X,150),true));area.IsClosed=true;
             plot.Children.Add(new Path{Data=new PathGeometry(new[]{area}),Fill=new LinearGradientBrush(Color.FromArgb(65,90,210,165),Color.FromArgb(5,90,210,165),90),IsHitTestVisible=false});
             plot.Children.Add(new Path{Data=new PathGeometry(new[]{figure}),Stroke=B("#81DBAE"),StrokeThickness=2,IsHitTestVisible=false});
-            for(int i=0;i<n;i++){double x=points[i].X,y=points[i].Y;string label=clock||period==0?i+"时":period==3?(i+1)+"月":start.AddDays(i).ToString("MM/dd");var dot=new Ellipse{Width=7,Height=7,Fill=B("#A3ECC6"),ToolTip=label+"："+values[i]+" 次"};Canvas.SetLeft(dot,x-3.5);Canvas.SetTop(dot,y-3.5);plot.Children.Add(dot);if(i%Math.Max(1,n/8)==0||i==n-1){var text=Text(label,10);Canvas.SetLeft(text,x-12);Canvas.SetTop(text,163);chart.Children.Add(text);}}
+            for(int i=0;i<n;i++){double x=points[i].X,y=points[i].Y;string label=clock||period==0?i+"时":period==3?(i+1)+"月":start.AddDays(i).ToString("MM/dd");var dot=new Border{Width=18,Height=18,Background=Brushes.Transparent,ToolTip=label+"："+values[i]+" 次",Child=new Ellipse{Width=7,Height=7,Fill=B("#A3ECC6"),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,IsHitTestVisible=false}};FastUsageTooltip(dot);Canvas.SetLeft(dot,x-9);Canvas.SetTop(dot,y-9);plot.Children.Add(dot);if(i%Math.Max(1,n/8)==0||i==n-1){var text=Text(label,10);Canvas.SetLeft(text,x-12);Canvas.SetTop(text,163);chart.Children.Add(text);}}
             AnimateUsageRise(plot);var maxLabel=Text(max.ToString(),10);Canvas.SetTop(maxLabel,16);chart.Children.Add(maxLabel);var zero=Text("0",10);Canvas.SetTop(zero,143);chart.Children.Add(zero);usageBody.Children.Add(chart);
         }
         void DrawUsageYear(List<UsageRow> rows,int year){
             var days=rows.GroupBy(r=>r.Hour.Date).ToDictionary(g=>g.Key,g=>g.ToList());var chart=new Canvas{Width=920,Height=148};DateTime first=new DateTime(year,1,1),last=first.AddYears(1);int offset=((int)first.DayOfWeek+6)%7;
             for(int d=0;d<(last-first).Days;d++){DateTime date=first.AddDays(d);List<UsageRow> day;days.TryGetValue(date,out day);long count=day==null?0:day.Sum(r=>r.Count);bool known=date>=usageSnapshot.Started.Date&&date<=DateTime.Today;string color=!known?"#10141B":count==0?"#303B47":count<10?"#285848":count<50?"#338661":count<100?"#43B77A":"#78E7A2";string detail=date.ToString("yyyy-MM-dd")+(!known?(date>DateTime.Today?" · 未来日期":" · 尚未记录"):(usageSnapshot.Warnings.Count>0?" · 数据可能不完整":"")+" · "+count+" 次");if(day!=null){var top=day.GroupBy(r=>r.Function).OrderByDescending(g=>g.Sum(r=>r.Count)).First();detail+="\n最常用："+UsageName(top.Key);}
-                var cell=new Border{Width=13,Height=13,CornerRadius=new CornerRadius(2),Background=B(color),BorderBrush=B("#43505C"),BorderThickness=new Thickness(.4),ToolTip=detail};int col=(offset+d)/7,row=(offset+d)%7;Canvas.SetLeft(cell,36+col*16);Canvas.SetTop(cell,24+row*16);chart.Children.Add(cell);if(date.Day==1){var month=Text(date.Month+"月",10);Canvas.SetLeft(month,36+col*16);chart.Children.Add(month);}}
+                var cell=new Border{Width=13,Height=13,CornerRadius=new CornerRadius(2),Background=B(color),BorderBrush=B("#43505C"),BorderThickness=new Thickness(.4),ToolTip=detail};FastUsageTooltip(cell);int col=(offset+d)/7,row=(offset+d)%7;Canvas.SetLeft(cell,36+col*16);Canvas.SetTop(cell,24+row*16);chart.Children.Add(cell);if(date.Day==1){var month=Text(date.Month+"月",10);Canvas.SetLeft(month,36+col*16);chart.Children.Add(month);}}
             for(int i=0;i<7;i++){var label=Text(new[]{"一","二","三","四","五","六","日"}[i],9);Canvas.SetTop(label,24+i*16);chart.Children.Add(label);}usageBody.Children.Add(chart);usageBody.Children.Add(Text("未记录 / 未来：深底描边    已记录 0 次：灰色    绿色：1–9 / 10–49 / 50–99 / ≥100 次",11,"#AAB6C8"));
         }
 

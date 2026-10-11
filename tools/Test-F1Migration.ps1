@@ -1,4 +1,4 @@
-﻿param([switch]$UI,[string]$PetModel)
+﻿param([switch]$UI,[string]$PetModel,[switch]$ShortcutsOnly)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $dir=Join-Path $root '.pet-test\f1-migration'
@@ -64,6 +64,16 @@ Hotkey, $MButton, Label_VS_DefinitionAction, On
 for _, Name in ["FindClipboard", "GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "ToggleComment", "SpacesToTabs", "SmartClick", "RenumberBins", "InsertFlowNode"]
     AddKeditMenu(Name, Name)
 
+Key_RunPy := "F8"
+Path_QuickOpen := "Z:\fixture\original"
+IniWrite, %Path_QuickOpen%, %IniFile%, Settings, QuickPath
+AddKeditMenu("RunPy","RunPy")
+AddKeditMenu("CtrlQ","CtrlQ")
+Hotkey, IfWinActive, ahk_class CabinetWClass
+Hotkey, F8, Label_RunPy, On
+Hotkey, IfWinActive
+Hotkey, ^q, Label_CtrlQ, On
+
 Check(SaveKeditHotkeyFromConsole("VS_BookmarkClear", "F2") = 3, "clear bookmark detects next conflict")
 Check(SaveKeditHotkeyFromConsole("VS_BookmarkClear", "^!F9") = 1, "save clear bookmark")
 IniRead, Actual, %IniFile%, Hotkeys, VS_BookmarkClear
@@ -93,10 +103,29 @@ IniFile := A_ScriptDir . "\missing\fixture.ini"
 Check(SaveFindClipboardFromConsole("F10") = 4, "write failure")
 Check(Key_FindClipboard = "+F9", "write failure preserves active value")
 IniFile := OriginalIni
+Check(SaveKeditHotkeyFromConsole("RunPy", "^q") = 3, "Python conflicts with global binding")
+Check(SaveKeditHotkeyFromConsole("CtrlQ", "F8", "GoTo", "Z:\fixture\new") = 3, "global conflicts with Explorer binding")
+Check(SaveKeditHotkeyFromConsole("CtrlQ", "^b", "GoTo", "Z:\fixture\new") = 3, "global conflicts with Kedit and VS")
+Check(SaveKeditHotkeyFromConsole("CtrlQ", "^!F10", "GoTo", "") = 5, "empty path rejected")
+Check(SaveKeditHotkeyFromConsole("CtrlQ", "^!F10", "GoTo", "Z:\离线共享\带 空格") = 1, "global key and offline path saved atomically")
+IniRead, Actual, %IniFile%, Settings, QuickPath
+Check(Actual = Path_QuickOpen && Actual = "Z:\离线共享\带 空格", "path persisted with Unicode")
+Check(InStr(KeditMenuLabels["CtrlQ"], "^!F10"), "global tray refreshed")
+IniFile := A_ScriptDir . "\missing\fixture.ini"
+Check(SaveKeditHotkeyFromConsole("CtrlQ", "^!F11", "GoTo", "Z:\new") = 4, "global write failure")
+Check(Key_CtrlQ = "^!F10" && Path_QuickOpen = "Z:\离线共享\带 空格", "failed write retains binding and path")
+IniFile := OriginalIni
+Check(SaveKeditHotkeyFromConsole("CtrlQ", "^q", "GoTo", "Z:\fixture\original") = 1, "restore global default")
+Check(SaveKeditHotkeyFromConsole("RunPy", "^b") = 1, "separate Explorer scope may reuse Kedit key")
+Check(SaveKeditHotkeyFromConsole("RunPy", "F8") = 1, "restore Python default")
 FileAppend, PASS: F1 transaction and validation`n, result.txt
 ExitApp
 SetKey_InsertFlowNode:
 SetKey_RenumberBins:
+SetKey_CtrlQ:
+SetKey_RunPy:
+Label_CtrlQ:
+Label_RunPy:
 SetKey_FindClipboard:
 SetKey_GoToDef:
 SetKey_ShiftF2:
@@ -154,7 +183,7 @@ $p=Start-Process 'C:\Program Files\AutoHotkey\AutoHotkey.exe' -ArgumentList @('/
 if($p.ExitCode -ne 0 -or !(Test-Path $result)){throw 'AHK fixture failed'}
 Get-Content $result
 if($UI){
-    $prefix=$harness.Substring(0,$harness.IndexOf('Check(SaveFindClipboard'))
+    $prefix=$harness.Substring(0,$harness.IndexOf('Check('))
     $receiverStart=$source.IndexOf('ReceiveConsoleCommand(wParam,')
     $receiverEnd=$source.IndexOf('PollConsoleCommand:',$receiverStart)
     $receiver=$source.Substring($receiverStart,$receiverEnd-$receiverStart)
@@ -168,6 +197,10 @@ StopFixture:
 ExitApp
 SetKey_InsertFlowNode:
 SetKey_RenumberBins:
+SetKey_CtrlQ:
+SetKey_RunPy:
+Label_CtrlQ:
+Label_RunPy:
 SetKey_FindClipboard:
 SetKey_GoToDef:
 SetKey_ShiftF2:
@@ -227,6 +260,7 @@ UpdateHotkeys() {
         $handle=Get-Content $hwndPath
         $output=Join-Path $dir 'ui'
         $arguments='side.mp4 '+$handle+' --settings "'+$dir+'\fixture.ini" --data-dir "'+$output+'" --self-test-f1 --find-clipboard'
+        if($ShortcutsOnly){$arguments+=" --self-test-shortcuts-only"}
         if($PetModel){$arguments+=' --pet-model "'+$PetModel+'"'}
         $report=Join-Path $output 'result.txt'
         if(Test-Path $report){Remove-Item -LiteralPath $report}

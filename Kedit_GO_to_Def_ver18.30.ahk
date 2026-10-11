@@ -116,8 +116,8 @@ AddKeditMenu("VS_Redo", "设置: VS 重做 (默认Ctrl+Y)")
 
 ; --- Kedit 以外的设置入口
 Menu, Tray, Add  ; 分隔线
-Menu, Tray, Add, 设置: 默认 F8 (运行Py脚本), SetKey_RunPy
-Menu, Tray, Add, 设置: 快速打开路径/目标 (键位与路径), SetQuickOpen_All
+AddKeditMenu("RunPy", "设置: 默认 F8 (运行Py脚本)")
+AddKeditMenu("CtrlQ", "设置: 快速打开路径/目标 (键位与路径)")
 Menu, Tray, Add, Pause：屏蔽/恢复快捷键, ToggleManagedHotkeys
 
 ; OSD 开关菜单项
@@ -1558,7 +1558,8 @@ SetKey_SmartClick:
 return
 
 SetKey_RunPy:
-    ChangeHotkey("RunPy", "在资源管理器中直接运行选中脚本`n(仅对 .py 文件生效)", Key_RunPy)
+    ConsoleKeditPage := 302
+    Gosub, OpenConsoleRoute
 return
 
 SetKey_ToggleComment:
@@ -1586,10 +1587,10 @@ SetKey_FindClipboard:
     Gosub, OpenConsoleRoute
 return
 
+SetKey_CtrlQ:
 SetQuickOpen_All:
-    ; 调用新的二合一设置函数
-    ; 参数: (当前快捷键, 当前路径)
-    ChangeQuickOpenSettings(Key_CtrlQ, Path_QuickOpen)
+    ConsoleKeditPage := 301
+    Gosub, OpenConsoleRoute
 return
 
 ; =======================================================
@@ -2450,7 +2451,7 @@ RefreshKeditMenus() {
     global
     if (!IsObject(KeditMenuLabels))
         return
-    Titles := {InsertFlowNode:"FLOW 插入测试节点", RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_BookmarkClear:"VS 清除书签", VS_Redo:"VS 重做"}
+    Titles := {RunPy:"运行 Python 文件", CtrlQ:"快速打开路径", InsertFlowNode:"FLOW 插入测试节点", RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_BookmarkClear:"VS 清除书签", VS_Redo:"VS 重做"}
     for Name, OldCaption in KeditMenuLabels {
         Caption := "设置: " . (Titles.HasKey(Name)?Titles[Name]:KeditMenuTitles[Name]) . " (" . Key_%Name% . ")"
         Menu, Tray, Rename, %OldCaption%, %Caption%
@@ -2510,14 +2511,19 @@ SaveFindClipboardFromConsole(NewKey) {
     return SaveKeditHotkeyFromConsole("FindClipboard", NewKey)
 }
 
-SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
+SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo", QuickPath := "") {
     global
-    Labels := {InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"Label_ToggleComment", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_BookmarkClear:"Label_VS_BookmarkClear", VS_Redo:"Label_VS_Redo"}
+    Labels := {RunPy:"Label_RunPy", CtrlQ:"Label_CtrlQ", InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"Label_ToggleComment", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_BookmarkClear:"Label_VS_BookmarkClear", VS_Redo:"Label_VS_Redo"}
     if (!Labels.HasKey(KeyName))
         return 0
     TargetLabel := Labels[KeyName]
     IsVS := SubStr(KeyName,1,3) = "VS_"
-    Context := IsVS ? "ahk_exe devenv.exe" : "ahk_exe kedit.exe"
+    Context := KeyName = "CtrlQ" ? "" : KeyName = "RunPy" ? "ahk_class CabinetWClass" : IsVS ? "ahk_exe devenv.exe" : "ahk_exe kedit.exe"
+    if (KeyName = "CtrlQ") {
+        QuickPath := Trim(QuickPath)
+        if (QuickPath = "" || RegExMatch(QuickPath, "[|\r\n]"))
+            return 5
+    }
     if (DefinitionAction != "GoTo" && DefinitionAction != "Peek")
         return 2
     Critical
@@ -2527,7 +2533,8 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
         return 2
     if (Identity = "reserved")
         return 3
-    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_BookmarkClear","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "CtrlQ"]) {
+    ConflictNames := KeyName = "CtrlQ" ? ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "RunPy", "VS_Peek", "VS_Back", "VS_Build", "VS_ToggleComment", "VS_BookmarkToggle", "VS_BookmarkNext", "VS_BookmarkPrevious", "VS_BookmarkClear", "VS_Redo"] : KeyName = "RunPy" ? ["CtrlQ"] : (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_BookmarkClear","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "CtrlQ"])
+    for _, Name in ConflictNames {
         if (Name = KeyName)
             continue
         if (NormalizeConsoleHotkey(Key_%Name%) = Identity
@@ -2555,10 +2562,17 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
             return 4
         }
     }
+    if (KeyName = "CtrlQ") {
+        IniWrite, %QuickPath%, %PendingIni%, Settings, QuickPath
+        if (ErrorLevel) {
+            FileDelete, %PendingIni%
+            return 4
+        }
+    }
     OldContext := KeyName = "VS_Peek" && OldKey = "MButton" ? "" : Context
     NewContext := KeyName = "VS_Peek" && NewKey = "MButton" ? "" : Context
-    OldBinding := OldContext = "" ? "$MButton" : OldKey
-    NewBinding := NewContext = "" ? "$MButton" : NewKey
+    OldBinding := KeyName = "VS_Peek" && OldContext = "" ? "$MButton" : OldKey
+    NewBinding := KeyName = "VS_Peek" && NewContext = "" ? "$MButton" : NewKey
     State := HotkeysSuspended ? "Off" : "On"
     Hotkey, IfWinActive, %OldContext%
     try {
@@ -2586,6 +2600,8 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     }
     Hotkey, IfWinActive
     Key_%KeyName% := NewKey
+    if (KeyName = "CtrlQ")
+        Path_QuickOpen := QuickPath
     if (KeyName = "VS_Peek")
         VSDefinitionAction := DefinitionAction
     RefreshKeditMenus()
@@ -2602,6 +2618,8 @@ ReceiveConsoleCommand(wParam, lParam, msg, hwnd) {
     if (!DataPtr || DataSize < 2)
         return 0
     Command := StrGet(DataPtr, "UTF-16")
+    if (RegExMatch(Command, "^save_other_hotkey\|(CtrlQ|RunPy)\|([^|]+)\|([^|\r\n]*)$", OtherMatch))
+        return SaveKeditHotkeyFromConsole(OtherMatch1, OtherMatch2, "GoTo", OtherMatch3)
     if (SubStr(Command, 1, 20) = "save_find_clipboard|")
         return SaveFindClipboardFromConsole(SubStr(Command, 21))
     if (RegExMatch(Command, "^save_kedit_hotkey\|([A-Za-z0-9_]+)\|(.+)$", SaveMatch))
