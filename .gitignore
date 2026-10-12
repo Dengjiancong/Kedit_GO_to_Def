@@ -1,4 +1,4 @@
-# Ignore everything in the repository root.
+﻿# Ignore everything in the repository root.
 /*
 
 # Keep this ignore file and root-level AutoHotkey scripts.
@@ -38,3 +38,6 @@
 /photo/*
 !/photo/default_logo.png
 !/photo/中控任务栏图标.png
+
+# Python maintenance tool bytecode
+/tools/__pycache__/
