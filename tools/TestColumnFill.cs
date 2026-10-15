@@ -1,0 +1,47 @@
+﻿using System;using System.IO;using System.Reflection;using System.Windows;using System.Windows.Media;using System.Windows.Media.Imaging;using Kedit.Console;
+class TestColumnFill{
+ static void Check(bool value,string name){if(!value)throw new Exception(name);}
+ [STAThread]static void Main(string[] args){try{int n;
+ Check(ColumnFillWindow.Transform("abc\r\ndef\r\nghi","X",0,1,1,2,4,false,out n)=="aXc\r\ndXf\r\nghi"&&n==2,"rectangle limits");
+ Check(ColumnFillWindow.Transform("\tab\nxy","X",0,1,2,2,4,false,out n)=="  X  ab\nxyX","inside tab and short line");
+ Check(ColumnFillWindow.Transform("\tab","Z",0,0,1,3,4,false,out n)==" Z ab","replace partial tab");
+ Check(ColumnFillWindow.Transform("a\n\nb\n","X",0,3,3,5,4,true,out n)=="a  X\n\nb  X\n"&&n==2,"blank skip and trailing boundary");
+ Check(ColumnFillWindow.Transform("\ta","X",0,0,8,8,8,false,out n)=="\tXa","preserve untouched tab");
+ Check(ColumnFillWindow.Transform("a\nb","",0,1,8,9,4,false,out n)=="a\nb","delete beyond short line does not pad");
+ Directory.CreateDirectory(args[0]);File.WriteAllText(Path.Combine(args[0],"source.txt"),"alpha_test,\tbeta_test,\tBin31;\r\nsecond_test,\tnext_test,\tBin7;\r\nshort");File.WriteAllText(Path.Combine(args[0],"text.txt"),"Sample");
+ var app=new Application();var w=new ColumnFillWindow(args[0]);w.Show();
+ var t=typeof(ColumnFillWindow);Action<string,object> set=(name,value)=>t.GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(w,value);
+ set("rectangle",true);set("ar",0);set("br",2);set("ac",4);set("bc",9);t.GetMethod("Refresh",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(w,null);w.UpdateLayout();
+ var editor=(System.Windows.Controls.TextBox)t.GetField("editor",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w);
+ string original=editor.Text;
+ w.ApplyRectangle("X",0);w.ApplyRectangle("Y",0);
+ Check(editor.Text.StartsWith("alphXY"),"consecutive rectangle typing");
+ var undo=t.GetField("undo",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w);
+ var redo=t.GetField("redo",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w);
+ var restore=t.GetMethod("Restore",BindingFlags.Instance|BindingFlags.NonPublic);
+ restore.Invoke(w,new[]{undo,redo});restore.Invoke(w,new[]{undo,redo});
+ Check(editor.Text==original,"undo both rectangle inputs");
+ restore.Invoke(w,new[]{redo,undo});restore.Invoke(w,new[]{redo,undo});
+ Check(editor.Text.StartsWith("alphXY"),"redo both inputs");
+ w.ApplyRectangle("",-1);Check(editor.Text.StartsWith("alphX"),"rectangle backspace");
+ w.UpdateLayout();
+ editor.Text=new string('a',400)+"\r\n"+new string('b',400);
+ w.UpdateLayout();editor.ScrollToHorizontalOffset(900);w.UpdateLayout();
+ double offset=editor.HorizontalOffset;Check(offset>100,"long-line test scrolled");
+ w.BeginRectangle(new Point(300,20));
+ app.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,new Action(delegate{}));
+ Check(Math.Abs(editor.HorizontalOffset-offset)<1,"Alt selection preserves horizontal viewport");
+ set("br",1);w.ApplyRectangle("X",0);
+ app.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,new Action(delegate{}));
+ Check(Math.Abs(editor.HorizontalOffset-offset)<1,"rectangle typing preserves horizontal viewport");
+ restore.Invoke(w,new[]{undo,redo});
+ app.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,new Action(delegate{}));
+ Check(Math.Abs(editor.HorizontalOffset-offset)<1,"undo preserves horizontal viewport");
+ restore.Invoke(w,new[]{redo,undo});
+ app.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,new Action(delegate{}));
+ Check(Math.Abs(editor.HorizontalOffset-offset)<1,"redo preserves horizontal viewport");
+ var bmp=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);bmp.Render(w);var enc=new PngBitmapEncoder();enc.Frames.Add(BitmapFrame.Create(bmp));using(var f=File.Create(Path.Combine(args[0],"preview.png")))enc.Save(f);t.GetMethod("Save",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(w,null);
+ Check(File.ReadAllText(Path.Combine(args[0],"result.txt"))==editor.Text,"writeback file");
+ Check(File.ReadAllText(Path.Combine(args[0],"accepted"))=="1","accepted marker");Console.WriteLine("PASS: rectangle, tabs, short lines, row range, blank lines, GUI rendering");
+ }catch(Exception e){Console.WriteLine(e);Environment.ExitCode=1;}}
+}

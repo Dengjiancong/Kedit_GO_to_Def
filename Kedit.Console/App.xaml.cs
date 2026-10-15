@@ -33,6 +33,16 @@ namespace Kedit.Console
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            if(e.Args.Length==2 && e.Args[0]=="--column-fill"){
+                // This is a modal editing helper, not the resident tray application.
+                ShutdownMode=ShutdownMode.OnMainWindowClose;
+                try { MainWindow=new ColumnFillWindow(e.Args[1]);MainWindow.Show(); }
+                catch(Exception ex) {
+                    try { File.WriteAllText(Path.Combine(e.Args[1],"error.txt"),ex.ToString()); } catch {}
+                    Shutdown(1);
+                }
+                return;
+            }
             if(UpdateInstaller.Run(e.Args)){Shutdown();return;}
             if(Array.IndexOf(e.Args,"--design-preview")>=0 || (Array.IndexOf(e.Args,"--self-test-usage")>=0 && Array.IndexOf(e.Args,"--usage-test-dir")>=0)) { MainWindow=new DesignPreview();MainWindow.Show();return; }
             string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kedit", "DesktopPet");

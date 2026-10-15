@@ -19,7 +19,7 @@ namespace Kedit.Console {
             new KeditShortcut("AltF","文件中查找","!f","依次发送 Alt+T、N，打开 Find in files。","find-in-files","▤"),
             new KeditShortcut("CtrlW","关闭窗口","^w","执行原有关闭窗口操作。","close-window","×"),
             new KeditShortcut("AltA","另存为","!a","依次发送 Alt+F、A，打开另存为。","save-as","▣"),
-            new KeditShortcut("ColumnInsert","列填入数据","!i","对列选择区域批量填入数据。","column-insert","▥"),
+            new KeditShortcut("ColumnInsert","列填入数据","!i","普通选中多行后直接编辑；Alt 拖出矩形可同时插入或替换。Enter 换行，Ctrl+Enter 确认写回，Ctrl+Z 撤销。","column-insert","▥"),
             new KeditShortcut("ToggleComment","注释 / 取消注释","^/","智能切换所选代码的注释状态。","toggle-comment","/"),
             new KeditShortcut("SpacesToTabs","行首空格转 Tab","^\\","按 4 列制表位整理所选文本的行首缩进，保持正文视觉位置。","spaces-to-tabs","⇥"),
             new KeditShortcut("SmartClick","智能点击 / 跳转定义","~MButton","执行原有智能点击功能。鼠标键建议保留 ~ 前缀，例如 ~MButton，以保留原按键功能。","smart-click","◎"),

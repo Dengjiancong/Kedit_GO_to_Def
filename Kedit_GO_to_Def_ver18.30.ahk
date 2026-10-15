@@ -16,13 +16,13 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 终极完整版 (v19.00-Amiya.v008)
+; Kedit 助手 - 终极完整版 (v19.00-Amiya.v020)
 ; =======================================================
 #SingleInstance Force
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v19.00-Amiya.v008"
+Global CurrentVersion := "v19.00-Amiya.v020"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
@@ -908,136 +908,111 @@ RegisterSmartClickBurst(CurrentTick, RequiredClicks := 4, WindowMs := 6000) {
 }
 
 ; [新增代码] =======================================================
-; 普通选择模拟列块插入 (完美修复 Tab 制表符对齐错位问题)
+; 多行列编辑：保留原选区、直接编辑、Tab 制表位与写回复核
 ; =======================================================
 Label_ColumnInsert:
+    if (ColumnFillBusy)
+        return
+    ColumnFillBusy := true
+    try {
+        ColumnFillStart()
+    } catch e {
+        ShowOSD("列填入未完成：" . e.Message)
+    } finally {
+        ColumnFillBusy := false
+    }
+return
+
+ColumnFillStart() {
+    global
+    local saved, picked, count, owner, source, result, changed, folder, helper, helperDir, exitCode
+    owner := WinExist("A")
+    if !WinActive("ahk_exe kedit.exe")
+        return
     UsageHit("ColumnInsert")
-    ; --- 🔧 关键配置：你的编辑器一个 Tab(制表符) 占用几个空格的宽度？ ---
-    ; 绝大多数现代 IDE 是 4，部分老牌编辑器(如纯正的Kedit)可能是 8。
-    ; 如果还是有轻微错位，请把这里改成 8。
-    TabSize := 4
-
-    ; 1. 防粘滞，强制释放控制键
-    SendInput, {Blind}{LCtrl Up}{RCtrl Up}{LAlt Up}{RAlt Up}{LShift Up}{RShift Up}
-
-    ClipSaved := ClipboardAll
-    Clipboard := ""
-
-    ; 2. 复制你的普通选区
-    BlockInput, On
-    SendInput, ^c
-    BlockInput, Off
-
-    ClipWait, 1.0
-    if (ErrorLevel) {
-        ShowOSD("Error: 未选中内容")
-        Clipboard := ClipSaved
-        return
-    }
-
-    FullText := Clipboard
-
-    ; 检查是否包含换行符
-    StrReplace(FullText, "`n", "`n", LFCount)
-    if (LFCount == 0) {
-        ShowOSD("Error: 请跨行选择以确定列位置")
-        Clipboard := ClipSaved
-        return
-    }
-
-    ; 3. 弹窗询问要填入的数据
-    InputBox, InsertData, Kedit 列填充, 请输入要垂直插入的数据 (例如 8,)：,, 320, 150
-    if (ErrorLevel) {
-        Clipboard := ClipSaved
-        return
-    }
-
-    ShowOSD("⏳ 正在计算视觉列偏移...", 0)
-
-    Lines := StrSplit(FullText, "`n", "`r")
-    LineCount := Lines.MaxIndex()
-
-    ; =======================================================
-    ; 💡 核心魔法 1：计算最后一行前缀的“视觉宽度”(Visual Width)
-    ; 将 \t 展开为实际的屏幕列数，破除混排对齐陷阱
-    ; =======================================================
-    TargetVWidth := 0
-    Loop, Parse, % Lines[LineCount]
-    {
-        if (A_LoopField == "`t")
-            TargetVWidth += TabSize - Mod(TargetVWidth, TabSize)
-        else
-            TargetVWidth += 1
-    }
-
-    ; 4. 逐行处理拼接
-    NewText := ""
-    For index, line in Lines
-    {
-        if (index == 1) {
-            ; 首行：直接加在前面
-            NewText .= InsertData . line
+    saved := ClipboardAll
+    try {
+        KeyWait, Alt
+        KeyWait, Ctrl
+        KeyWait, Shift
+        Clipboard := ""
+        SendInput, ^c
+        ClipWait, 1
+        if ErrorLevel {
+            ShowOSD("请先选中需要填入的多行")
+            return
         }
-        else if (index == LineCount) {
-            ; 末行：直接加在后面
-            NewText .= line . InsertData
+        picked := Clipboard
+        count := StrSplit(StrReplace(picked, "`r`n", "`n"), "`n").Length()
+        if (SubStr(picked, 0) = "`n")
+            count--
+        if (count < 1 || !InStr(picked, "`n")) {
+            ShowOSD("请先选中需要填入的多行")
+            return
         }
-        else {
-            ; =======================================================
-            ; 💡 核心魔法 2：用视觉宽度在中间行寻找准确的“字符切分点”
-            ; =======================================================
-            vWidth := 0
-            SplitIndex := StrLen(line)
-
-            Loop, Parse, line
-            {
-                ; 一旦当前扫描的视觉宽度达到基准宽度，这就是切割点
-                if (vWidth >= TargetVWidth) {
-                    SplitIndex := A_Index - 1
-                    break
-                }
-
-                if (A_LoopField == "`t")
-                    vWidth += TabSize - Mod(vWidth, TabSize)
-                else
-                    vWidth += 1
+        ; Preserve the exact selection. Never move the caret to reconstruct full lines.
+        source := picked
+        IniRead, CFTab, %IniFile%, ColumnFill, TabSize, 4
+        folder := A_Temp . "\Kedit-ColumnFill-" . DllCall("GetCurrentProcessId") . "-" . A_TickCount
+        FileCreateDir, %folder%
+        FileOpen(folder . "\source.txt", "w", "UTF-8-RAW").Write(source)
+        FileOpen(folder . "\tab.txt", "w", "UTF-8-RAW").Write(CFTab)
+        helper := A_ScriptDir . "\Kedit.Console\bin\Release\Kedit.Console.exe"
+        if (A_IsCompiled) {
+            ; A private executable per host instance avoids stale/locked tray binaries.
+            helperDir := A_Temp . "\Kedit-ColumnEditor-" . DllCall("GetCurrentProcessId")
+            FileCreateDir, %helperDir%
+            helper := helperDir . "\Kedit.Console.exe"
+            if !ColumnEditorExtracted {
+                FileInstall, Kedit.Console\bin\Release\Kedit.Console.exe, %helper%, 1
+                if ErrorLevel
+                    throw Exception("无法释放列编辑器程序")
+                ColumnEditorExtracted := true
             }
-
-            LeftPart := SubStr(line, 1, SplitIndex)
-            RightPart := SubStr(line, SplitIndex + 1)
-
-            ; 容错机制：如果某中间行非常短，用空格给它补齐到基准列
-            if (vWidth < TargetVWidth) {
-                Loop, % TargetVWidth - vWidth
-                    LeftPart .= " "
-            }
-
-            NewText .= LeftPart . InsertData . RightPart
         }
-
-        ; 加上换行符拼接回去
-        if (index < LineCount) {
-            NewText .= "`r`n"
+        if !FileExist(helper)
+            throw Exception("请先构建新版中控程序")
+        Clipboard := saved
+        RunWait, "%helper%" --column-fill "%folder%",, UseErrorLevel
+        if (ErrorLevel = "ERROR")
+            throw Exception("无法打开列编辑窗口")
+        if (ErrorLevel != 0)
+            throw Exception("列编辑器异常退出（" . ErrorLevel . "）")
+        if !FileExist(folder . "\accepted")
+            return
+        result := FileOpen(folder . "\result.txt", "r", "UTF-8").Read()
+        CFTab := FileOpen(folder . "\tab.txt", "r", "UTF-8").Read()
+        changed := FileOpen(folder . "\accepted", "r", "UTF-8").Read()
+        ; Restore only the original editor; verify its selection before replacing it.
+        if !WinExist("ahk_id " . owner)
+            throw Exception("原 Kedit 窗口已关闭")
+        WinActivate, ahk_id %owner%
+        WinWaitActive, ahk_id %owner%,, 1
+        if ErrorLevel
+            throw Exception("无法返回原 Kedit 窗口")
+        Clipboard := ""
+        SendInput, ^c
+        ClipWait, 1
+        if (ErrorLevel || !(Clipboard == source))
+            throw Exception("原选区已改变，请重新选择后再试")
+        if !changed {
+            ShowOSD("编辑内容未改变")
+            return
         }
+        if !WinActive("ahk_id " . owner)
+            throw Exception("焦点已改变，未执行插入")
+        Clipboard := result
+        SendInput, ^v
+        Sleep, 200
+        IniWrite, %CFTab%, %IniFile%, ColumnFill, TabSize
+        ShowOSD("✔ 已写回列编辑结果")
+    } finally {
+        if (folder != "" && InStr(folder, A_Temp . "\Kedit-ColumnFill-") = 1)
+            FileRemoveDir, %folder%, 1
+        Clipboard := saved
+        saved := ""
     }
-
-    ; 5. 覆盖粘贴回编辑器
-    Clipboard := NewText
-    Sleep, 50
-
-    BlockInput, On
-    SendInput, ^v
-    Sleep, 150
-    BlockInput, Off
-
-    ; 6. 异步恢复原有的剪贴板内容
-    SetTimer, RestoreClipboardCol, -200
-return
-
-RestoreClipboardCol:
-    Clipboard := ClipSaved
-    ShowOSD("✔ 批量列插入完成")
-return
+}
 
 ; =======================================================
 ; 多行注释 / 取消注释 (单键 Toggle 智能模式 - 完美时序版)

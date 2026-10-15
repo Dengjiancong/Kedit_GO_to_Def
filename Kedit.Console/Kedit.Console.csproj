@@ -49,7 +49,7 @@
     <ApplicationDefinition Include="App.xaml" />
     <Page Include="MainWindow.xaml" />
     <Compile Include="App.xaml.cs" />
-    <Compile Include="DesignPreview.cs" /><Compile Include="MediaWork.cs" />
+    <Compile Include="DesignPreview.cs" /><Compile Include="ColumnFillWindow.cs" /><Compile Include="MediaWork.cs" />
     <Compile Include="ShortcutPage.cs" /><Compile Include="UpdatesPanel.cs" /><Compile Include="UpdateService.cs" /><Compile Include="UpdateInstaller.cs" /><Compile Include="BackgroundFraming.cs" /><Compile Include="UsageStatistics.cs" /><Compile Include="UsagePanel.cs" />
     <Compile Include="PageMedia.cs" /><Compile Include="CloudContent.cs" /><Compile Include="CloudPanels.cs" />
     <Compile Include="PreviewCrop.cs" /><Compile Include="TileMedia.cs" />
