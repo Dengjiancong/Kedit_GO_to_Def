@@ -125,15 +125,12 @@ namespace Kedit.Console {
    Key key=e.Key==Key.System?e.SystemKey:e.Key;
    bool ctrl=(Keyboard.Modifiers&ModifierKeys.Control)!=0;
    if(ctrl&&key==Key.Enter) { Save(); e.Handled=true; return; }
+   if(!editor.IsKeyboardFocusWithin)return;
    if(ctrl&&(key==Key.Z||key==Key.Y)) { if(key==Key.Y||(Keyboard.Modifiers&ModifierKeys.Shift)!=0)Restore(redo,undo);else Restore(undo,redo); e.Handled=true; return; }
    if(!rectangle)return;
    if(ctrl&&(key==Key.C||key==Key.X)) {
-    var lines=Lines();var copied=new List<string>();
-    for(int row=Math.Min(ar,br);row<=Math.Max(ar,br);row++) {
-     string a,b,c,d;Split(lines[row],Math.Min(ac,bc),TabSize,out a,out b);
-     Split(b,Math.Abs(ac-bc),TabSize,out c,out d);copied.Add(c);
-    }
-    try { Clipboard.SetText(string.Join(Environment.NewLine,copied)); if(key==Key.X&&ac!=bc)ApplyRectangle("",0); }
+    if(ac==bc){e.Handled=true;return;}
+    try { Clipboard.SetText(CopyRectangle(editor.Text,Math.Min(ar,br),Math.Max(ar,br),Math.Min(ac,bc),Math.Max(ac,bc))); if(key==Key.X)ApplyRectangle("",0); }
     catch(Exception ex) { status.Text="剪贴板暂不可用："+ex.Message; }
     e.Handled=true;return;
    }
@@ -160,7 +157,11 @@ namespace Kedit.Console {
    if(left==right && deletion<0) { if(left==0)return; left--; }
    else if(left==right && deletion>0)right++;
    string result=Transform(editor.Text,text,Math.Min(ar,br),Math.Max(ar,br),left,right,TabSize,skip.IsChecked==true,out count);
-   if(result==editor.Text)return;
+   if(result==editor.Text) {
+    // Replacing a selection with identical text still collapses it for subsequent typing.
+    if(left!=right && text.Length>0){ac=bc=VisualColumn(text,left);Refresh();}
+    return;
+   }
    undo.Push(Capture());redo.Clear();changing=true;
    try { PreserveView(delegate { editor.Text=result;previous=result;ac=bc=VisualColumn(text,left);editor.Select(IndexAt(br,bc),0); }); } finally { changing=false; }
    Refresh();
@@ -226,6 +227,19 @@ namespace Kedit.Console {
      dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(90,70,160,240)),new Pen(Brushes.LightSkyBlue,1),new Rect(left,r.Top,Math.Max(1,right-left),r.Height));
     } dc.Pop();
    }
+  }
+  internal static string CopyRectangle(string text,int first,int last,int left,int right) {
+   var lines=Regex.Split(text,"\r\n|\n|\r");var result=new List<string>();
+   for(int row=first;row<=last&&row<lines.Length;row++){
+    var expanded=new StringBuilder();int column=0;
+    foreach(char c in lines[row]){
+     int next=VisualColumn(c.ToString(),column);
+     if(c=='\t')expanded.Append(' ',next-column);else expanded.Append(c);column=next;
+    }
+    string line=expanded.ToString().PadRight(right);
+    result.Add(line.Substring(left,right-left));
+   }
+   return string.Join(Environment.NewLine,result);
   }
   internal static void Split(string line,int column,int tab,out string left,out string right){int width=0;for(int i=0;i<line.Length;i++){if(width==column){left=line.Substring(0,i);right=line.Substring(i);return;}int next=width+(line[i]=='\t'?tab-width%tab:1);if(column<next){left=line.Substring(0,i)+new string(' ',column-width);right=new string(' ',next-column)+line.Substring(i+1);return;}width=next;}left=line+new string(' ',Math.Max(0,column-width));right="";}
   internal static string Transform(string source,string data,int first,int last,int left,int right,int tab,bool skip,out int count){count=0;var parts=Regex.Split(source,"(\r\n|\n|\r)");for(int i=0;i<parts.Length;i+=2){int row=i/2;if(row<first||row>last||(i==parts.Length-1&&parts[i]==""&&i>0)||skip&&string.IsNullOrWhiteSpace(parts[i]))continue;if(data.Length==0 && VisualColumn(parts[i],0)<=left)continue;string a,b,c,d;Split(parts[i],left,tab,out a,out b);Split(parts[i],right,tab,out c,out d);parts[i]=a+data+d;count++;}return string.Concat(parts);}

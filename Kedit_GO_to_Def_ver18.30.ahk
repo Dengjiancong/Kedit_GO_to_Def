@@ -1001,8 +1001,13 @@ ColumnFillStart() {
         }
         if !WinActive("ahk_id " . owner)
             throw Exception("焦点已改变，未执行插入")
-        Clipboard := result
-        SendInput, ^v
+        if (result = "") {
+            ; Pasting an empty clipboard does not reliably delete an editor selection.
+            SendInput, {Delete}
+        } else {
+            Clipboard := result
+            SendInput, ^v
+        }
         Sleep, 200
         IniWrite, %CFTab%, %IniFile%, ColumnFill, TabSize
         ShowOSD("✔ 已写回列编辑结果")

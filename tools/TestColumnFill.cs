@@ -8,12 +8,19 @@ class TestColumnFill{
  Check(ColumnFillWindow.Transform("a\n\nb\n","X",0,3,3,5,4,true,out n)=="a  X\n\nb  X\n"&&n==2,"blank skip and trailing boundary");
  Check(ColumnFillWindow.Transform("\ta","X",0,0,8,8,8,false,out n)=="\tXa","preserve untouched tab");
  Check(ColumnFillWindow.Transform("a\nb","",0,1,8,9,4,false,out n)=="a\nb","delete beyond short line does not pad");
+ Check(ColumnFillWindow.CopyRectangle("a\tb",0,0,1,4)=="   ","copy tab relative to original column");
+ Check(ColumnFillWindow.CopyRectangle("ab\r\nx",0,1,1,4)=="b  "+Environment.NewLine+"   ","rectangle copy pads short rows");
  Directory.CreateDirectory(args[0]);File.WriteAllText(Path.Combine(args[0],"source.txt"),"alpha_test,\tbeta_test,\tBin31;\r\nsecond_test,\tnext_test,\tBin7;\r\nshort");File.WriteAllText(Path.Combine(args[0],"text.txt"),"Sample");
  var app=new Application();var w=new ColumnFillWindow(args[0]);w.Show();
  var t=typeof(ColumnFillWindow);Action<string,object> set=(name,value)=>t.GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(w,value);
  set("rectangle",true);set("ar",0);set("br",2);set("ac",4);set("bc",9);t.GetMethod("Refresh",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(w,null);w.UpdateLayout();
  var editor=(System.Windows.Controls.TextBox)t.GetField("editor",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w);
  string original=editor.Text;
+ set("ar",0);set("br",0);set("ac",0);set("bc",5);
+ w.ApplyRectangle("alpha",0);w.ApplyRectangle("!",0);
+ Check(editor.Text.StartsWith("alpha!_test"),"identical replacement collapses selection");
+ editor.Text=original;set("ar",0);set("br",2);set("ac",4);set("bc",9);set("rectangle",true);
+
  w.ApplyRectangle("X",0);w.ApplyRectangle("Y",0);
  Check(editor.Text.StartsWith("alphXY"),"consecutive rectangle typing");
  var undo=t.GetField("undo",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w);
