@@ -34,7 +34,7 @@ namespace Kedit.Console {
    var root=new DockPanel { Margin=new Thickness(18) }; Content=root;
    var header=new StackPanel { Margin=new Thickness(0,0,0,12) };
    DockPanel.SetDock(header,Dock.Top); root.Children.Add(header);
-   header.Children.Add(new TextBlock { Text="直接编辑文本 · Alt + 鼠标拖动选择矩形 · 竖线同时插入，矩形替换", Margin=new Thickness(0,0,0,8) });
+   header.Children.Add(new TextBlock { Text="直接编辑文本 · Alt + 鼠标拖动选择矩形 · 方向键移动，Shift+方向键扩展", Margin=new Thickness(0,0,0,8) });
    header.Children.Add(skip);
    var footer=new DockPanel { Margin=new Thickness(0,12,0,0) };
    DockPanel.SetDock(footer,Dock.Bottom); root.Children.Add(footer);
@@ -153,6 +153,15 @@ namespace Kedit.Console {
    FollowRectangle(dx,dy);
    Refresh();
   }
+  internal void ExtendRectangle(int dx,int dy) {
+   if(!rectangle)return;
+   bc=Math.Max(0,bc+dx);
+   br=Math.Max(0,Math.Min(Lines().Length-1,br+dy));
+   PreserveView(delegate { editor.Select(IndexAt(br,bc),0); });
+   // Follow the moving endpoint even when it crosses the fixed anchor.
+   FollowRectangle(0,0);
+   Refresh();
+  }
   void FollowRectangle(int dx,int dy) {
    editor.UpdateLayout();
    int row=dy<0?Math.Min(ar,br):dy>0?Math.Max(ar,br):br;
@@ -177,8 +186,9 @@ namespace Kedit.Console {
    if(!editor.IsKeyboardFocusWithin)return;
    if(ctrl&&(key==Key.Z||key==Key.Y)) { if(key==Key.Y||(Keyboard.Modifiers&ModifierKeys.Shift)!=0)Restore(redo,undo);else Restore(undo,redo); e.Handled=true; return; }
    if(!rectangle)return;
-   if(Keyboard.Modifiers==ModifierKeys.None && (key==Key.Left||key==Key.Right||key==Key.Up||key==Key.Down)) {
-    MoveRectangle(key==Key.Left?-1:key==Key.Right?1:0,key==Key.Up?-1:key==Key.Down?1:0);
+   if((Keyboard.Modifiers==ModifierKeys.None || Keyboard.Modifiers==ModifierKeys.Shift) && (key==Key.Left||key==Key.Right||key==Key.Up||key==Key.Down)) {
+    int dx=key==Key.Left?-1:key==Key.Right?1:0,dy=key==Key.Up?-1:key==Key.Down?1:0;
+    if(Keyboard.Modifiers==ModifierKeys.Shift)ExtendRectangle(dx,dy);else MoveRectangle(dx,dy);
     e.Handled=true;return;
    }
    if(ctrl&&(key==Key.C||key==Key.X)) {

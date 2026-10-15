@@ -79,6 +79,27 @@ class TestColumnFill{
  app.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,new Action(delegate{}));
  Check(editor.HorizontalOffset<20,"arrow left follows rectangle back");
  Check((bool)t.GetField("rectangle",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w),"left scroll keeps rectangle");
+ editor.Text="abcd\r\nefgh\r\nijkl";w.UpdateLayout();
+ set("rectangle",true);set("ar",0);set("br",1);set("ac",1);set("bc",1);
+ w.ExtendRectangle(1,0);w.ExtendRectangle(0,1);
+ Check((int)t.GetField("ar",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==0 &&
+ (int)t.GetField("ac",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==1,"extension keeps anchor");
+ w.ApplyRectangle("X",0);
+ Check(editor.Text=="aXcd\r\neXgh\r\niXkl","extended rectangle replaces three rows");
+ restore.Invoke(w,new[]{undo,redo});
+ w.ExtendRectangle(-1,0);w.ExtendRectangle(-1,0);w.ExtendRectangle(-1,0);
+ Check((int)t.GetField("bc",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==0,"shrink crosses anchor and stops at left");
+ w.ExtendRectangle(0,1);
+ Check((int)t.GetField("br",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==2,"extend stops at bottom");
+ editor.Text=new string('a',500)+"\r\n"+new string('b',500);w.UpdateLayout();
+ set("rectangle",true);set("ar",0);set("br",1);set("ac",1);set("bc",1);
+ for(int i=0;i<200;i++)w.ExtendRectangle(1,0);
+ app.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,new Action(delegate{}));
+ Check(editor.HorizontalOffset>100,"shift extension follows viewport");
+ Check((int)t.GetField("ac",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==1,"scrolling extension retains anchor");
+ w.MoveRectangle(1,0);
+ Check((int)t.GetField("ac",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==2 &&
+ (int)t.GetField("bc",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==202,"whole movement after extension");
  var bmp=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);bmp.Render(w);var enc=new PngBitmapEncoder();enc.Frames.Add(BitmapFrame.Create(bmp));using(var f=File.Create(Path.Combine(args[0],"preview.png")))enc.Save(f);t.GetMethod("Save",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(w,null);
  Check(File.ReadAllText(Path.Combine(args[0],"result.txt"))==editor.Text,"writeback file");
  Check(File.ReadAllText(Path.Combine(args[0],"accepted"))=="1","accepted marker");Console.WriteLine("PASS: rectangle, tabs, short lines, row range, blank lines, GUI rendering");
