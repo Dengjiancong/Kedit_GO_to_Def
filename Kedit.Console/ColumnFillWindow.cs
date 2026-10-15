@@ -65,7 +65,15 @@ namespace Kedit.Console {
    editor.SelectionChanged+=delegate { Refresh(); };
    editor.AddHandler(ScrollViewer.ScrollChangedEvent,new ScrollChangedEventHandler(delegate { Refresh(); }));
    editor.PreviewMouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs e) {
-    if((Keyboard.Modifiers&ModifierKeys.Alt)==0) { rectangle=false; Refresh(); return; }
+    if((Keyboard.Modifiers&ModifierKeys.Alt)==0) {
+     rectangle=false;
+     if(e.ClickCount==2 && Keyboard.Modifiers==ModifierKeys.None) {
+      int index=editor.GetCharacterIndexFromPoint(e.GetPosition(editor),false);
+      int start,length;
+      if(IdentifierRange(editor.Text,index,out start,out length)){editor.Focus();editor.Select(start,length);e.Handled=true;}
+     }
+     Refresh(); return;
+    }
     BeginRectangle(e.GetPosition(editor));
     dragging=true; editor.CaptureMouse(); Refresh(); e.Handled=true;
    };
@@ -121,6 +129,22 @@ namespace Kedit.Console {
    PreserveView(delegate { editor.Focus();editor.Select(IndexAt(ar,ac),0); });
    Refresh();
   }
+  internal static bool IdentifierRange(string text,int index,out int start,out int length) {
+   start=index;length=0;
+   if(index<0||index>=text.Length||!IdentifierChar(text[index]))return false;
+   int end=index+1;
+   while(start>0&&IdentifierChar(text[start-1]))start--;
+   while(end<text.Length&&IdentifierChar(text[end]))end++;
+   length=end-start;return true;
+  }
+  static bool IdentifierChar(char c) { return c=='_'||c>='a'&&c<='z'||c>='A'&&c<='Z'||c>='0'&&c<='9'; }
+  internal void MoveRectangle(int dx,int dy) {
+   if(!rectangle)return;
+   dx=Math.Max(-Math.Min(ac,bc),dx);
+   dy=Math.Max(-Math.Min(ar,br),Math.Min(Lines().Length-1-Math.Max(ar,br),dy));
+   ac+=dx;bc+=dx;ar+=dy;br+=dy;
+   Refresh();
+  }
   void OnKey(object sender,KeyEventArgs e) {
    Key key=e.Key==Key.System?e.SystemKey:e.Key;
    bool ctrl=(Keyboard.Modifiers&ModifierKeys.Control)!=0;
@@ -128,6 +152,10 @@ namespace Kedit.Console {
    if(!editor.IsKeyboardFocusWithin)return;
    if(ctrl&&(key==Key.Z||key==Key.Y)) { if(key==Key.Y||(Keyboard.Modifiers&ModifierKeys.Shift)!=0)Restore(redo,undo);else Restore(undo,redo); e.Handled=true; return; }
    if(!rectangle)return;
+   if(Keyboard.Modifiers==ModifierKeys.None && (key==Key.Left||key==Key.Right||key==Key.Up||key==Key.Down)) {
+    MoveRectangle(key==Key.Left?-1:key==Key.Right?1:0,key==Key.Up?-1:key==Key.Down?1:0);
+    e.Handled=true;return;
+   }
    if(ctrl&&(key==Key.C||key==Key.X)) {
     if(ac==bc){e.Handled=true;return;}
     try { Clipboard.SetText(CopyRectangle(editor.Text,Math.Min(ar,br),Math.Max(ar,br),Math.Min(ac,bc),Math.Max(ac,bc))); if(key==Key.X)ApplyRectangle("",0); }

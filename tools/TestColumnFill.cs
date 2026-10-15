@@ -47,6 +47,25 @@ class TestColumnFill{
  restore.Invoke(w,new[]{redo,undo});
  app.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,new Action(delegate{}));
  Check(Math.Abs(editor.HorizontalOffset-offset)<1,"redo preserves horizontal viewport");
+ editor.Text="a\r\nb\r\nc\r\nd";
+ set("rectangle",true);set("ar",1);set("br",2);set("ac",1);set("bc",1);
+ w.MoveRectangle(1,0);w.ApplyRectangle("X",0);
+ Check(editor.Text=="a\r\nb X\r\nc X\r\nd","move right then column insert");
+ w.MoveRectangle(0,1);w.ApplyRectangle("Y",0);
+ Check(editor.Text=="a\r\nb X\r\nc XY\r\nd  Y","move down preserves row span");
+ w.MoveRectangle(0,1);
+ Check((int)t.GetField("br",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==3,"bottom boundary");
+ set("ar",2);set("br",0);set("ac",4);set("bc",2);
+ w.MoveRectangle(-1,-1);
+ Check((int)t.GetField("ar",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==2 &&
+ (int)t.GetField("ac",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==3 &&
+ (int)t.GetField("bc",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==1,"reverse rectangle preserves size and top boundary");
+ w.MoveRectangle(-1,0);w.MoveRectangle(-1,0);
+ Check((int)t.GetField("bc",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==0,"left boundary");
+ int start,len;
+ Check(ColumnFillWindow.IdentifierRange("x, quadword_read_wrap8_p1;",12,out start,out len)&&start==3&&len==22,"identifier includes underscores and digits");
+ Check(!ColumnFillWindow.IdentifierRange("abc;",3,out start,out len),"punctuation remains delimiter");
+ w.UpdateLayout();
  var bmp=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);bmp.Render(w);var enc=new PngBitmapEncoder();enc.Frames.Add(BitmapFrame.Create(bmp));using(var f=File.Create(Path.Combine(args[0],"preview.png")))enc.Save(f);t.GetMethod("Save",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(w,null);
  Check(File.ReadAllText(Path.Combine(args[0],"result.txt"))==editor.Text,"writeback file");
  Check(File.ReadAllText(Path.Combine(args[0],"accepted"))=="1","accepted marker");Console.WriteLine("PASS: rectangle, tabs, short lines, row range, blank lines, GUI rendering");
