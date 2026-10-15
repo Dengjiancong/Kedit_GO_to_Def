@@ -65,6 +65,12 @@ namespace Kedit.Console {
    editor.SelectionChanged+=delegate { Refresh(); };
    editor.AddHandler(ScrollViewer.ScrollChangedEvent,new ScrollChangedEventHandler(delegate { Refresh(); }));
    editor.PreviewMouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs e) {
+    // Scrollbar interaction belongs to the viewport, not the text selection.
+    DependencyObject target=e.OriginalSource as DependencyObject;
+    while(target!=null && target!=editor) {
+     if(target is System.Windows.Controls.Primitives.ScrollBar)return;
+     target=target is Visual?VisualTreeHelper.GetParent(target):null;
+    }
     if((Keyboard.Modifiers&ModifierKeys.Alt)==0) {
      rectangle=false;
      if(e.ClickCount==2 && Keyboard.Modifiers==ModifierKeys.None) {
@@ -143,7 +149,26 @@ namespace Kedit.Console {
    dx=Math.Max(-Math.Min(ac,bc),dx);
    dy=Math.Max(-Math.Min(ar,br),Math.Min(Lines().Length-1-Math.Max(ar,br),dy));
    ac+=dx;bc+=dx;ar+=dy;br+=dy;
+   PreserveView(delegate { editor.Select(IndexAt(br,bc),0); });
+   FollowRectangle(dx,dy);
    Refresh();
+  }
+  void FollowRectangle(int dx,int dy) {
+   editor.UpdateLayout();
+   int row=dy<0?Math.Min(ar,br):dy>0?Math.Max(ar,br):br;
+   Rect bounds=TextViewport();
+   Rect caret=editor.GetRectFromCharacterIndex(IndexAt(row,bc));
+   if(caret.IsEmpty || caret.Top<bounds.Top || caret.Bottom>bounds.Bottom) {
+    editor.ScrollToLine(row);editor.UpdateLayout();
+   }
+   bounds=TextViewport();
+   int column=dx<0?Math.Min(ac,bc):dx>0?Math.Max(ac,bc):bc;
+   double x=XAt(row,column),padding=Math.Min(12,bounds.Width/4);
+   if(x<bounds.Left+padding)
+    editor.ScrollToHorizontalOffset(Math.Max(0,editor.HorizontalOffset+x-bounds.Left-padding));
+   else if(x>bounds.Right-padding)
+    editor.ScrollToHorizontalOffset(editor.HorizontalOffset+x-bounds.Right+padding);
+   editor.UpdateLayout();
   }
   void OnKey(object sender,KeyEventArgs e) {
    Key key=e.Key==Key.System?e.SystemKey:e.Key;
