@@ -552,6 +552,11 @@ InsertFlowAtCaret() {
             return
         }
         SetFlowClipboard(Prefix . Result)
+        ; Clipboard retries can yield: do not paste into a newly focused window.
+        if (!WinActive("ahk_id " . Window)) {
+            FlowInsertTrace("aborted: focus changed before paste")
+            return
+        }
         SendInput, ^v
         Sleep, 200
     UsageHit("InsertFlowNode", true, UsageToken_InsertFlowNode)
