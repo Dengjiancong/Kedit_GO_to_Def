@@ -6,10 +6,25 @@ using System.Web.Script.Serialization;
 namespace Kedit.Console {
  internal static class UpdateInstaller {
   internal sealed class Plan {public string Target, Staged, Backup, Sha;public int Owner, Console;public long OwnerStart,ConsoleStart;}
+  [System.Runtime.InteropServices.DllImport("kernel32.dll",SetLastError=true)]
+  static extern IntPtr OpenProcess(uint access,bool inherit,int id);
+  [System.Runtime.InteropServices.DllImport("kernel32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode,SetLastError=true)]
+  static extern bool QueryFullProcessImageName(IntPtr handle,uint flags,System.Text.StringBuilder path,ref int size);
+  [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+  internal static string ExecutablePath(int id) {
+   // Query the image path, not the module list: works from x86 for x64 owners.
+   IntPtr handle=OpenProcess(0x1000,false,id);
+   if(handle==IntPtr.Zero)throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"无法核对主程序路径");
+   try {
+    var path=new System.Text.StringBuilder(32768);int length=path.Capacity;
+    if(!QueryFullProcessImageName(handle,0,path,ref length))throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"无法读取主程序路径");
+    return Path.GetFullPath(path.ToString());
+   }finally{CloseHandle(handle);}
+  }
   internal static string Prepare(UpdateService service,Process owner){
    if(!service.Compiled||owner==null)throw new InvalidOperationException("源码运行模式请使用下载文件手动测试，不会替换 AHK 脚本。");
    string target=Path.GetFullPath(service.TargetPath);if(!File.Exists(target)||!target.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))throw new IOException("主程序安装路径无效。");
-   if(!string.Equals(owner.MainModule.FileName,target,StringComparison.OrdinalIgnoreCase))throw new IOException("主程序进程与安装目标不一致。");
+   if(!string.Equals(ExecutablePath(owner.Id),target,StringComparison.OrdinalIgnoreCase))throw new IOException("主程序进程与安装目标不一致。");
    string staging=target+".new-"+Guid.NewGuid().ToString("N");File.Copy(service.Package,staging,false);
    try{
     UpdateService.VerifyPackage(staging,new FileInfo(service.Package).Length,null,CancellationToken.None);
