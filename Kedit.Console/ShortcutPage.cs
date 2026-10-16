@@ -24,7 +24,8 @@ namespace Kedit.Console {
             new KeditShortcut("SpacesToTabs","行首空格转 Tab","^\\","按 4 列制表位整理所选文本的行首缩进，保持正文视觉位置。","spaces-to-tabs","⇥"),
             new KeditShortcut("SmartClick","智能点击 / 跳转定义","~MButton","执行原有智能点击功能。鼠标键建议保留 ~ 前缀，例如 ~MButton，以保留原按键功能。","smart-click","◎"),
             new KeditShortcut("RenumberBins","FLOW Bin 递增编号","!+b","仅处理选区中分号前的 Bin 数字；每个 FLOW 从 Bin4 开始。保留逗号前的 Bin、空白与注释。","renumber-bins","#"),
-            new KeditShortcut("InsertFlowNode","FLOW 插入测试节点","!+v","复制单个测试名称，将光标放在 FLOW 第二列节点或 Bin 终点前（支持前方空格/Tab）。保留原行 Bin，新增行使用 Bin31。","insert-flow-node","＋")
+            new KeditShortcut("InsertFlowNode","FLOW 插入测试节点","!+v","复制单个测试名称，将光标放在 FLOW 第二列节点或 Bin 终点前（支持前方空格/Tab）。保留原行 Bin，新增行使用 Bin31。","insert-flow-node","＋"),
+            new KeditShortcut("ClipboardLocate","剪贴板定位文件","+F1","在 Kedit 三个文件树或资源管理器文件列表中输入剪贴板的单行名称，仅定位、不打开文件；代码区及输入框不生效。","clipboard-locate","⌕")
         };
         static readonly KeditShortcut[] vsShortcuts={
             new KeditShortcut("VS_Peek","跳转 / 预览定义","MButton","选择 F12 跳转或 Alt+F12 预览；默认中键保留原窗口识别逻辑。","vs-definition","↗"),
@@ -95,7 +96,7 @@ namespace Kedit.Console {
             savedKey=ReadShortcut();key.TextChanged-=Changed;key.Text=savedKey;key.TextChanged+=Changed;
             title.Text=CurrentShortcut.Title+" · "+FriendlyKey(savedKey);
             formHeader.Children.Add(Text(CurrentShortcut.Title,23));formHeader.Children.Add(Text("当前："+FriendlyKey(savedKey)+"　默认："+FriendlyKey(CurrentShortcut.Default),13));
-            form.Children.Add(Text((otherPage?(CurrentShortcut.Id=="CtrlQ"?"全局生效。":"仅在资源管理器窗口中生效。"):vsPage?"适用于 Visual Studio。":"仅在 Kedit 中生效。")+CurrentShortcut.Description,13));
+            form.Children.Add(Text((CurrentShortcut.Id=="ClipboardLocate"?"适用于 Kedit 与资源管理器。":otherPage?(CurrentShortcut.Id=="CtrlQ"?"全局生效。":"仅在资源管理器窗口中生效。"):vsPage?"适用于 Visual Studio。":"仅在 Kedit 中生效。")+CurrentShortcut.Description,13));
             if(CurrentShortcut.Id=="VS_Peek"){var value=new StringBuilder(32);GetPrivateProfileString("Settings","VSDefinitionAction","GoTo",value,32,settingsFile);savedAction=value.ToString()=="Peek"?"Peek":"GoTo";definitionChoice=new ComboBox {Margin=new Thickness(0,0,0,12)};definitionChoice.Items.Add("跳转到定义（F12）");definitionChoice.Items.Add("预览定义（Alt+F12）");definitionChoice.SelectedIndex=savedAction=="Peek"?1:0;definitionChoice.SelectionChanged+=delegate{dirty=key.Text!=savedKey||(definitionChoice.SelectedIndex==1?"Peek":"GoTo")!=savedAction;};form.Children.Add(definitionChoice);}
             if(otherPage&&CurrentShortcut.Id=="CtrlQ"){
                 var pathValue=new StringBuilder(32768);GetPrivateProfileString("Settings","QuickPath",@"Z:\misc\testing\ATE\K2",pathValue,32768,settingsFile);savedQuickPath=pathValue.ToString();

@@ -37,6 +37,7 @@ IniRead, Key_AltA,       %IniFile%, Hotkeys, AltA,       !a  ; <--- 新增 Alt+A
 IniRead, Key_ColumnInsert, %IniFile%, Hotkeys, ColumnInsert, !i  ; [新增代码] --- 列选择批量填入
 IniRead, Key_ToggleComment, %IniFile%, Hotkeys, ToggleComment, ^/	; [新增代码] --- 注释/取消注释 (单键切换)
 IniRead, Key_SpacesToTabs, %IniFile%, Hotkeys, SpacesToTabs, ^\ ; 行首每 4 个空格转换为 1 个 Tab
+IniRead, Key_ClipboardLocate, %IniFile%, Hotkeys, ClipboardLocate, +F1
 IniRead, Key_InsertFlowNode, %IniFile%, Hotkeys, InsertFlowNode, !+v
 IniRead, Key_RenumberBins, %IniFile%, Hotkeys, RenumberBins, !+b
 IniRead, Key_FindClipboard, %IniFile%, Hotkeys, FindClipboard, F1 ; 查找剪贴板内容
@@ -97,6 +98,7 @@ AddKeditMenu("AltA", "设置: 默认 Alt+A (另存为)")
 AddKeditMenu("ColumnInsert", "设置: 默认 Alt+I (列填入数据)")
 AddKeditMenu("ToggleComment", "设置: 默认 Ctrl+/ (注释/取消注释)")
 AddKeditMenu("SpacesToTabs", "设置: 默认 Ctrl+\ (行首空格转 Tab)")
+AddKeditMenu("ClipboardLocate", "设置: 剪贴板定位文件 (默认 Shift+F1)")
 AddKeditMenu("InsertFlowNode", "设置: FLOW 插入测试节点 (默认 Alt+Shift+V)")
 AddKeditMenu("RenumberBins", "设置: FLOW Bin 递增编号 (默认 Alt+Shift+B)")
 AddKeditMenu("FindClipboard", "设置: 查找剪贴板内容")
@@ -312,6 +314,10 @@ RestoreDefaults:
     Key_RunPy      := "F8"
     Key_ToggleComment := "^/"  ; <--- 恢复默认值
     Key_SpacesToTabs := "^\"
+    SetLocateContext()
+    SetCompatibleHotkey(Key_ClipboardLocate, "", "Off")
+    Hotkey, IfWinActive
+    Key_ClipboardLocate := "+F1"
     Key_InsertFlowNode := "!+v"
     Key_RenumberBins := "!+b"
     Key_FindClipboard := "F1"
@@ -333,6 +339,7 @@ RestoreDefaults:
     IniWrite, %Key_RunPy%,      %IniFile%, Hotkeys, RunPy
     IniWrite, %Key_ToggleComment%, %IniFile%, Hotkeys, ToggleComment ; <--- 写入 INI
     IniWrite, %Key_SpacesToTabs%, %IniFile%, Hotkeys, SpacesToTabs
+    IniWrite, %Key_ClipboardLocate%, %IniFile%, Hotkeys, ClipboardLocate
     IniWrite, %Key_InsertFlowNode%, %IniFile%, Hotkeys, InsertFlowNode
     IniWrite, %Key_RenumberBins%, %IniFile%, Hotkeys, RenumberBins
     IniWrite, %Key_FindClipboard%, %IniFile%, Hotkeys, FindClipboard
@@ -395,6 +402,93 @@ return
 ; =======================================================
 ; 按 4 列制表位整理所选文本的行首缩进，并保持正文的视觉列不变
 ; =======================================================
+; Predicate registration keeps the native key untouched outside supported lists.
+SetLocateContext() {
+    Hotkey, If, % Func("ClipboardLocateTarget")
+}
+SetConsoleHotkeyContext(Context) {
+    if (Context = "ClipboardLocate")
+        SetLocateContext()
+    else
+        Hotkey, IfWinActive, %Context%
+}
+ClipboardLocateTarget() {
+    WinGet, Window, ID, A
+    WinGet, Process, ProcessName, ahk_id %Window%
+    ControlGetFocus, Focus, ahk_id %Window%
+    if (Process = "kedit.exe") {
+        if (!RegExMatch(Focus, "^SysTreeView32[123]$"))
+            return 0
+    } else if (Process = "explorer.exe") {
+        WinGetClass, Class, ahk_id %Window%
+        if (Class != "CabinetWClass" || !RegExMatch(Focus, "^(DirectUIHWND|SysListView32)[0-9]+$"))
+            return 0
+    } else
+        return 0
+    ControlGet, Target, Hwnd,, %Focus%, ahk_id %Window%
+    if (Process = "explorer.exe") {
+        Parent := Target, Found := false
+        Loop, 12 {
+            WinGetClass, Class, ahk_id %Parent%
+            if (Class = "SHELLDLL_DefView") {
+                Found := true
+                break
+            }
+            Parent := DllCall("GetParent", "Ptr", Parent, "Ptr")
+            if (!Parent)
+                break
+        }
+        if (!Found)
+            return 0
+    }
+    return Target
+}
+Label_ClipboardLocate:
+    LocateClipboardInList()
+return
+
+LocateClipboardInList() {
+    global ClipboardLocateBusy
+    if (ClipboardLocateBusy)
+        return
+    ClipboardLocateBusy := true
+    try {
+        Target := ClipboardLocateTarget()
+        if (!Target)
+            return
+        UsageHit("ClipboardLocate")
+        if (DllCall("IsClipboardFormatAvailable", "UInt", 15)) {
+            ShowOSD("请复制单行文件名，而不是文件本身")
+            return
+        }
+        LocateText := Trim(Clipboard, " `t")
+        if (LocateText = "" || RegExMatch(LocateText, "[\x00-\x1F\x7F]") || StrLen(LocateText) > 260) {
+            ShowOSD("请复制单行文件名（不超过 260 个字符）")
+            return
+        }
+        ; Release modifiers before typing; never paste, press Enter or alter clipboard.
+        KeyWait, Shift
+        KeyWait, Ctrl
+        KeyWait, Alt
+        KeyWait, LWin
+        KeyWait, RWin
+        if (ClipboardLocateTarget() != Target)
+            return
+        Loop, Parse, LocateText
+        {
+            if (ClipboardLocateTarget() != Target)
+                break
+            ; Address the original list directly, so a focus change cannot type into code.
+            Result := 0
+            Sent := DllCall("SendMessageTimeout", "Ptr", Target, "UInt", 0x102, "Ptr", Asc(A_LoopField), "Ptr", 1, "UInt", 2, "UInt", 100, "PtrP", Result, "Ptr")
+            if (!Sent)
+                break
+        }
+    } finally {
+        ClipboardLocateBusy := false
+    }
+}
+
 Label_InsertFlowNode:
     FlowInsertTrace("hotkey received; busy=" . InsertFlowBusy)
     if (InsertFlowBusy) {
@@ -1398,6 +1492,9 @@ ProcessKeditWindow(winTitle, delay)
 UpdateHotkeys() {
     global
     RefreshKeditMenus()
+    SetLocateContext()
+    SetCompatibleHotkey(Key_ClipboardLocate, "Label_ClipboardLocate", HotkeysSuspended ? "Off" : "On")
+    Hotkey, IfWinActive
     HotkeyState := HotkeysSuspended ? "Off" : "On"
     ; --- [新增代码] 第一组：全局快捷键 ---
     Hotkey, IfWinActive
@@ -1558,6 +1655,11 @@ return
 
 SetKey_SpacesToTabs:
     ConsoleKeditPage := 9
+    Gosub, OpenConsoleRoute
+return
+
+SetKey_ClipboardLocate:
+    ConsoleKeditPage := 13
     Gosub, OpenConsoleRoute
 return
 
@@ -2440,7 +2542,7 @@ RefreshKeditMenus() {
     global
     if (!IsObject(KeditMenuLabels))
         return
-    Titles := {InsertFlowNode:"FLOW 插入测试节点", RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_BookmarkClear:"VS 清除书签", VS_Redo:"VS 重做"}
+    Titles := {ClipboardLocate:"剪贴板定位文件", InsertFlowNode:"FLOW 插入测试节点", RenumberBins:"FLOW Bin 递增编号", FindClipboard:"查找剪贴板内容", GoToDef:"侧后键 / Ctrl+B", ShiftF2:"侧前键 / Shift+F2", AltF:"文件中查找", CtrlW:"关闭窗口", AltA:"另存为", ColumnInsert:"列填入数据", ToggleComment:"注释 / 取消注释", SpacesToTabs:"行首空格转 Tab", SmartClick:"智能点击 / 跳转定义", VS_Peek:"VS 跳转 / 预览定义", VS_Back:"VS 回退", VS_Build:"VS 生成", VS_ToggleComment:"VS 注释 / 取消注释", VS_BookmarkToggle:"VS 建立 / 取消书签", VS_BookmarkNext:"VS 下一个书签", VS_BookmarkPrevious:"VS 上一个书签", VS_BookmarkClear:"VS 清除书签", VS_Redo:"VS 重做"}
     for Name, OldCaption in KeditMenuLabels {
         Caption := "设置: " . (Titles.HasKey(Name)?Titles[Name]:KeditMenuTitles[Name]) . " (" . Key_%Name% . ")"
         Menu, Tray, Rename, %OldCaption%, %Caption%
@@ -2502,12 +2604,12 @@ SaveFindClipboardFromConsole(NewKey) {
 
 SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     global
-    Labels := {InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"Label_ToggleComment", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_BookmarkClear:"Label_VS_BookmarkClear", VS_Redo:"Label_VS_Redo"}
+    Labels := {ClipboardLocate:"Label_ClipboardLocate", InsertFlowNode:"Label_InsertFlowNode", RenumberBins:"Label_RenumberBins", FindClipboard:"Label_FindClipboard", GoToDef:"Label_GoToDef", ShiftF2:"Label_ShiftF2", AltF:"Label_AltF", CtrlW:"Label_CtrlW", AltA:"Label_AltA", ColumnInsert:"Label_ColumnInsert", ToggleComment:"Label_ToggleComment", SpacesToTabs:"Label_SpacesToTabs", SmartClick:"Label_SmartClick", VS_Peek:"Label_VS_DefinitionAction", VS_Back:"Label_VS_NavigateBack", VS_Build:"Label_VS_SendCtrlB", VS_ToggleComment:"Label_VS_ToggleComment", VS_BookmarkToggle:"Label_VS_BookmarkToggle", VS_BookmarkNext:"Label_VS_BookmarkNext", VS_BookmarkPrevious:"Label_VS_BookmarkPrevious", VS_BookmarkClear:"Label_VS_BookmarkClear", VS_Redo:"Label_VS_Redo"}
     if (!Labels.HasKey(KeyName))
         return 0
     TargetLabel := Labels[KeyName]
     IsVS := SubStr(KeyName,1,3) = "VS_"
-    Context := IsVS ? "ahk_exe devenv.exe" : "ahk_exe kedit.exe"
+    Context := KeyName = "ClipboardLocate" ? "ClipboardLocate" : IsVS ? "ahk_exe devenv.exe" : "ahk_exe kedit.exe"
     if (DefinitionAction != "GoTo" && DefinitionAction != "Peek")
         return 2
     Critical
@@ -2517,8 +2619,8 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
         return 2
     if (Identity = "reserved")
         return 3
-    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_BookmarkClear","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "CtrlQ"]) {
-        if (Name = KeyName)
+    for _, Name in (IsVS ? ["VS_Peek","VS_Back","VS_Build","VS_ToggleComment","VS_BookmarkToggle","VS_BookmarkNext","VS_BookmarkPrevious","VS_BookmarkClear","VS_Redo","CtrlQ"] : ["GoToDef", "ShiftF2", "AltF", "CtrlW", "AltA", "ColumnInsert", "SmartClick", "ToggleComment", "SpacesToTabs", "FindClipboard", "RenumberBins", "InsertFlowNode", "ClipboardLocate", "CtrlQ", "RunPy"]) {
+        if (Name = KeyName || (Name = "RunPy" && KeyName != "ClipboardLocate"))
             continue
         if (NormalizeConsoleHotkey(Key_%Name%) = Identity
             || ((InStr(NewKey, "*") || InStr(Key_%Name%, "*"))
@@ -2550,14 +2652,14 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     OldBinding := OldContext = "" ? "$MButton" : OldKey
     NewBinding := NewContext = "" ? "$MButton" : NewKey
     State := HotkeysSuspended ? "Off" : "On"
-    Hotkey, IfWinActive, %OldContext%
+    SetConsoleHotkeyContext(OldContext)
     try {
         SetCompatibleHotkey(OldBinding, "", "Off")
-        Hotkey, IfWinActive, %NewContext%
+        SetConsoleHotkeyContext(NewContext)
         SetCompatibleHotkey(NewBinding, TargetLabel, State)
     } catch e {
         try {
-            Hotkey, IfWinActive, %OldContext%
+            SetConsoleHotkeyContext(OldContext)
             SetCompatibleHotkey(OldBinding, TargetLabel, State)
         }
         Hotkey, IfWinActive
@@ -2566,9 +2668,9 @@ SaveKeditHotkeyFromConsole(KeyName, NewKey, DefinitionAction := "GoTo") {
     }
     FileMove, %PendingIni%, %IniFile%, 1
     if (ErrorLevel) {
-        Hotkey, IfWinActive, %NewContext%
+        SetConsoleHotkeyContext(NewContext)
         SetCompatibleHotkey(NewBinding, "", "Off")
-        Hotkey, IfWinActive, %OldContext%
+        SetConsoleHotkeyContext(OldContext)
             SetCompatibleHotkey(OldBinding, TargetLabel, State)
         Hotkey, IfWinActive
         FileDelete, %PendingIni%
