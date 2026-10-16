@@ -11,7 +11,9 @@ using System.Windows.Media;
 
 namespace Kedit.Console {
  internal sealed class ColumnFillWindow : Window {
-  readonly string folder, source;
+  readonly string folder, source, sizeSettings;
+  [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
   readonly TextBox editor = new TextBox();
   readonly TextBlock status = new TextBlock();
   readonly CheckBox skip = new CheckBox { Content="列编辑跳过空白行", Foreground=Brushes.WhiteSmoke };
@@ -26,10 +28,40 @@ namespace Kedit.Console {
   sealed class State {
    internal string Text; internal int Start, Length, A, B, C, D; internal bool Rectangle;
   }
-  internal ColumnFillWindow(string directory) {
+  internal ColumnFillWindow(string directory,string settingsPath=null) {
    folder=directory; source=File.ReadAllText(Path.Combine(folder,"source.txt"));
    Title="Kedit 列编辑"; Width=1000; Height=700; MinWidth=700; MinHeight=450;
-   WindowStartupLocation=WindowStartupLocation.CenterScreen;
+   sizeSettings=settingsPath??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Kedit","ColumnEditor","window-size.txt");
+   var screen=System.Windows.Forms.Screen.FromHandle(GetForegroundWindow());
+   WindowStartupLocation=WindowStartupLocation.Manual;
+   SourceInitialized+=delegate {
+    var hwnd=new System.Windows.Interop.WindowInteropHelper(this).Handle;
+    var area=screen.WorkingArea;
+    // Position on the invoking monitor before converting its pixels to WPF units.
+    SetWindowPos(hwnd,IntPtr.Zero,area.Left,area.Top,0,0,0x15);
+    var transform=PresentationSource.FromVisual(this).CompositionTarget.TransformFromDevice;
+    Vector available=transform.Transform(new Vector(area.Width,area.Height));
+    double requestedWidth=available.X*.85,requestedHeight=Math.Min(700,available.Y*.85);
+    try {
+     var parts=File.ReadAllText(sizeSettings).Split('|');double w,h;
+     if(parts.Length==2 && double.TryParse(parts[0],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out w)
+      && double.TryParse(parts[1],System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out h)
+      && !double.IsNaN(w)&&!double.IsInfinity(w)&&!double.IsNaN(h)&&!double.IsInfinity(h)&&w>0&&h>0){requestedWidth=w;requestedHeight=h;}
+    }catch(IOException){}catch(UnauthorizedAccessException){}
+    MinWidth=Math.Min(700,available.X);MinHeight=Math.Min(450,available.Y);
+    Width=Math.Max(MinWidth,Math.Min(requestedWidth,available.X));
+    Height=Math.Max(MinHeight,Math.Min(requestedHeight,available.Y));
+    var pixels=PresentationSource.FromVisual(this).CompositionTarget.TransformToDevice.Transform(new Vector(Width,Height));
+    SetWindowPos(hwnd,IntPtr.Zero,area.Left+(area.Width-(int)pixels.X)/2,area.Top+(area.Height-(int)pixels.Y)/2,(int)pixels.X,(int)pixels.Y,0x14);
+   };
+   Closed+=delegate {
+    try {
+     var bounds=WindowState==WindowState.Normal?new Rect(Left,Top,ActualWidth,ActualHeight):RestoreBounds;
+     if(bounds.Width<=0||bounds.Height<=0)return;
+     Directory.CreateDirectory(Path.GetDirectoryName(sizeSettings));
+     File.WriteAllText(sizeSettings,bounds.Width.ToString(System.Globalization.CultureInfo.InvariantCulture)+"|"+bounds.Height.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }catch(IOException){}catch(UnauthorizedAccessException){}
+   };
    Background=new SolidColorBrush(Color.FromRgb(25,29,38)); Foreground=Brushes.WhiteSmoke;
    var root=new DockPanel { Margin=new Thickness(18) }; Content=root;
    var header=new StackPanel { Margin=new Thickness(0,0,0,12) };
@@ -179,8 +211,17 @@ namespace Kedit.Console {
     editor.ScrollToHorizontalOffset(editor.HorizontalOffset+x-bounds.Right+padding);
    editor.UpdateLayout();
   }
+  internal void ExitRectangle() {
+   dragging=false;
+   if(editor.IsMouseCaptured)editor.ReleaseMouseCapture();
+   PreserveView(delegate { editor.Select(IndexAt(br,bc),0); });
+   rectangle=false;Refresh();
+  }
   void OnKey(object sender,KeyEventArgs e) {
    Key key=e.Key==Key.System?e.SystemKey:e.Key;
+   if(key==Key.Escape && rectangle) {
+    ExitRectangle();e.Handled=true;return;
+   }
    bool ctrl=(Keyboard.Modifiers&ModifierKeys.Control)!=0;
    if(ctrl&&key==Key.Enter) { Save(); e.Handled=true; return; }
    if(!editor.IsKeyboardFocusWithin)return;

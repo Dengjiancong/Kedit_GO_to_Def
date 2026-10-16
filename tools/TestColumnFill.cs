@@ -11,7 +11,7 @@ class TestColumnFill{
  Check(ColumnFillWindow.CopyRectangle("a\tb",0,0,1,4)=="   ","copy tab relative to original column");
  Check(ColumnFillWindow.CopyRectangle("ab\r\nx",0,1,1,4)=="b  "+Environment.NewLine+"   ","rectangle copy pads short rows");
  Directory.CreateDirectory(args[0]);File.WriteAllText(Path.Combine(args[0],"source.txt"),"alpha_test,\tbeta_test,\tBin31;\r\nsecond_test,\tnext_test,\tBin7;\r\nshort");File.WriteAllText(Path.Combine(args[0],"text.txt"),"Sample");
- var app=new Application();var w=new ColumnFillWindow(args[0]);w.Show();
+ var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };var w=new ColumnFillWindow(args[0],Path.Combine(args[0],"window-size.txt"));w.Show();
  var t=typeof(ColumnFillWindow);Action<string,object> set=(name,value)=>t.GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(w,value);
  set("rectangle",true);set("ar",0);set("br",2);set("ac",4);set("bc",9);t.GetMethod("Refresh",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(w,null);w.UpdateLayout();
  var editor=(System.Windows.Controls.TextBox)t.GetField("editor",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w);
@@ -100,8 +100,24 @@ class TestColumnFill{
  w.MoveRectangle(1,0);
  Check((int)t.GetField("ac",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==2 &&
  (int)t.GetField("bc",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w)==202,"whole movement after extension");
+ double beforeEscape=editor.HorizontalOffset;string beforeEscapeText=editor.Text;
+ var escape=new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,PresentationSource.FromVisual(w),0,System.Windows.Input.Key.Escape) { RoutedEvent=System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+ editor.RaiseEvent(escape);
+ Check(escape.Handled,"Escape handled before cancel button");
+ Check(!(bool)t.GetField("rectangle",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(w) && w.IsVisible,"escape leaves rectangle without closing");
+ Check(editor.Text==beforeEscapeText && Math.Abs(editor.HorizontalOffset-beforeEscape)<1,"escape preserves text and viewport");
  var bmp=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);bmp.Render(w);var enc=new PngBitmapEncoder();enc.Frames.Add(BitmapFrame.Create(bmp));using(var f=File.Create(Path.Combine(args[0],"preview.png")))enc.Save(f);t.GetMethod("Save",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(w,null);
  Check(File.ReadAllText(Path.Combine(args[0],"result.txt"))==editor.Text,"writeback file");
- Check(File.ReadAllText(Path.Combine(args[0],"accepted"))=="1","accepted marker");Console.WriteLine("PASS: rectangle, tabs, short lines, row range, blank lines, GUI rendering");
+ Check(File.ReadAllText(Path.Combine(args[0],"accepted"))=="1","accepted marker");var savedSize=File.ReadAllText(Path.Combine(args[0],"window-size.txt"));
+ var reopened=new ColumnFillWindow(args[0],Path.Combine(args[0],"window-size.txt"));reopened.Show();reopened.UpdateLayout();
+ var size=savedSize.Split('|');
+ Check(Math.Abs(reopened.ActualWidth-double.Parse(size[0],System.Globalization.CultureInfo.InvariantCulture))<2,"remembered width");
+ Check(Math.Abs(reopened.ActualHeight-double.Parse(size[1],System.Globalization.CultureInfo.InvariantCulture))<2,"remembered height");
+ reopened.Close();
+ File.WriteAllText(Path.Combine(args[0],"window-size.txt"),"NaN|Infinity");
+ var invalid=new ColumnFillWindow(args[0],Path.Combine(args[0],"window-size.txt"));invalid.Show();invalid.UpdateLayout();
+ Check(invalid.ActualWidth>=invalid.MinWidth && !double.IsNaN(invalid.ActualWidth),"invalid saved size fallback");
+ invalid.Close();
+ Console.WriteLine("PASS: rectangle edits, movement/extension, scrolling, Escape routing, size persistence, invalid settings, writeback");
  }catch(Exception e){Console.WriteLine(e);Environment.ExitCode=1;}}
 }
