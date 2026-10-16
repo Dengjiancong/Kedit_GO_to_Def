@@ -432,9 +432,9 @@ FlowTextShape(Text) {
 }
 
 BuildFlowInsertion(Prefix, Suffix, Name) {
-    ; Accept alignment whitespace before the second-column token, preserving it.
+    ; The caret defines column two; discard whitespace ahead of it.
+    ; Include the original whitespace only when locating the failure Bin column.
     RegExMatch(Suffix, "^[ \t]*", Leading)
-    Prefix .= Leading
     Suffix := SubStr(Suffix, StrLen(Leading) + 1)
 
     if (!RegExMatch(Name, "^[A-Za-z_][A-Za-z0-9_]*$"))
@@ -444,14 +444,14 @@ BuildFlowInsertion(Prefix, Suffix, Name) {
     if (!RegExMatch(Suffix, "^([A-Za-z_][A-Za-z0-9_]*)([ \t]*,[ \t]*)(Bin[0-9]+)([ \t]*;[ \t]*)(//[^\r\n]*)?$", Tail))
         return ""
     SecondColumn := FlowVisualColumn(Prefix)
-    BinColumn := FlowVisualColumn(Prefix . Tail1 . Tail2)
+    BinColumn := FlowVisualColumn(Prefix . Leading . Tail1 . Tail2)
     Changed := Name . RegExReplace(Tail2, "[ \t]+$", "")
     Changed .= FlowColumnPadding(FlowVisualColumn(Prefix . Changed), BinColumn)
     Inserted := Head1 . Name . RegExReplace(Head3, "[ \t]+$", "")
     Inserted .= FlowColumnPadding(FlowVisualColumn(Inserted), SecondColumn)
     Inserted .= Tail1 . RegExReplace(Tail2, "[ \t]+$", "")
     Inserted .= FlowColumnPadding(FlowVisualColumn(Inserted), BinColumn)
-    return Leading . Changed . Tail3 . Tail4 . Tail5 . "`r`n" . Inserted . "Bin31;"
+    return Changed . Tail3 . Tail4 . Tail5 . "`r`n" . Inserted . "Bin31;"
 }
 
 FlowVisualColumn(Text) {
