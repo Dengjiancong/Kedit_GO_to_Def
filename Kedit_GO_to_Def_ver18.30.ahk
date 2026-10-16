@@ -432,6 +432,11 @@ FlowTextShape(Text) {
 }
 
 BuildFlowInsertion(Prefix, Suffix, Name) {
+    ; Accept alignment whitespace before the second-column token, preserving it.
+    RegExMatch(Suffix, "^[ \t]*", Leading)
+    Prefix .= Leading
+    Suffix := SubStr(Suffix, StrLen(Leading) + 1)
+
     if (!RegExMatch(Name, "^[A-Za-z_][A-Za-z0-9_]*$"))
         return ""
     if (!RegExMatch(Prefix, "^([ \t]*)([A-Za-z_][A-Za-z0-9_]*)([ \t]*,[ \t]*)$", Head))
@@ -446,7 +451,7 @@ BuildFlowInsertion(Prefix, Suffix, Name) {
     Inserted .= FlowColumnPadding(FlowVisualColumn(Inserted), SecondColumn)
     Inserted .= Tail1 . RegExReplace(Tail2, "[ \t]+$", "")
     Inserted .= FlowColumnPadding(FlowVisualColumn(Inserted), BinColumn)
-    return Changed . Tail3 . Tail4 . Tail5 . "`r`n" . Inserted . "Bin31;"
+    return Leading . Changed . Tail3 . Tail4 . Tail5 . "`r`n" . Inserted . "Bin31;"
 }
 
 FlowVisualColumn(Text) {
