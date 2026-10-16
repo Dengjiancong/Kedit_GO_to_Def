@@ -10,8 +10,8 @@ using System.Windows.Threading;
 
 namespace Kedit.Console {
     internal sealed partial class DesignPreview {
-        HomeContent homeContent;int slideIndex,tabIndex,pictureRequest;bool cloudRefreshing,slideAnimating;Image displayedSlide;
-        Grid slideHost;StackPanel dots,cloudTabs,cloudItems;DispatcherTimer carouselTimer;string cloudResult="尚未刷新";
+        HomeContent homeContent;int slideIndex,tabIndex,pictureRequest;bool cloudRefreshing,slideAnimating,cloudClosed;Image displayedSlide;
+        Grid slideHost;StackPanel dots,cloudTabs,cloudItems;DispatcherTimer carouselTimer,cloudRefreshTimer;Button cloudRefreshButton;string cloudResult="尚未刷新";
         void InitializeCloudHome(){
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-usage")>=0)return;
             news.CornerRadius=new CornerRadius(16);news.BorderBrush=B("#454348");news.BorderThickness=new Thickness(1);news.Background=B("#ED19191D");
@@ -25,8 +25,10 @@ namespace Kedit.Console {
             cloudTabs=new StackPanel{Orientation=Orientation.Horizontal};right.Children.Add(cloudTabs);cloudItems=new StackPanel();var scroll=new ScrollViewer{Content=cloudItems,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};ConfigureScroll(scroll);Grid.SetRow(scroll,1);right.Children.Add(scroll);
             using(var fallback=typeof(CloudContent).Assembly.GetManifestResourceStream("PreviewAssets/kedit.png")){if(fallback!=null){using(var bytes=new System.IO.MemoryStream()){fallback.CopyTo(bytes);slideHost.Background=new ImageBrush(CloudContent.Decode(bytes.ToArray())){Stretch=Stretch.UniformToFill,Opacity=0.4};}}}
             homeContent=CloudContent.Cached<HomeContent>("home.json");RenderCloudHome();
-            carouselTimer=new DispatcherTimer();carouselTimer.Tick+=delegate{if(slideAnimating||!IsVisible||WindowState==WindowState.Minimized||news.Visibility!=Visibility.Visible||(homeContent.carousel.pause_on_hover&&news.IsMouseOver)||homeContent.carousel.items.Length<2)return;slideIndex=(slideIndex+1)%homeContent.carousel.items.Length;ShowCloudSlide(true);};carouselTimer.Interval=TimeSpan.FromSeconds(Math.Max(2,homeContent.carousel.interval_seconds));carouselTimer.Start();Closed+=delegate{carouselTimer.Stop();pictureRequest++;};
-            Loaded+=async delegate{await RefreshCloudHome();};
+            carouselTimer=new DispatcherTimer();carouselTimer.Tick+=delegate{if(slideAnimating||!IsVisible||WindowState==WindowState.Minimized||news.Visibility!=Visibility.Visible||(homeContent.carousel.pause_on_hover&&news.IsMouseOver)||homeContent.carousel.items.Length<2)return;slideIndex=(slideIndex+1)%homeContent.carousel.items.Length;ShowCloudSlide(true);};carouselTimer.Interval=TimeSpan.FromSeconds(Math.Max(2,homeContent.carousel.interval_seconds));carouselTimer.Start();Closed+=delegate{cloudClosed=true;carouselTimer.Stop();cloudRefreshTimer.Stop();pictureRequest++;};
+            cloudRefreshTimer=new DispatcherTimer{Interval=TimeSpan.FromMinutes(20)};
+            cloudRefreshTimer.Tick+=async delegate{await RefreshCloudHome();};
+            Loaded+=async delegate{cloudRefreshTimer.Start();await RefreshCloudHome();};
         }
         Button CarouselArrow(bool right){
             var button=new Button{Width=28,Height=28,HorizontalAlignment=right?HorizontalAlignment.Right:HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(10,0,10,0),Background=B("#506B819B"),BorderThickness=new Thickness(0),Cursor=System.Windows.Input.Cursors.Hand,ToolTip=right?"向右切换":"向左切换"};
@@ -35,7 +37,34 @@ namespace Kedit.Console {
             var hover=new Trigger{Property=UIElement.IsMouseOverProperty,Value=true};hover.Setters.Add(new Setter(Border.BackgroundProperty,B("#90758BA5"),"chrome"));template.Triggers.Add(hover);var pressed=new Trigger{Property=System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty,Value=true};pressed.Setters.Add(new Setter(UIElement.OpacityProperty,.65));template.Triggers.Add(pressed);button.Template=template;
             button.Click+=delegate(object sender,RoutedEventArgs e){e.Handled=true;int count=homeContent.carousel.items.Length;if(slideAnimating||count<2)return;slideIndex=(slideIndex+(right?-1:1)+count)%count;ShowCloudSlide(true,right?1:-1);carouselTimer.Stop();carouselTimer.Start();};return button;
         }
-        async Task RefreshCloudHome(){if(cloudRefreshing)return;cloudRefreshing=true;try{var updated=await CloudContent.Refresh<HomeContent>("home.json");homeContent=updated;slideIndex=0;tabIndex=0;RenderCloudHome();ShowCloudSlide(false);carouselTimer.Interval=TimeSpan.FromSeconds(Math.Max(2,Math.Min(60,homeContent.carousel.interval_seconds)));cloudResult="云端公告已更新："+DateTime.Now.ToString("HH:mm:ss");}catch(Exception ex){cloudResult="保留本地内容；云端更新失败："+ex.Message;}finally{cloudRefreshing=false;}}
+        async Task RefreshCloudHome(){
+            if(cloudRefreshing||cloudClosed||homeContent==null)return;
+            cloudRefreshing=true;
+            if(cloudRefreshButton!=null){cloudRefreshButton.IsEnabled=false;cloudRefreshButton.ToolTip="正在刷新公告…";}
+            try{
+                var updated=await CloudContent.Refresh<HomeContent>("home.json");
+                if(cloudClosed)return;
+                var serializer=new System.Web.Script.Serialization.JavaScriptSerializer();
+                bool changed=serializer.Serialize(homeContent)!=serializer.Serialize(updated);
+                if(changed){
+                    // Finish a carousel transition before replacing its backing data.
+                    while(slideAnimating&&!cloudClosed)await Task.Delay(50);
+                    if(cloudClosed)return;
+                    string tabId=homeContent.tabs.Length>0?homeContent.tabs[tabIndex].id:null;
+                    string slideId=homeContent.carousel.items.Length>0?homeContent.carousel.items[slideIndex].id:null;
+                    homeContent=updated;
+                    tabIndex=Math.Max(0,Array.FindIndex(updated.tabs,x=>x.id==tabId));
+                    slideIndex=Math.Max(0,Array.FindIndex(updated.carousel.items,x=>x.id==slideId));
+                    RenderCloudHome();if(displayedSlide!=null)ShowCloudSlide(false);
+                    carouselTimer.Interval=TimeSpan.FromSeconds(Math.Max(2,Math.Min(60,homeContent.carousel.interval_seconds)));
+                }
+                cloudResult=(changed?"云端公告已更新：":"公告已是最新：")+DateTime.Now.ToString("HH:mm:ss");
+            }catch(Exception ex){cloudResult="保留本地内容；云端更新失败："+ex.Message;}
+            finally{
+                cloudRefreshing=false;
+                if(!cloudClosed&&cloudRefreshButton!=null){cloudRefreshButton.IsEnabled=true;cloudRefreshButton.ToolTip="刷新公告\n"+cloudResult+"\n后台每 20 分钟自动检查";}
+            }
+        }
         Button CloudButton(string text,Action action){
             var button=Button(text,action);var template=new ControlTemplate(typeof(Button));var border=new FrameworkElementFactory(typeof(Border));border.Name="chrome";border.SetBinding(Border.BackgroundProperty,new System.Windows.Data.Binding("Background"){RelativeSource=new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent)});
             border.SetBinding(Border.PaddingProperty,new System.Windows.Data.Binding("Padding"){RelativeSource=new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent)});
