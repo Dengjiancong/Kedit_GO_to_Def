@@ -19,7 +19,7 @@ class TestUpdateService {
  static void Assert(bool condition,string message){if(!condition)throw new Exception(message);}
  static string Hash(byte[] data){using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(data)).Replace("-","");}
  static UpdateService Service(Handler handler,string directory){return new UpdateService(()=>new HttpClient(handler,false),directory);}
- static void Main(string[] args){try{Run(args).GetAwaiter().GetResult();System.Console.WriteLine("PASS: update service, cancellation, failures, versioning, verification, isolated installer replacement/abort");}catch(Exception ex){System.Console.WriteLine(ex);Environment.ExitCode=1;}}
+ static void Main(string[] args){if(UpdateInstaller.Run(args))return;try{Run(args).GetAwaiter().GetResult();System.Console.WriteLine("PASS: update service, cancellation, failures, versioning, verification, isolated installer replacement/abort");}catch(Exception ex){System.Console.WriteLine(ex);Environment.ExitCode=1;}}
  static async Task Run(string[] args){string root=args[0];Directory.CreateDirectory(root);byte[] exe=File.ReadAllBytes(args[1]);
   Assert(UpdateService.AssetUrl("http://192.168.124.224:3110/EVADD/Kedit_GO_to_Def/releases/download/v1/Kedit_GO_to_Def.exe",UpdateService.ReleaseApi)=="https://gitea.evadd.xyz:88/EVADD/Kedit_GO_to_Def/releases/download/v1/Kedit_GO_to_Def.exe","Gitea public origin repair");
   bool rejected=false;try{UpdateService.AssetUrl("http://example.com/update.exe",UpdateService.ReleaseApi);}catch(InvalidDataException){rejected=true;}Assert(rejected,"unrelated HTTP origin rejected");
@@ -39,10 +39,29 @@ class TestUpdateService {
   handler=new Handler{Payload=exe,NoLength=true};using(var service=Service(handler,root)){service.Configure("v19.00-Amiya.v008","",false);await service.Check();await service.Download();Assert(service.State.Stage==UpdateStage.Ready&&service.State.Total==0&&service.State.Detail.Contains("未提供预期大小"),"unknown length honest detail");}
   handler=new Handler{Payload=exe};using(var service=Service(handler,root)){service.Configure("v19.00-Amiya.v008","",false);await service.Check();handler.Slow=true;var task=service.Download();service.Cancel();await task;Assert(service.State.Stage==UpdateStage.Cancelled,"cancel download");}
   Assert(Directory.GetFiles(root,"*.partial").Length==0,"partial cleanup");
+  string workerManifest=Path.Combine(root,"worker.json");var self=System.Diagnostics.Process.GetCurrentProcess();
+  File.WriteAllText(workerManifest,new JavaScriptSerializer().Serialize(new UpdateInstaller.Plan{Owner=self.Id,OwnerStart=self.StartTime.ToUniversalTime().Ticks,Console=int.MaxValue}));
+  File.Copy(typeof(UpdateInstaller).Assembly.Location,Path.Combine(root,"Kedit.Updater.exe"),true);
+  using(var worker=UpdateInstaller.Start(workerManifest)){Assert(File.Exists(workerManifest+".worker-ready"),"worker handshake");UpdateInstaller.Abort(workerManifest);Assert(worker.WaitForExit(5000),"worker abort before owner exit");}
   // Only disposable fixture executables are replaced; never invoke the real owner.
   string target=Path.Combine(root,"fixture.exe"),staged=target+".new",backup=target+".backup",manifest=Path.Combine(root,"install.json");File.Copy(args[1],target,true);File.Copy(args[1],staged,true);
   var plan=new UpdateInstaller.Plan{Target=target,Staged=staged,Backup=backup,Sha=Hash(exe),Owner=int.MaxValue,Console=int.MaxValue};File.WriteAllText(manifest,new JavaScriptSerializer().Serialize(plan));UpdateInstaller.Run(new[]{"--apply-update",manifest});
-  for(int i=0;i<100&&!File.Exists(Path.Combine(root,"ran.txt"));i++)await Task.Delay(20);Assert(File.Exists(backup)&&File.Exists(Path.Combine(root,"ran.txt")),"installer replacement and restart fixture");
+  for(int i=0;i<100&&!File.Exists(Path.Combine(root,"ran.txt"));i++)await Task.Delay(20);Assert(!File.Exists(backup)&&File.Exists(Path.Combine(root,"ran.txt")),"installer replacement and restart fixture");
   File.Copy(args[1],staged,true);File.WriteAllText(manifest+".abort","");UpdateInstaller.Run(new[]{"--apply-update",manifest});Assert(!File.Exists(staged)&&File.Exists(target),"abort preserves target");
+  UpdateInstaller.ReadyTimeoutMs=1200;UpdateInstaller.ObservationMs=250;UpdateInstaller.ReportError=message=>System.Console.WriteLine("EXPECTED recovery: "+message);
+  foreach(string mode in new[]{"ready","exit","timeout","early-exit"}){
+   string test=Path.Combine(root,"health-"+mode);Directory.CreateDirectory(test);
+   string dest=Path.Combine(test,"app.exe"),next=dest+".new",record=Path.Combine(test,"install.json");
+   File.Copy(args[1],dest,true);File.Copy(args[2],next,true);File.WriteAllText(Path.Combine(test,"mode.txt"),mode);
+   var health=new UpdateInstaller.Plan{Target=dest,Staged=next,Backup=dest+".previous",Sha=Hash(File.ReadAllBytes(next)),Owner=int.MaxValue,Console=int.MaxValue,RequireReady=true};
+   File.WriteAllText(record,new JavaScriptSerializer().Serialize(health));UpdateInstaller.Run(new[]{"--apply-update",record});
+   if(mode=="ready"){
+    Assert(File.ReadAllText(record+".result")=="success"&&!File.Exists(health.Backup),"startup ack and backup cleanup");
+    int id=int.Parse(File.ReadAllText(Path.Combine(test,"pid.txt")));using(var process=System.Diagnostics.Process.GetProcessById(id)){process.Kill();process.WaitForExit();}
+   }else{
+    Assert(Hash(File.ReadAllBytes(dest))==Hash(exe)&&File.ReadAllText(record+".result").StartsWith("failed:"),"rollback "+mode);
+   }
+  }
+
  }
 }

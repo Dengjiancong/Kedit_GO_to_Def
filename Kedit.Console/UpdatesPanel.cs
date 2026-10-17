@@ -72,7 +72,7 @@ namespace Kedit.Console {
    if(previewUpdate!=null||Updates.State.Stage!=UpdateStage.Ready)return;
    if(!Updates.Compiled){System.Diagnostics.Process.Start("explorer.exe","/select,\""+Updates.Package+"\"");return;}
    if(!PrepareExit())return;var app=(App)Application.Current;string manifest=null;
-   Updates.Installing();try{manifest=await System.Threading.Tasks.Task.Run(()=>UpdateInstaller.Prepare(Updates,app.OwnerProcess));UpdateInstaller.Start(manifest);if(!app.Legacy.SendCommandToAhk("exit_for_update"))throw new IOException("无法通知主程序退出。");await System.Threading.Tasks.Task.Delay(65000);if(!app.Exiting)Updates.InstallFailed("主程序未退出，安装已取消，请重试。");}
+   Updates.Installing();try{manifest=await System.Threading.Tasks.Task.Run(()=>UpdateInstaller.Prepare(Updates,app.OwnerProcess));await System.Threading.Tasks.Task.Run(()=>UpdateInstaller.Start(manifest));if(!app.Legacy.SendCommandToAhk("exit_for_update"))throw new IOException("无法通知主程序退出。");await System.Threading.Tasks.Task.Delay(65000);if(!app.Exiting)Updates.InstallFailed("主程序未退出，安装已取消，请重试。");}
    catch(Exception ex){if(manifest!=null)UpdateInstaller.Abort(manifest);Updates.InstallFailed(ex.Message);}
   }
 

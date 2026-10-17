@@ -2,7 +2,7 @@
 $root=Split-Path $PSScriptRoot -Parent
 $dir=Join-Path $root ('.pet-test\usage-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dir | Out-Null
-$source=[IO.File]::ReadAllText((Join-Path $root 'Kedit_GO_to_Def_ver18.30.ahk'))
+$source=[IO.File]::ReadAllText((Join-Path $root 'Kedit_GO_to_Def.ahk'))
 $functions=$source.Substring($source.IndexOf('UsageInitialize() {'))
 $functions=$functions.Replace('A_AppData . "\Kedit\Usage"','A_ScriptDir . "\store"')
 $functions=$functions.Substring(0,$functions.IndexOf('Label_UsagePause:'))

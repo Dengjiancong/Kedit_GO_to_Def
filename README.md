@@ -1,4 +1,4 @@
-# Kedit GO to Def
+﻿# Kedit GO to Def
 
 **让操作，随心而动。**
 
@@ -99,7 +99,7 @@ Visual Studio 命令依赖其键盘映射，与 VS Code 不通用。完整命令
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Build-Kedit.ps1
 ```
 
-构建需要相应编译工具和媒体／桌宠依赖；仅克隆源码不保证具备所有大型素材。脚本读取 AHK 中的 `CurrentVersion`，当前源文件名 `Kedit_GO_to_Def_ver18.30.ahk` 不等于实际运行版本号。
+构建需要相应编译工具和媒体／桌宠依赖；仅克隆源码不保证具备所有大型素材。脚本读取 AHK 中的 `CurrentVersion`，当前源文件名 `Kedit_GO_to_Def.ahk` 不等于实际运行版本号。
 
 构建不会自动发布 Release。测试入口、架构和发布注意事项见 [开发与维护](https://github.com/Dengjiancong/Kedit_GO_to_Def/wiki/开发与维护)。
 

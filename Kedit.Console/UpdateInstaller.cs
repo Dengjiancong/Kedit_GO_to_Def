@@ -5,7 +5,9 @@ using System.Threading;
 using System.Web.Script.Serialization;
 namespace Kedit.Console {
  internal static class UpdateInstaller {
-  internal sealed class Plan {public string Target, Staged, Backup, Sha;public int Owner, Console;public long OwnerStart,ConsoleStart;}
+  internal static int ReadyTimeoutMs=30000,ObservationMs=5000;
+  internal static Action<string> ReportError=message=>System.Windows.MessageBox.Show(message,"Kedit 更新");
+  internal sealed class Plan {public string Target, Staged, Backup, Sha;public int Owner, Console;public long OwnerStart,ConsoleStart;public bool RequireReady;}
   [System.Runtime.InteropServices.DllImport("kernel32.dll",SetLastError=true)]
   static extern IntPtr OpenProcess(uint access,bool inherit,int id);
   [System.Runtime.InteropServices.DllImport("kernel32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode,SetLastError=true)]
@@ -28,27 +30,44 @@ namespace Kedit.Console {
    string staging=target+".new-"+Guid.NewGuid().ToString("N");File.Copy(service.Package,staging,false);
    try{
     UpdateService.VerifyPackage(staging,new FileInfo(service.Package).Length,null,CancellationToken.None);
-    var current=Process.GetCurrentProcess();var plan=new Plan{Target=target,Staged=staging,Backup=target+".previous",Owner=owner.Id,OwnerStart=owner.StartTime.ToUniversalTime().Ticks,Console=current.Id,ConsoleStart=current.StartTime.ToUniversalTime().Ticks};
+    var current=Process.GetCurrentProcess();var plan=new Plan{RequireReady=true,Target=target,Staged=staging,Backup=target+".previous",Owner=owner.Id,OwnerStart=owner.StartTime.ToUniversalTime().Ticks,Console=current.Id,ConsoleStart=current.StartTime.ToUniversalTime().Ticks};
     using(var hash=System.Security.Cryptography.SHA256.Create())using(var input=File.OpenRead(staging))plan.Sha=BitConverter.ToString(hash.ComputeHash(input)).Replace("-","");
     string folder=Path.Combine(Path.GetDirectoryName(service.Package),"install-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(folder);string manifest=Path.Combine(folder,"install.json");File.WriteAllText(manifest,new JavaScriptSerializer().Serialize(plan));
     File.Copy(typeof(UpdateInstaller).Assembly.Location,Path.Combine(folder,"Kedit.Updater.exe"));return manifest;
    }catch{File.Delete(staging);throw;}
   }
-  internal static Process Start(string manifest){return Process.Start(new ProcessStartInfo(Path.Combine(Path.GetDirectoryName(manifest),"Kedit.Updater.exe"),"--apply-update \""+manifest+"\""){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden});}
+  internal static Process Start(string manifest){var worker=Process.Start(new ProcessStartInfo(Path.Combine(Path.GetDirectoryName(manifest),"Kedit.Updater.exe"),"--apply-update \""+manifest+"\""){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden});
+   var clock=Stopwatch.StartNew();while(!File.Exists(manifest+".worker-ready")){if(worker.HasExited||clock.Elapsed.TotalSeconds>10){Abort(manifest);throw new IOException("更新器未确认就绪，已保留正在运行的旧程序。");}Thread.Sleep(50);}return worker;
+  }
   internal static void Abort(string manifest){try{File.WriteAllText(manifest+".abort","");}catch{}}
-  internal static bool Run(string[] args){if(args.Length!=2||args[0]!="--apply-update")return false;Plan plan=null;bool replaced=false,ownerStopped=false;
+  internal static bool Run(string[] args){if(args.Length!=2||args[0]!="--apply-update")return false;Plan plan=null;bool replaced=false,ownerStopped=false;Process launched=null;
    try{
     plan=new JavaScriptSerializer().Deserialize<Plan>(File.ReadAllText(args[1]));
+    File.WriteAllText(args[1]+".worker-ready","ready");
     WaitFor(plan.Owner,plan.OwnerStart,args[1]);WaitFor(plan.Console,plan.ConsoleStart,args[1]);ownerStopped=true;
     if(File.Exists(args[1]+".abort"))throw new OperationCanceledException("安装已取消");
     UpdateService.VerifyPackage(plan.Staged,0,plan.Sha,CancellationToken.None);
     // Same-directory replacement is atomic; retain one rollback executable.
     File.Replace(plan.Staged,plan.Target,plan.Backup,true);replaced=true;
-    Process.Start(new ProcessStartInfo(plan.Target){WorkingDirectory=Path.GetDirectoryName(plan.Target),UseShellExecute=true});
+    if(plan.RequireReady){
+     string token="Local\\KeditUpdateReady_"+Guid.NewGuid().ToString("N");
+     using(var ready=new EventWaitHandle(false,EventResetMode.ManualReset,token)){
+      launched=Process.Start(new ProcessStartInfo(plan.Target,"--update-ready "+token){WorkingDirectory=Path.GetDirectoryName(plan.Target),UseShellExecute=false});
+      var clock=Stopwatch.StartNew();bool acknowledged=false;
+      while(clock.ElapsedMilliseconds<ReadyTimeoutMs){if(launched.HasExited)throw new IOException("新版在启动确认前退出。");if(ready.WaitOne(100)){acknowledged=true;break;}}
+      if(!acknowledged)throw new IOException("新版未在 30 秒内完成核心初始化。");
+      if(launched.WaitForExit(ObservationMs))throw new IOException("新版在启动观察期退出。");
+     }
+    }else launched=Process.Start(new ProcessStartInfo(plan.Target){WorkingDirectory=Path.GetDirectoryName(plan.Target),UseShellExecute=true});
+    File.WriteAllText(args[1]+".result","success");
+    try{File.Delete(plan.Backup);}catch{ /* A locked backup must not undo a healthy update. */ }
+
    }catch(Exception ex){
+    try{if(launched!=null&&!launched.HasExited){launched.Kill();launched.WaitForExit(5000);}}catch{}
+    try{File.WriteAllText(args[1]+".result","failed: "+ex.Message);}catch{}
     if(replaced&&plan!=null){try{File.Replace(plan.Backup,plan.Target,null,true);Process.Start(plan.Target);}catch(Exception rollback){ex=new IOException(ex.Message+"\n恢复失败："+rollback.Message,ex);}}
     if(!replaced&&ownerStopped&&!(ex is OperationCanceledException)&&plan!=null)try{Process.Start(new ProcessStartInfo(plan.Target){WorkingDirectory=Path.GetDirectoryName(plan.Target),UseShellExecute=true});}catch{}
-    if(!(ex is OperationCanceledException))System.Windows.MessageBox.Show("更新未完成，原程序已保留。\n"+ex.Message,"Kedit 更新");
+    if(!(ex is OperationCanceledException))ReportError("更新未完成；已尝试保留或恢复旧程序。\n"+ex.Message);
    }finally{if(plan!=null)try{if(File.Exists(plan.Staged))File.Delete(plan.Staged);}catch{}}
    return true;
   }

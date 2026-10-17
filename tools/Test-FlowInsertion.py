@@ -2,7 +2,7 @@
 import subprocess
 
 root = Path(__file__).resolve().parent.parent
-source = (root / "Kedit_GO_to_Def_ver18.30.ahk").read_text(encoding="utf-8-sig")
+source = (root / "Kedit_GO_to_Def.ahk").read_text(encoding="utf-8-sig")
 functions = source[source.index("BuildFlowInsertion(Prefix, Suffix, Name) {"):source.index("SetFlowClipboard(ByRef")]
 fixture = root / ".pet-test" / "flow-terminal"
 fixture.mkdir(parents=True, exist_ok=True)

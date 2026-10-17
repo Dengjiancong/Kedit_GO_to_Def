@@ -1,4 +1,6 @@
-﻿;; =======================================================
+﻿;@Ahk2Exe-SetVersion 19.0.0.101
+;@Ahk2Exe-SetProductVersion v19.00-Amiya.v101
+;; =======================================================
 ;; 【核心修复】强制脚本以管理员身份运行 (放在脚本最顶部)
 ;; =======================================================
 ;Loop, %0%  ; 兼容参数传递
@@ -16,7 +18,7 @@
 ;}
 
 ; =======================================================
-; Kedit 助手 - 版本号统一以 CurrentVersion 为准
+; Kedit 助手 - 版本由 version.json 生成；请勿手改 CurrentVersion
 ; =======================================================
 #SingleInstance Force
 #NoEnv
@@ -193,7 +195,9 @@ OnExit("UsageExit")
 SetTimer, UsageFlushTimer, 2000
 
 ; --- 3. 激活动态快捷键 ---
+Global StartupHotkeysOK := true
 UpdateHotkeys()
+SetTimer, ConfirmUpdateStartup, -100
 
 ; =======================================================
 ; 原有的注册表逻辑
@@ -1503,6 +1507,7 @@ UpdateHotkeys() {
         ; 注册 Ctrl+Q (快速打开目录)
         SetCompatibleHotkey(Key_CtrlQ, "Label_CtrlQ", HotkeyState)
     } catch e {
+        StartupHotkeysOK := false
         MsgBox, 16, 错误, 无法注册全局快捷键 (%Key_CtrlQ%)
     }
 
@@ -1523,6 +1528,7 @@ UpdateHotkeys() {
         SetCompatibleHotkey(Key_RenumberBins, "Label_RenumberBins", HotkeyState)
         SetCompatibleHotkey(Key_FindClipboard, "Label_FindClipboard", HotkeyState)
     } catch e {
+        StartupHotkeysOK := false
         MsgBox, 16, 错误, 加载快捷键失败。
     }
 
@@ -1531,6 +1537,7 @@ UpdateHotkeys() {
     try {
         SetCompatibleHotkey(Key_RunPy, "Label_RunPy", HotkeyState)
     } catch e {
+        StartupHotkeysOK := false
         MsgBox, 16, 错误, 无法注册资源管理器快捷键 (%Key_RunPy%)
     }
 
@@ -1563,6 +1570,7 @@ UpdateHotkeys() {
         SetCompatibleHotkey(Key_VS_BookmarkClear, "Label_VS_BookmarkClear", HotkeyState)
         SetCompatibleHotkey(Key_VS_Redo, "Label_VS_Redo", HotkeyState)
     } catch e {
+        StartupHotkeysOK := false
         MsgBox, 16, 错误, 无法注册 Visual Studio 快捷键。
     }
 }
@@ -4045,4 +4053,23 @@ return
 
 ConsoleExitForUpdate:
     ExitApp
+return
+
+; Signal only after auto-execute completed and the main message loop dispatched a timer.
+ConfirmUpdateStartup:
+    if (!StartupHotkeysOK)
+        return
+    for index, argument in A_Args {
+        if (argument = "--update-ready" && index < A_Args.Length()) {
+            ReadyName := A_Args[index + 1]
+            if (!RegExMatch(ReadyName, "^Local\\KeditUpdateReady_[a-f0-9]{32}$"))
+                return
+            ReadyHandle := DllCall("OpenEvent", "UInt", 2, "Int", false, "Str", ReadyName, "Ptr")
+            if (ReadyHandle) {
+                DllCall("SetEvent", "Ptr", ReadyHandle)
+                DllCall("CloseHandle", "Ptr", ReadyHandle)
+            }
+            return
+        }
+    }
 return

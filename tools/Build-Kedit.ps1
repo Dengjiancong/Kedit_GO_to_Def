@@ -1,6 +1,6 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
-    [string]$SourceScript = 'Kedit_GO_to_Def_ver18.30.ahk',
+    [string]$SourceScript = 'Kedit_GO_to_Def.ahk',
     [string]$OutputDirectory,
     [string]$CompilerPath = 'C:\Program Files\AutoHotkey\Compiler\Ahk2Exe.exe',
     [string]$MsBuildPath = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe'
@@ -21,6 +21,8 @@ foreach ($required in @($baseExe, $iconPath, $monitorPath, $CompilerPath, $MsBui
     }
 }
 
+& python (Join-Path $PSScriptRoot 'PrepareRelease.py') --check-version
+if ($LASTEXITCODE -ne 0) { throw 'Version metadata mismatch.' }
 $sourceText = Get-Content -LiteralPath $source.FullName -Encoding UTF8 -Raw
 $versionMatch = [regex]::Match($sourceText, '(?im)^\s*Global\s+CurrentVersion\s*:=\s*"(?<version>[^"]+)"')
 if (-not $versionMatch.Success) {
@@ -77,6 +79,9 @@ if (-not (Test-Path -LiteralPath $outputPath -PathType Leaf)) {
 }
 
 $output = Get-Item -LiteralPath $outputPath
+$canonical=Get-Content -LiteralPath (Join-Path $projectRoot 'version.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$expectedFileVersion='{0}.{1}.0.{2}' -f $canonical.major,$canonical.minor,$canonical.revision
+if($output.VersionInfo.FileVersion -ne $expectedFileVersion -or $output.VersionInfo.ProductVersion -ne $version){throw 'Compiled EXE version metadata mismatch.'}
 [pscustomobject]@{
     Version = $version
     Output = $output.FullName

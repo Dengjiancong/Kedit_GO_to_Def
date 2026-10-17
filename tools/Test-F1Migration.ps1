@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $dir=Join-Path $root '.pet-test\f1-migration'
 New-Item -ItemType Directory -Force $dir | Out-Null
-$source=[IO.File]::ReadAllText((Join-Path $root 'Kedit_GO_to_Def_ver18.30.ahk'))
+$source=[IO.File]::ReadAllText((Join-Path $root 'Kedit_GO_to_Def.ahk'))
 $start=$source.IndexOf('AddKeditMenu(Name, Caption) {')
 $end=$source.IndexOf('ReceiveConsoleCommand(wParam,',$start)
 $functions=$source.Substring($start,$end-$start)

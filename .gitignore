@@ -41,3 +41,6 @@
 
 # Python maintenance tool bytecode
 /tools/__pycache__/
+
+!/version.json
+!/准备正式发布包.cmd
