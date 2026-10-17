@@ -280,14 +280,15 @@ namespace Kedit.Console {
                 AnimateWaiting(outgoingVideo);
             }
             if(framing!=null)currentFraming=framing;
-            playingMediaIdentity=identity;gif.BeginAnimation(OpacityProperty,null);gif.Opacity=1;gif.Source=null;frames.Stop();video.Close();decoder=null;paused=false;
+            playingMediaIdentity=identity;gif.BeginAnimation(OpacityProperty,null);gif.Opacity=1;gif.OpacityMask=null;gif.Source=null;frames.Stop();video.Close();decoder=null;paused=false;
             if(identity==null){gif.Visibility=Visibility.Collapsed;video.Visibility=Visibility.Collapsed;FinishBackgroundTransition();return;}
             if(prepared.Frames!=null){decoder=prepared;frame=0;gif.Source=decoder.Frames[0];gif.Visibility=Visibility.Visible;video.Visibility=Visibility.Collapsed;FinishBackgroundTransition();}
             else if(prepared.Still!=null){gif.Source=prepared.Still;gif.Visibility=Visibility.Visible;video.Visibility=Visibility.Collapsed;FinishBackgroundTransition();}
             else{gif.Visibility=Visibility.Collapsed;video.Visibility=Visibility.Visible;video.Opacity=outgoingVideo==null?1:0;videoOpening=System.Diagnostics.Stopwatch.StartNew();video.Source=new Uri(prepared.Path);backgroundWait.Restart();backgroundReady.Start();}
             Playback();
         }
-        MediaElement outgoingVideo,spareVideo;string outgoingIdentity;PageMedia.Framing outgoingFraming;int transitionVersion;bool backgroundCrossfading;bool softBackgroundTransition=true;
+        MediaElement outgoingVideo,spareVideo;string outgoingIdentity;PageMedia.Framing outgoingFraming;int transitionVersion;bool backgroundCrossfading;enum BackgroundTransitionStyle { Dissolve, SoftFocus, DepthFocus, SoftWipe, QuickDissolve }
+        BackgroundTransitionStyle backgroundTransitionStyle=BackgroundTransitionStyle.SoftFocus;
         void WireBackgroundVideo(MediaElement player){
             player.MediaOpened+=delegate{if(player!=video)return;ApplyBackgroundFraming();backgroundOpened=true;backgroundReadyTicks=0;if(videoOpening!=null){MediaTiming.Record("video.open",currentMediaPage,videoOpening.ElapsedMilliseconds);videoOpening=null;}};
             player.MediaEnded+=delegate{player.Position=TimeSpan.Zero;if(IsVisible&&!paused&&WindowState!=WindowState.Minimized)player.Play();};
@@ -302,30 +303,30 @@ namespace Kedit.Console {
             var existing=element.Effect as System.Windows.Media.Effects.BlurEffect;
             double radius=existing==null?0:existing.Radius;
             var blur=new System.Windows.Media.Effects.BlurEffect{Radius=radius,RenderingBias=System.Windows.Media.Effects.RenderingBias.Performance};element.Effect=blur;
-            blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty,BackgroundAnimation(radius,softBackgroundTransition?3:0,350));
+            blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty,BackgroundAnimation(radius,backgroundTransitionStyle==BackgroundTransitionStyle.SoftFocus?3:backgroundTransitionStyle==BackgroundTransitionStyle.DepthFocus?8:0,350));
         }
         void ClearBackgroundBlur(UIElement element){
             var blur=element.Effect as System.Windows.Media.Effects.BlurEffect;if(blur==null)return;
             blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty,BackgroundAnimation(blur.Radius,0,250));
         }
-        void RestoreBackgroundAppearance(){video.BeginAnimation(OpacityProperty,null);video.Opacity=1;ClearBackgroundBlur(video);}
+        void RestoreBackgroundAppearance(){video.BeginAnimation(OpacityProperty,null);video.Opacity=1;video.OpacityMask=null;ClearBackgroundBlur(video);}
         void ChooseBackgroundTransition(){
             var dialog=new Window{Owner=this,Title="背景过渡预览",Width=390,SizeToContent=SizeToContent.Height,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,Background=B("#191D26")};
             var stack=new StackPanel{Margin=new Thickness(22)};dialog.Content=stack;
             stack.Children.Add(Text("选择过渡风格",20));
-            stack.Children.Add(Text("选择后切换不同视频页面比较效果。仅本次运行生效，不改变素材配置。两种风格均为 450ms，不刻意压暗画面。",13));
-            var choices=new ComboBox{Margin=new Thickness(0,12,0,12)};choices.Items.Add("纯叠化");choices.Items.Add("轻微失焦叠化（默认）");choices.SelectedIndex=softBackgroundTransition?1:0;stack.Children.Add(choices);
-            stack.Children.Add(Button("应用并预览",()=>{softBackgroundTransition=choices.SelectedIndex==1;dialog.Close();}));dialog.ShowDialog();
+            stack.Children.Add(Text("选择后切换不同视频页面比较效果。仅本次运行生效，不改变素材配置。保留原有两种风格，并增加三种新风格；均不刻意压暗画面。",13));
+            var choices=new ComboBox{Margin=new Thickness(0,12,0,12)};choices.Items.Add("纯叠化");choices.Items.Add("轻微失焦叠化（默认，450ms）");choices.Items.Add("景深换焦（600ms）");choices.Items.Add("柔边横向揭幕（550ms，右向左）");choices.Items.Add("快速柔切（180ms）");choices.SelectedIndex=(int)backgroundTransitionStyle;stack.Children.Add(choices);
+            stack.Children.Add(Button("应用并预览",()=>{backgroundTransitionStyle=(BackgroundTransitionStyle)choices.SelectedIndex;dialog.Close();}));dialog.ShowDialog();
         }
         void CancelPendingBackground(){
             ++transitionVersion;backgroundReady.Stop();
             if(outgoingVideo==null)return;
             if(backgroundCrossfading){
                 outgoingVideo.Close();outgoingVideo.Visibility=Visibility.Collapsed;outgoingVideo.BeginAnimation(OpacityProperty,null);outgoingVideo.Effect=null;spareVideo=outgoingVideo;outgoingVideo=null;backgroundCrossfading=false;
-                RestoreBackgroundAppearance();gif.BeginAnimation(OpacityProperty,null);gif.Opacity=1;return;
+                RestoreBackgroundAppearance();gif.BeginAnimation(OpacityProperty,null);gif.Opacity=1;gif.OpacityMask=null;return;
             }
             // Return to the still-running source when the new decoder has not been committed.
-            video.BeginAnimation(OpacityProperty,null);video.Close();video.Visibility=Visibility.Collapsed;spareVideo=video;
+            video.BeginAnimation(OpacityProperty,null);video.OpacityMask=null;video.Close();video.Visibility=Visibility.Collapsed;spareVideo=video;
             video=outgoingVideo;outgoingVideo=null;playingMediaIdentity=outgoingIdentity;currentFraming=outgoingFraming;
             gif.Visibility=Visibility.Collapsed;decoder=null;frames.Stop();
         }
@@ -335,15 +336,29 @@ namespace Kedit.Console {
             UIElement incoming=gif.Visibility==Visibility.Visible?(UIElement)gif:video;
             // Incoming content alone fades in over an opaque, still-playing base.
             old.BeginAnimation(OpacityProperty,null);old.Opacity=1;
-            if(softBackgroundTransition){
-                var blur=new System.Windows.Media.Effects.BlurEffect{Radius=2,RenderingBias=System.Windows.Media.Effects.RenderingBias.Performance};incoming.Effect=blur;
-                blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty,BackgroundAnimation(2,0,450));
+            var style=backgroundTransitionStyle;
+            double milliseconds=style==BackgroundTransitionStyle.DepthFocus?600:style==BackgroundTransitionStyle.SoftWipe?550:style==BackgroundTransitionStyle.QuickDissolve?180:450;
+            incoming.OpacityMask=null;
+            if(style==BackgroundTransitionStyle.SoftFocus||style==BackgroundTransitionStyle.DepthFocus){
+                double radius=style==BackgroundTransitionStyle.DepthFocus?8:2;
+                var blur=new System.Windows.Media.Effects.BlurEffect{Radius=radius,RenderingBias=System.Windows.Media.Effects.RenderingBias.Performance};incoming.Effect=blur;
+                blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty,BackgroundAnimation(radius,0,milliseconds));
             }else incoming.Effect=null;
-            var dissolve=BackgroundAnimation(0,1,450);
+            var dissolve=BackgroundAnimation(0,1,milliseconds);
+            if(style==BackgroundTransitionStyle.SoftWipe){
+                // Transparent on the left, opaque on the right: the soft edge moves left.
+                var hidden=new GradientStop(Colors.Transparent,1);
+                var visible=new GradientStop(Colors.White,1.18);
+                var mask=new LinearGradientBrush{StartPoint=new Point(0,0),EndPoint=new Point(1,0)};
+                mask.GradientStops.Add(hidden);mask.GradientStops.Add(visible);incoming.OpacityMask=mask;
+                hidden.BeginAnimation(GradientStop.OffsetProperty,BackgroundAnimation(1,-.18,milliseconds));
+                visible.BeginAnimation(GradientStop.OffsetProperty,BackgroundAnimation(1.18,0,milliseconds));
+                dissolve=BackgroundAnimation(1,1,milliseconds);
+            }
             dissolve.Completed+=delegate{
                 if(version!=transitionVersion||outgoingVideo!=old)return;
                 old.Close();old.Visibility=Visibility.Collapsed;old.BeginAnimation(OpacityProperty,null);old.Opacity=1;old.Effect=null;spareVideo=old;outgoingVideo=null;backgroundCrossfading=false;
-                incoming.BeginAnimation(OpacityProperty,null);incoming.Opacity=1;incoming.Effect=null;
+                incoming.BeginAnimation(OpacityProperty,null);incoming.Opacity=1;incoming.Effect=null;incoming.OpacityMask=null;
             };incoming.BeginAnimation(OpacityProperty,dissolve);
         }
 
