@@ -10,7 +10,7 @@ namespace Kedit.Console {
   ProgressBar updateProgress;StackPanel updateActions;bool updatesActive,updateSettingsExpanded,updateSubscribed;
   UpdateSnapshot previewUpdate;UpdateStage? renderedUpdateStage;
   UpdateService Updates {get{return ((App)Application.Current).Updates;}}
-  void LeaveUpdatePage(){if(updateHold!=null){scene.Children.Remove(updateHold);updateHold=null;}updatesActive=false;previewUpdate=null;renderedUpdateStage=null;if(settingsToggle!=null)settingsToggle.Content=folded?"展开设置":"收起设置";}
+  void LeaveUpdatePage(){updatesActive=false;previewUpdate=null;renderedUpdateStage=null;if(settingsToggle!=null)settingsToggle.Content=folded?"展开设置":"收起设置";}
   void ToggleSettings(){if(updatesActive){updateSettingsExpanded=!updateSettingsExpanded;panel.Visibility=updateSettingsExpanded?Visibility.Visible:Visibility.Collapsed;settingsToggle.Content=updateSettingsExpanded?"收起设置":"展开设置";return;}folded=!folded;settingsToggle.Content=folded?"展开设置":"收起设置";panel.Visibility=home||folded?Visibility.Collapsed:Visibility.Visible;}
   void InitializeUpdates(){
    if(updateSubscribed)return;updateSubscribed=true;
@@ -57,7 +57,7 @@ namespace Kedit.Console {
     if(state.Stage==UpdateStage.Latest)AddUpdateAction("返回首页",()=>Navigate("首页"),false);
     if(state.Stage!=UpdateStage.Idle&&state.Stage!=UpdateStage.Installing)AddUpdateAction("查看详情 / 更新说明",ShowUpdateDetails,false);
     if(state.Stage!=UpdateStage.Installing)AddUpdateAction("网络诊断",DiagnoseUpdate,false);
-    var offset=new TranslateTransform(0,9);updateCard.RenderTransform=offset;offset.BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(9,0,TimeSpan.FromMilliseconds(180)));updateCard.BeginAnimation(OpacityProperty,new DoubleAnimation(.5,1,TimeSpan.FromMilliseconds(180)));
+    var offset=new TranslateTransform(0,9);updateCard.RenderTransform=offset;offset.BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(9,0,TimeSpan.FromMilliseconds(400)));updateCard.BeginAnimation(OpacityProperty,new DoubleAnimation(.5,1,TimeSpan.FromMilliseconds(400)));
    }
   }
   void ShowUpdateDetails(){var state=previewUpdate??Updates.State;var dialog=new Window{Owner=this,Title="更新详情",Width=700,Height=460,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=B("#191D26")};dialog.Content=new TextBox{Margin=new Thickness(20),IsReadOnly=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Background=B("#101820"),Foreground=Brushes.White,Text=UpdateTitle(state.Stage)+"\n"+state.Source+"\n"+state.Detail+"\n\n更新说明：\n"+(string.IsNullOrEmpty(Updates.ReleaseNotes)?"发行方未提供说明。":Updates.ReleaseNotes)};dialog.Show();}
@@ -79,8 +79,23 @@ namespace Kedit.Console {
   sealed class UpdateChoice {public UpdateStage Stage {get;set;}public string Label {get;set;}}
   static UpdateChoice[] UpdatePreviewChoices(){var list=new System.Collections.Generic.List<UpdateChoice>();foreach(UpdateStage state in Enum.GetValues(typeof(UpdateStage)))list.Add(new UpdateChoice{Stage=state,Label=UpdateTitle(state)});return list.ToArray();}
   Image updateHold;
-  void HoldUpdateBackground(){if(!updatesActive||scene.ActualWidth<1||scene.ActualHeight<1)return;try{var snapshot=new System.Windows.Media.Imaging.RenderTargetBitmap((int)scene.ActualWidth,(int)scene.ActualHeight,96,96,PixelFormats.Pbgra32);snapshot.Render(backgroundLayer);snapshot.Freeze();if(updateHold!=null)scene.Children.Remove(updateHold);updateHold=new Image{Source=snapshot,Stretch=Stretch.Fill,IsHitTestVisible=false};scene.Children.Insert(1,updateHold);}catch{}}
-  void ReleaseUpdateBackground(){if(updateHold==null)return;var held=updateHold;updateHold=null;var fade=new DoubleAnimation(1,0,TimeSpan.FromMilliseconds(180));fade.Completed+=delegate{scene.Children.Remove(held);};held.BeginAnimation(OpacityProperty,fade);}
+  bool backgroundFading;
+  void HoldUpdateBackground(){
+   if(updateHold!=null){updateHold.BeginAnimation(OpacityProperty,null);updateHold.Opacity=1;backgroundFading=false;return;}
+   if(scene.ActualWidth<1||scene.ActualHeight<1)return;
+   try{
+    var snapshot=new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(scene.ActualWidth),(int)Math.Ceiling(scene.ActualHeight),96,96,PixelFormats.Pbgra32);
+    snapshot.Render(backgroundLayer);snapshot.Freeze();
+    updateHold=new Image{Source=snapshot,Stretch=Stretch.Fill,IsHitTestVisible=false};scene.Children.Insert(1,updateHold);
+   }catch{ /* Snapshot failure must not prevent loading the next background. */ }
+  }
+  void ReleaseUpdateBackground(){
+   if(updateHold==null||backgroundFading)return;
+   var held=updateHold;backgroundFading=true;
+   var fade=new DoubleAnimation(1,0,TimeSpan.FromMilliseconds(400)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseInOut}};
+   fade.Completed+=delegate{if(updateHold!=held||!backgroundFading)return;scene.Children.Remove(held);updateHold=null;backgroundFading=false;};
+   held.BeginAnimation(OpacityProperty,fade);
+  }
   void ShowUpdatePreview(){if(!adminUnlocked)return;if(Updates.PreviewBlocked){MessageBox.Show(this,"真实更新任务正在进行，或文件已准备安装。请先完成或取消任务。");return;}if(!updatesActive)Navigate("更新");if(!updatesActive)return;
    var dialog=new Window{Owner=this,Title="更新状态预览（不执行真实更新）",Width=355,Height=340,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=B("#191D26")};var stack=new StackPanel{Margin=new Thickness(22)};dialog.Content=stack;stack.Children.Add(Text("模拟状态",19));var states=new ComboBox{ItemsSource=UpdatePreviewChoices(),DisplayMemberPath="Label",SelectedValuePath="Stage",Margin=new Thickness(0,0,0,12)};stack.Children.Add(states);
    stack.Children.Add(Text("下载进度：0% / 50% / 100%",12));var slider=new Slider{Minimum=0,Maximum=100,TickFrequency=50,IsSnapToTickEnabled=true,Margin=new Thickness(0,0,0,16)};stack.Children.Add(slider);

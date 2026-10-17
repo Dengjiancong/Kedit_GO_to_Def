@@ -13,7 +13,7 @@ namespace Kedit.Console {
     internal sealed partial class DesignPreview : Window {
         readonly Grid stage=new Grid {Width=1280,Height=720};
         readonly Grid scene=new Grid();
-        readonly MediaElement video=new MediaElement {LoadedBehavior=MediaState.Manual,UnloadedBehavior=MediaState.Manual,Stretch=Stretch.Uniform,IsMuted=true};
+        MediaElement video=new MediaElement {LoadedBehavior=MediaState.Manual,UnloadedBehavior=MediaState.Manual,Stretch=Stretch.Uniform,IsMuted=true};
         readonly Image gif=new Image {Stretch=Stretch.Uniform,Visibility=Visibility.Collapsed};
         readonly DispatcherTimer frames=new DispatcherTimer();
         PreparedBackground decoder;int frame;bool paused,dirty,home=true,folded;
@@ -81,7 +81,7 @@ namespace Kedit.Console {
             foreach(string group in new[]{"Kedit","Visual\nStudio","桌宠OSD","更新","其他","使用统计"}){string g=group;var b=Button(g,()=>Navigate(g));b.ToolTip=g.Replace("\n"," ");b.Width=51;b.Height=51;b.HorizontalAlignment=HorizontalAlignment.Center;b.Margin=new Thickness(0,9,0,9);b.Background=B(g=="Kedit"?"#D57839":g.StartsWith("Visual")?"#7157A3":g=="桌宠OSD"?"#238FAD":g=="更新"?"#426F92":"#495364");b.Content=new TextBlock {Text=g=="Kedit"?"K":g.StartsWith("Visual")?"∞":g=="桌宠OSD"?"♧":g=="更新"?"↓":g=="使用统计"?"▥":"⋯",FontSize=26,FontWeight=FontWeights.Medium,HorizontalAlignment=HorizontalAlignment.Center};Tile(b,g);groups.Children.Add(b);}
             var homeButton=Button("▦",()=>Navigate("首页"),false,7);homeButton.ToolTip="返回首页";homeButton.VerticalAlignment=VerticalAlignment.Bottom;homeButton.Margin=new Thickness(0,0,0,14);homeButton.Width=51;homeButton.Height=51;homeButton.HorizontalAlignment=HorizontalAlignment.Center;homeButton.FontSize=30;Tile(homeButton,"首页");rails.Children.Add(homeButton);
             var main=new Border {CornerRadius=new CornerRadius(22),Background=B("#0C1422"),ClipToBounds=true};Grid.SetColumn(main,2);shell.Children.Add(main);main.Child=scene;
-            scene.SizeChanged+=delegate{scene.Clip=new RectangleGeometry(new Rect(0,0,scene.ActualWidth,scene.ActualHeight),22,22);};scene.Children.Add(backgroundLayer);backgroundLayer.Children.Add(video);backgroundLayer.Children.Add(gif);scene.SizeChanged+=delegate{ApplyBackgroundFraming();};video.MediaOpened+=delegate{ApplyBackgroundFraming();ReleaseUpdateBackground();if(videoOpening!=null){MediaTiming.Record("video.open",currentMediaPage,videoOpening.ElapsedMilliseconds);videoOpening=null;}};
+            scene.SizeChanged+=delegate{scene.Clip=new RectangleGeometry(new Rect(0,0,scene.ActualWidth,scene.ActualHeight),22,22);};scene.Children.Add(backgroundLayer);InitializeBackgroundTransition();backgroundLayer.Children.Add(video);backgroundLayer.Children.Add(gif);scene.SizeChanged+=delegate{ApplyBackgroundFraming();};WireBackgroundVideo(video);
             var shade=new Border {IsHitTestVisible=false,Background=new LinearGradientBrush(Color.FromArgb(25,5,10,19),Color.FromArgb(125,5,10,19),90)};scene.Children.Add(shade);
             var header=new Grid {Background=Brushes.Transparent,Height=90,VerticalAlignment=VerticalAlignment.Top,Margin=new Thickness(36,20,24,0)};scene.Children.Add(header);
             title.FontSize=32;title.FontWeight=FontWeights.Bold;title.Foreground=Brushes.White;title.IsHitTestVisible=false;header.Children.Add(title);
@@ -102,7 +102,7 @@ namespace Kedit.Console {
             foreach(Button control in bottom.Children)control.Margin=new Thickness(6,4,6,4);
             debugTools=new WrapPanel {Width=780,Orientation=Orientation.Horizontal,Visibility=Visibility.Collapsed,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(36,0,0,15)};scene.Children.Add(debugTools);Panel.SetZIndex(debugTools,100);
             debugMedia=Button("选择图片 / GIF / MP4",ChooseMedia);debugTools.Children.Add(debugMedia);debugTools.Children.Add(Button("调整背景位置",AdjustBackground));debugTools.Children.Add(Button("刷新公告",async ()=>await RefreshCloudHome()));debugTools.Children.Add(Button("云端状态",()=>MessageBox.Show(this,cloudResult)));debugTools.Children.Add(Button("素材项目目录",ChooseMediaProject));debugTools.Children.Add(Button("恢复该页默认素材",()=>{try{pageMedia.Reset(currentMediaPage);LoadPageMedia(mediaFallback);}catch(Exception ex){MessageBox.Show(this,ex.Message);}}));debugTools.Children.Add(Button("页面素材清单",()=>MessageBox.Show(this,pageMedia.Listing(),"页面素材清单")));debugTools.Children.Add(Button("重播",()=>{if(!adminUnlocked)return;frame=0;video.Position=TimeSpan.Zero;paused=false;Playback();}));debugTools.Children.Insert(0,Button("图标预览 / 编辑",ManageTiles));foreach(Button b in debugTools.Children)b.Margin=new Thickness(0,4,8,4);mediaInfo=Text("",11);mediaInfo.Margin=new Thickness(36,0,200,96);mediaInfo.VerticalAlignment=VerticalAlignment.Bottom;mediaInfo.IsHitTestVisible=false;mediaInfo.Visibility=Visibility.Collapsed;scene.Children.Add(mediaInfo);
-            video.MediaEnded+=delegate{video.Position=TimeSpan.Zero;Playback();};video.MediaFailed+=delegate{playingMediaIdentity=null;status.Text="媒体无法播放，请选择本地 GIF / MP4。";};frames.Tick+=delegate{if(decoder==null)return;gif.Source=decoder.Frames[frame];var meta=decoder.Frames[frame].Metadata as BitmapMetadata;int delay=10;try{if(meta!=null&&meta.ContainsQuery("/grctlext/Delay"))delay=Convert.ToInt32(meta.GetQuery("/grctlext/Delay"));}catch{}frames.Interval=TimeSpan.FromMilliseconds(Math.Max(20,delay*10));frame=(frame+1)%decoder.Frames.Count;};
+            frames.Tick+=delegate{if(decoder==null)return;gif.Source=decoder.Frames[frame];var meta=decoder.Frames[frame].Metadata as BitmapMetadata;int delay=10;try{if(meta!=null&&meta.ContainsQuery("/grctlext/Delay"))delay=Convert.ToInt32(meta.GetQuery("/grctlext/Delay"));}catch{}frames.Interval=TimeSpan.FromMilliseconds(Math.Max(20,delay*10));frame=(frame+1)%decoder.Frames.Count;};
             IsVisibleChanged+=delegate{Playback();};StateChanged+=delegate{Playback();};Closed+=delegate{frames.Stop();video.Close();Application.Current.Shutdown();};Closing+=delegate(object s,System.ComponentModel.CancelEventArgs e){if(!((App)Application.Current).Exiting&&!CanLeave()){e.Cancel=true;return;}if(liveMode && !((App)Application.Current).Exiting && (((App)Application.Current).Owned||((App)Application.Current).Pet.Settings.Enabled)){e.Cancel=true;Hide();video.Pause();}};
             foreach(var input in new[]{key,target}){input.Background=B("#10151D");input.Foreground=Brushes.White;input.BorderBrush=B("#4B5364");input.CaretBrush=Brushes.White;input.Margin=new Thickness(0,4,0,14);}
             InitializeUpdates();
@@ -243,7 +243,7 @@ namespace Kedit.Console {
 
         int mediaRequest;
         async void LoadPageMedia(string fallback){
-            mediaFallback=fallback;int request=++mediaRequest;string page=currentMediaPage;var catalog=pageMedia.Snapshot();string currentIdentity=playingMediaIdentity;
+            CancelPendingBackground();mediaFallback=fallback;int request=++mediaRequest;string page=currentMediaPage;var catalog=pageMedia.Snapshot();string currentIdentity=playingMediaIdentity;
             string effective=page.StartsWith("updates.")?UpdateFallbackPage(page):page.StartsWith("other.")&&!catalog.Has(page)&&catalog.Has("other")?"other":page;UpdateMediaInfo();
             try{PageMedia.Framing framing=null;var prepared=await MediaWork.Run(()=>{
                 if(request!=System.Threading.Volatile.Read(ref mediaRequest))return null;
@@ -253,8 +253,8 @@ namespace Kedit.Console {
                 watch.Restart();var value=identity!=null&&identity==currentIdentity?new PreparedBackground{Path=path,Identity=identity}:PreparedBackground.Read(path,identity);MediaTiming.Record("background.decode",page,watch.ElapsedMilliseconds);return value;
             });
                 if(request!=mediaRequest||prepared==null||((App)Application.Current).Exiting)return;
-                currentFraming=framing;ApplyPreparedMedia(prepared);ApplyBackgroundFraming();
-            }catch(Exception ex){if(request==mediaRequest)status.Text="素材加载失败："+ex.Message;}
+                ApplyPreparedMedia(prepared,framing);ApplyBackgroundFraming();
+            }catch(Exception ex){if(request==mediaRequest)BackgroundFailed("素材加载失败："+ex.Message,false);}
         }
         void ChooseMedia(){if(!adminUnlocked)return;var d=new OpenFileDialog {Filter="背景素材|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.mp4"};if(d.ShowDialog()==true)try{string source=d.FileName;if(Path.GetExtension(source).Equals(".webp",StringComparison.OrdinalIgnoreCase)){if(pageMedia.ProjectDirectory==null)throw new IOException("请先设置素材项目目录。");BitmapSource bitmap;try{using(var input=File.OpenRead(source))bitmap=BitmapDecoder.Create(input,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad).Frames[0];}catch(Exception){throw new IOException("当前 Windows 未提供可用的 WebP 解码器，请先将图片转换为 PNG/JPG 后选择。");}string output=Path.Combine(pageMedia.ProjectDirectory,"mp4","webp-"+Guid.NewGuid().ToString("N")+".png");PreviewCrop.Save(bitmap,output);source=output;}else if(new[]{".png",".jpg",".jpeg"}.Contains(Path.GetExtension(source).ToLowerInvariant())){using(var input=File.OpenRead(source))BitmapDecoder.Create(input,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad);}var framing=new BackgroundFraming(this,source,scene.ActualWidth/scene.ActualHeight,new PageMedia.Framing());if(framing.ShowDialog()!=true)return;pageMedia.Set(currentMediaPage,source);pageMedia.SetFraming(currentMediaPage,framing.Value);LoadPageMedia(mediaFallback);}catch(Exception ex){MessageBox.Show(this,ex.Message,"素材未保存");}}
         System.Diagnostics.Stopwatch videoOpening;
@@ -262,7 +262,87 @@ namespace Kedit.Console {
         readonly System.Collections.Generic.Dictionary<string,string> mediaFingerprints=new System.Collections.Generic.Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
         string MediaIdentity(string path){if(!File.Exists(path))return null;var file=new FileInfo(path);string stamp=file.FullName+"|"+file.Length+"|"+file.LastWriteTimeUtc.Ticks;string hash;lock(mediaFingerprints){if(mediaFingerprints.TryGetValue(stamp,out hash))return hash;}using(var sha=System.Security.Cryptography.SHA256.Create())using(var stream=File.OpenRead(path))hash=BitConverter.ToString(sha.ComputeHash(stream));lock(mediaFingerprints){if(mediaFingerprints.Count>=128)mediaFingerprints.Clear();mediaFingerprints[stamp]=hash;}return hash;}
         void LoadMedia(string path){++mediaRequest;ApplyPreparedMedia(PreparedBackground.Read(path,MediaIdentity(path)));}
-        void ApplyPreparedMedia(PreparedBackground prepared){string path=prepared.Path,identity=prepared.Identity;if(identity!=null&&identity==playingMediaIdentity)return;HoldUpdateBackground();playingMediaIdentity=identity;gif.Source=null;video.Stretch=Stretch.UniformToFill;gif.Stretch=video.Stretch;frames.Stop();video.Stop();video.Source=null;decoder=null;paused=false;if(identity==null){ReleaseUpdateBackground();return;}if(prepared.Frames!=null){decoder=prepared;frame=0;gif.Source=decoder.Frames[0];ReleaseUpdateBackground();gif.Visibility=Visibility.Visible;video.Visibility=Visibility.Collapsed;}else if(prepared.Still!=null){gif.Source=prepared.Still;ReleaseUpdateBackground();gif.Visibility=Visibility.Visible;video.Visibility=Visibility.Collapsed;}else{gif.Visibility=Visibility.Collapsed;video.Visibility=Visibility.Visible;videoOpening=System.Diagnostics.Stopwatch.StartNew();video.Source=new Uri(path);}Playback();}
-        void Playback(){bool run=IsVisible&&!paused&&WindowState!=WindowState.Minimized;if(decoder!=null){if(run){frames.Interval=TimeSpan.FromMilliseconds(100);frames.Start();}else frames.Stop();}else if(video.Source!=null){if(run)video.Play();else video.Pause();}}
+        void ApplyPreparedMedia(PreparedBackground prepared,PageMedia.Framing framing=null){
+            string identity=prepared.Identity;
+            if(identity!=null&&identity==playingMediaIdentity){if(framing!=null)currentFraming=framing;RestoreBackgroundAppearance();backgroundError.Visibility=Visibility.Collapsed;return;}
+            if(video.Source==null||video.Visibility!=Visibility.Visible)HoldUpdateBackground();
+            backgroundReady.Stop();backgroundOpened=false;backgroundReadyTicks=0;backgroundError.Visibility=Visibility.Collapsed;
+            if(video.Source!=null&&video.Visibility==Visibility.Visible){
+                outgoingVideo=video;outgoingIdentity=playingMediaIdentity;outgoingFraming=currentFraming;
+                video=spareVideo??new MediaElement{LoadedBehavior=MediaState.Manual,UnloadedBehavior=MediaState.Manual,IsMuted=true};
+                if(spareVideo==null){WireBackgroundVideo(video);backgroundLayer.Children.Add(video);}spareVideo=null;
+                Panel.SetZIndex(video,1);Panel.SetZIndex(outgoingVideo,0);Panel.SetZIndex(gif,2);video.Opacity=0;video.Visibility=Visibility.Visible;
+                // The old decoder remains live underneath the incoming player.
+                if(updateHold!=null){scene.Children.Remove(updateHold);updateHold=null;backgroundFading=false;}
+                AnimateWaiting(outgoingVideo);
+            }
+            if(framing!=null)currentFraming=framing;
+            playingMediaIdentity=identity;gif.BeginAnimation(OpacityProperty,null);gif.Opacity=1;gif.Source=null;frames.Stop();video.Close();decoder=null;paused=false;
+            if(identity==null){gif.Visibility=Visibility.Collapsed;video.Visibility=Visibility.Collapsed;FinishBackgroundTransition();return;}
+            if(prepared.Frames!=null){decoder=prepared;frame=0;gif.Source=decoder.Frames[0];gif.Visibility=Visibility.Visible;video.Visibility=Visibility.Collapsed;FinishBackgroundTransition();}
+            else if(prepared.Still!=null){gif.Source=prepared.Still;gif.Visibility=Visibility.Visible;video.Visibility=Visibility.Collapsed;FinishBackgroundTransition();}
+            else{gif.Visibility=Visibility.Collapsed;video.Visibility=Visibility.Visible;video.Opacity=outgoingVideo==null?1:0;videoOpening=System.Diagnostics.Stopwatch.StartNew();video.Source=new Uri(prepared.Path);backgroundWait.Restart();backgroundReady.Start();}
+            Playback();
+        }
+        MediaElement outgoingVideo,spareVideo;string outgoingIdentity;PageMedia.Framing outgoingFraming;int transitionVersion;bool backgroundCrossfading;
+        void WireBackgroundVideo(MediaElement player){
+            player.MediaOpened+=delegate{if(player!=video)return;ApplyBackgroundFraming();backgroundOpened=true;backgroundReadyTicks=0;if(videoOpening!=null){MediaTiming.Record("video.open",currentMediaPage,videoOpening.ElapsedMilliseconds);videoOpening=null;}};
+            player.MediaEnded+=delegate{player.Position=TimeSpan.Zero;if(IsVisible&&!paused&&WindowState!=WindowState.Minimized)player.Play();};
+            player.MediaFailed+=delegate{if(player==video)BackgroundFailed("视频无法播放，请检查素材或编码格式。");};
+        }
+        void AnimateWaiting(UIElement element){
+            var existing=element.Effect as System.Windows.Media.Effects.BlurEffect;double radius=existing==null?0:existing.Radius;var blur=new System.Windows.Media.Effects.BlurEffect{Radius=radius,RenderingBias=System.Windows.Media.Effects.RenderingBias.Performance};element.Effect=blur;
+            blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty,new System.Windows.Media.Animation.DoubleAnimation(radius,9,TimeSpan.FromMilliseconds(900)));
+            element.BeginAnimation(OpacityProperty,new System.Windows.Media.Animation.DoubleAnimation(element.Opacity,.65,TimeSpan.FromMilliseconds(900)));
+        }
+        void RestoreBackgroundAppearance(){video.BeginAnimation(OpacityProperty,null);video.Opacity=1;video.Effect=null;}
+        void CancelPendingBackground(){
+            ++transitionVersion;backgroundReady.Stop();
+            if(outgoingVideo==null)return;
+            if(backgroundCrossfading){
+                outgoingVideo.Close();outgoingVideo.Visibility=Visibility.Collapsed;outgoingVideo.BeginAnimation(OpacityProperty,null);outgoingVideo.Effect=null;spareVideo=outgoingVideo;outgoingVideo=null;backgroundCrossfading=false;
+                RestoreBackgroundAppearance();gif.BeginAnimation(OpacityProperty,null);gif.Opacity=1;return;
+            }
+            // Return to the still-running source when the new decoder has not been committed.
+            video.BeginAnimation(OpacityProperty,null);video.Close();video.Visibility=Visibility.Collapsed;spareVideo=video;
+            video=outgoingVideo;outgoingVideo=null;playingMediaIdentity=outgoingIdentity;currentFraming=outgoingFraming;
+            gif.Visibility=Visibility.Collapsed;decoder=null;frames.Stop();
+        }
+        void FinishBackgroundTransition(){
+            ReleaseUpdateBackground();if(outgoingVideo==null){RestoreBackgroundAppearance();return;}
+            backgroundCrossfading=true;int version=++transitionVersion;var old=outgoingVideo;
+            UIElement incoming=gif.Visibility==Visibility.Visible?(UIElement)gif:video;
+            var duration=TimeSpan.FromMilliseconds(400);
+            incoming.BeginAnimation(OpacityProperty,new System.Windows.Media.Animation.DoubleAnimation(0,1,duration));
+            var fade=new System.Windows.Media.Animation.DoubleAnimation(old.Opacity,0,duration);
+            fade.Completed+=delegate{
+                if(version!=transitionVersion||outgoingVideo!=old)return;
+                old.Close();old.Visibility=Visibility.Collapsed;old.BeginAnimation(OpacityProperty,null);old.Opacity=1;old.Effect=null;spareVideo=old;outgoingVideo=null;backgroundCrossfading=false;
+                incoming.BeginAnimation(OpacityProperty,null);incoming.Opacity=1;
+            };old.BeginAnimation(OpacityProperty,fade);
+        }
+        readonly DispatcherTimer backgroundReady=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(40)};
+        readonly System.Diagnostics.Stopwatch backgroundWait=new System.Diagnostics.Stopwatch();
+        readonly TextBlock backgroundError=new TextBlock{Visibility=Visibility.Collapsed,Foreground=Brushes.White,Background=new SolidColorBrush(Color.FromArgb(220,40,30,30)),TextWrapping=TextWrapping.Wrap,Padding=new Thickness(12),Margin=new Thickness(36,100,36,0),VerticalAlignment=VerticalAlignment.Top,IsHitTestVisible=false};
+        bool backgroundOpened;int backgroundReadyTicks;
+        void InitializeBackgroundTransition(){
+            // Separate from the collapsible settings panel: failures remain visible on every page.
+            scene.Children.Add(backgroundError);Panel.SetZIndex(backgroundError,90);
+            backgroundReady.Tick+=delegate{
+                if(!IsVisible||WindowState==WindowState.Minimized){backgroundWait.Restart();return;}
+                // MediaOpened alone is too early. Allow composition time after playback advances.
+                if(backgroundOpened&&video.NaturalVideoWidth>0&&(video.Position>TimeSpan.Zero||paused)){
+                    if(++backgroundReadyTicks>=3){backgroundReady.Stop();FinishBackgroundTransition();return;}
+                }else backgroundReadyTicks=0;
+                if(backgroundWait.Elapsed>TimeSpan.FromSeconds(15)){BackgroundFailed("视频加载超时，已保留上一画面。请切换页面重试或检查素材。");}
+            };
+            Closed+=delegate{++transitionVersion;backgroundReady.Stop();backgroundWait.Stop();if(outgoingVideo!=null)outgoingVideo.Close();if(spareVideo!=null)spareVideo.Close();};
+        }
+        void BackgroundFailed(string message,bool decoderFailed=true){
+            bool hadPrevious=outgoingVideo!=null;CancelPendingBackground();RestoreBackgroundAppearance();if(!hadPrevious&&decoderFailed){playingMediaIdentity=null;video.Close();}
+            backgroundError.Text="背景加载失败："+message;backgroundError.Visibility=Visibility.Visible;
+            status.Text=backgroundError.Text;
+        }
+        void Playback(){bool run=IsVisible&&!paused&&WindowState!=WindowState.Minimized;if(outgoingVideo!=null){if(run)outgoingVideo.Play();else outgoingVideo.Pause();}if(decoder!=null){if(run){frames.Interval=TimeSpan.FromMilliseconds(100);frames.Start();}else frames.Stop();}else if(video.Source!=null){if(run)video.Play();else video.Pause();}}
     }
 }
