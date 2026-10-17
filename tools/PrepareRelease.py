@@ -30,6 +30,26 @@ def fingerprint():
         p=ROOT/name
         if name and p.is_file(): h.update(name.encode());h.update(p.read_bytes())
     return h.hexdigest()
+def require_committed_source():
+    # Only allow the exact metadata edits produced by this tool.
+    rows=mirror.git('status','--porcelain','-z',cwd=ROOT).stdout.split('\0')
+    for row in filter(None,rows):
+        name=row[3:]
+        if name not in ('version.json','Kedit_GO_to_Def.ahk'):
+            raise RuntimeError('Commit source changes before resuming: '+name)
+        previous=mirror.git('show','HEAD:'+name,cwd=ROOT).stdout
+        if name=='version.json':
+            old=json.loads(previous.lstrip('\ufeff'));new=read(ROOT/name)
+            old.pop('revision',None);new.pop('revision',None)
+            valid=old==new
+        else:
+            def body(text):
+                text=text.lstrip('\ufeff').replace('\r\n','\n')
+                text=re.sub(r'^;@Ahk2Exe-Set(?:Version|ProductVersion) .*\n','',text,flags=re.M)
+                return re.sub(r'Global CurrentVersion := "[^"]+"','Global CurrentVersion := "VERSION"',text,count=1)
+            valid=body(previous)==body(SOURCE.read_text(encoding='utf-8-sig'))
+        if not valid:raise RuntimeError('Commit source changes before resuming: '+name)
+
 def remote_check(tag):
     # Read authenticated release lists (including drafts) and refs on BOTH sites.
     if not os.environ.get('GITEA_TOKEN'): os.environ['GITEA_TOKEN']=mirror.credentials('gitea.evadd.xyz:88')[1]
@@ -59,15 +79,26 @@ def main():
     STATE.parent.mkdir(exist_ok=True);lock=STATE.parent/'.prepare.lock'
     with lock.open('x') as lock_file:
       try:
-        if args.resume:
-            state=read(STATE)
-            if fingerprint()!=state['fingerprint']:raise RuntimeError('Source changed since preparation; do not reuse this version. Commit changes and prepare a new version.')
+        pending=read(STATE) if STATE.exists() else None
+        resume=args.resume or (pending is not None and pending['status']=='building')
+        if resume:
+            state=pending
+            if state is None:raise RuntimeError('No preparation exists to resume.')
+            if sync_version(True)!=state['version']:raise RuntimeError('Version differs from pending preparation; restore its version before resuming.')
+            changed=fingerprint()!=state['fingerprint']
+            if changed and state['status']=='ready':raise RuntimeError('Source changed since completed preparation; prepare a new version.')
+            if changed:require_committed_source()
+            print('Resuming '+state['version']+' (no version increment; build and tests will run again if incomplete).')
             folder=ROOT/state['folder'];tag=state['version']
             if state['status']=='ready':
                 for name,digest in state['sha256'].items():
                     if mirror.sha(folder/name)!=digest:raise RuntimeError('Prepared artifact changed: '+name)
                 print('Verified existing bundle (no increment): '+str(folder));return
             remote_check(tag)
+            if changed:
+                state['fingerprint']=fingerprint()
+                state['source_commit']=mirror.git('rev-parse','HEAD',cwd=ROOT).stdout.strip()
+                write(STATE,state)
         else:
             if mirror.git('status','--porcelain',cwd=ROOT).stdout.strip():raise RuntimeError('Commit working-tree changes before preparing a release.')
             if not args.notes or not args.notes.is_file():raise RuntimeError('--notes must specify the release notes file')

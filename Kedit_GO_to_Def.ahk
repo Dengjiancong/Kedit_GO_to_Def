@@ -1,5 +1,5 @@
-﻿;@Ahk2Exe-SetVersion 19.0.0.102
-;@Ahk2Exe-SetProductVersion v19.00-Amiya.v102
+﻿;@Ahk2Exe-SetVersion 19.0.0.103
+;@Ahk2Exe-SetProductVersion v19.00-Amiya.v103
 ;; =======================================================
 ;; 【核心修复】强制脚本以管理员身份运行 (放在脚本最顶部)
 ;; =======================================================
@@ -24,7 +24,7 @@
 #NoEnv
 SendMode Input
 SetWorkingDir %A_ScriptDir%
-Global CurrentVersion := "v19.00-Amiya.v102"
+Global CurrentVersion := "v19.00-Amiya.v103"
 
 ; 定义配置文件路径
 IniFile := A_ScriptDir . "\Kedit_Settings.ini"
