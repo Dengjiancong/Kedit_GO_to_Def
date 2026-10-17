@@ -92,7 +92,9 @@ namespace Kedit.Console {
   void ReleaseUpdateBackground(){
    if(updateHold==null||backgroundFading)return;
    var held=updateHold;backgroundFading=true;
+   if(backgroundTransitionStyle==BackgroundTransitionStyle.ReadyCut){scene.Children.Remove(held);updateHold=null;backgroundFading=false;return;}
    var fade=new DoubleAnimation(1,0,TimeSpan.FromMilliseconds(450)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseInOut}};
+   if(backgroundTransitionStyle==BackgroundTransitionStyle.FastEaseOut){fade.Duration=new Duration(TimeSpan.FromMilliseconds(220));fade.EasingFunction=new CubicEase{EasingMode=EasingMode.EaseOut};}
    fade.Completed+=delegate{if(updateHold!=held||!backgroundFading)return;scene.Children.Remove(held);updateHold=null;backgroundFading=false;};
    held.BeginAnimation(OpacityProperty,fade);
   }

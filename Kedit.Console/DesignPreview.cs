@@ -287,8 +287,8 @@ namespace Kedit.Console {
             else{gif.Visibility=Visibility.Collapsed;video.Visibility=Visibility.Visible;video.Opacity=outgoingVideo==null?1:0;videoOpening=System.Diagnostics.Stopwatch.StartNew();video.Source=new Uri(prepared.Path);backgroundWait.Restart();backgroundReady.Start();}
             Playback();
         }
-        MediaElement outgoingVideo,spareVideo;string outgoingIdentity;PageMedia.Framing outgoingFraming;int transitionVersion;bool backgroundCrossfading;enum BackgroundTransitionStyle { Dissolve, SoftFocus, DepthFocus, SoftWipe, QuickDissolve }
-        BackgroundTransitionStyle backgroundTransitionStyle=BackgroundTransitionStyle.SoftFocus;
+        MediaElement outgoingVideo,spareVideo;string outgoingIdentity;PageMedia.Framing outgoingFraming;int transitionVersion;bool backgroundCrossfading;enum BackgroundTransitionStyle { Dissolve, SoftFocus, DepthFocus, SoftWipe, QuickDissolve, FastEaseOut, ReadyCut }
+        BackgroundTransitionStyle backgroundTransitionStyle=BackgroundTransitionStyle.QuickDissolve;
         void WireBackgroundVideo(MediaElement player){
             player.MediaOpened+=delegate{if(player!=video)return;ApplyBackgroundFraming();backgroundOpened=true;backgroundReadyTicks=0;if(videoOpening!=null){MediaTiming.Record("video.open",currentMediaPage,videoOpening.ElapsedMilliseconds);videoOpening=null;}};
             player.MediaEnded+=delegate{player.Position=TimeSpan.Zero;if(IsVisible&&!paused&&WindowState!=WindowState.Minimized)player.Play();};
@@ -315,7 +315,7 @@ namespace Kedit.Console {
             var stack=new StackPanel{Margin=new Thickness(22)};dialog.Content=stack;
             stack.Children.Add(Text("选择过渡风格",20));
             stack.Children.Add(Text("选择后切换不同视频页面比较效果。仅本次运行生效，不改变素材配置。保留原有两种风格，并增加三种新风格；均不刻意压暗画面。",13));
-            var choices=new ComboBox{Margin=new Thickness(0,12,0,12)};choices.Items.Add("纯叠化");choices.Items.Add("轻微失焦叠化（默认，450ms）");choices.Items.Add("景深换焦（600ms）");choices.Items.Add("柔边横向揭幕（550ms，右向左）");choices.Items.Add("快速柔切（180ms）");choices.SelectedIndex=(int)backgroundTransitionStyle;stack.Children.Add(choices);
+            var choices=new ComboBox{Margin=new Thickness(0,12,0,12)};choices.Items.Add("纯叠化");choices.Items.Add("轻微失焦叠化（450ms）");choices.Items.Add("景深换焦（600ms）");choices.Items.Add("柔边横向揭幕（550ms，右向左）");choices.Items.Add("快速柔切（默认，180ms）");choices.Items.Add("快入缓收（220ms）");choices.Items.Add("就绪即切（无过渡动画）");choices.SelectedIndex=(int)backgroundTransitionStyle;stack.Children.Add(choices);
             stack.Children.Add(Button("应用并预览",()=>{backgroundTransitionStyle=(BackgroundTransitionStyle)choices.SelectedIndex;dialog.Close();}));dialog.ShowDialog();
         }
         void CancelPendingBackground(){
@@ -337,7 +337,7 @@ namespace Kedit.Console {
             // Incoming content alone fades in over an opaque, still-playing base.
             old.BeginAnimation(OpacityProperty,null);old.Opacity=1;
             var style=backgroundTransitionStyle;
-            double milliseconds=style==BackgroundTransitionStyle.DepthFocus?600:style==BackgroundTransitionStyle.SoftWipe?550:style==BackgroundTransitionStyle.QuickDissolve?180:450;
+            double milliseconds=style==BackgroundTransitionStyle.DepthFocus?600:style==BackgroundTransitionStyle.SoftWipe?550:style==BackgroundTransitionStyle.QuickDissolve?180:style==BackgroundTransitionStyle.FastEaseOut?220:450;
             incoming.OpacityMask=null;
             if(style==BackgroundTransitionStyle.SoftFocus||style==BackgroundTransitionStyle.DepthFocus){
                 double radius=style==BackgroundTransitionStyle.DepthFocus?8:2;
@@ -355,11 +355,14 @@ namespace Kedit.Console {
                 visible.BeginAnimation(GradientStop.OffsetProperty,BackgroundAnimation(1.18,0,milliseconds));
                 dissolve=BackgroundAnimation(1,1,milliseconds);
             }
-            dissolve.Completed+=delegate{
+            Action complete=delegate{
                 if(version!=transitionVersion||outgoingVideo!=old)return;
                 old.Close();old.Visibility=Visibility.Collapsed;old.BeginAnimation(OpacityProperty,null);old.Opacity=1;old.Effect=null;spareVideo=old;outgoingVideo=null;backgroundCrossfading=false;
                 incoming.BeginAnimation(OpacityProperty,null);incoming.Opacity=1;incoming.Effect=null;incoming.OpacityMask=null;
-            };incoming.BeginAnimation(OpacityProperty,dissolve);
+            };
+            if(style==BackgroundTransitionStyle.ReadyCut){complete();return;}
+            if(style==BackgroundTransitionStyle.FastEaseOut)dissolve.EasingFunction=new System.Windows.Media.Animation.CubicEase{EasingMode=System.Windows.Media.Animation.EasingMode.EaseOut};
+            dissolve.Completed+=delegate{complete();};incoming.BeginAnimation(OpacityProperty,dissolve);
         }
 
         readonly DispatcherTimer backgroundReady=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(40)};
