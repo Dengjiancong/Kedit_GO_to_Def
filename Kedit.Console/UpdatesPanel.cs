@@ -57,7 +57,7 @@ namespace Kedit.Console {
     if(state.Stage==UpdateStage.Latest)AddUpdateAction("返回首页",()=>Navigate("首页"),false);
     if(state.Stage!=UpdateStage.Idle&&state.Stage!=UpdateStage.Installing)AddUpdateAction("查看详情 / 更新说明",ShowUpdateDetails,false);
     if(state.Stage!=UpdateStage.Installing)AddUpdateAction("网络诊断",DiagnoseUpdate,false);
-    var offset=new TranslateTransform(0,9);updateCard.RenderTransform=offset;offset.BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(9,0,TimeSpan.FromMilliseconds(400)));updateCard.BeginAnimation(OpacityProperty,new DoubleAnimation(.5,1,TimeSpan.FromMilliseconds(400)));
+    var offset=new TranslateTransform(0,9);updateCard.RenderTransform=offset;offset.BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(9,0,TimeSpan.FromMilliseconds(450)));updateCard.BeginAnimation(OpacityProperty,new DoubleAnimation(.5,1,TimeSpan.FromMilliseconds(450)));
    }
   }
   void ShowUpdateDetails(){var state=previewUpdate??Updates.State;var dialog=new Window{Owner=this,Title="更新详情",Width=700,Height=460,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=B("#191D26")};dialog.Content=new TextBox{Margin=new Thickness(20),IsReadOnly=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Background=B("#101820"),Foreground=Brushes.White,Text=UpdateTitle(state.Stage)+"\n"+state.Source+"\n"+state.Detail+"\n\n更新说明：\n"+(string.IsNullOrEmpty(Updates.ReleaseNotes)?"发行方未提供说明。":Updates.ReleaseNotes)};dialog.Show();}
@@ -92,7 +92,7 @@ namespace Kedit.Console {
   void ReleaseUpdateBackground(){
    if(updateHold==null||backgroundFading)return;
    var held=updateHold;backgroundFading=true;
-   var fade=new DoubleAnimation(1,0,TimeSpan.FromMilliseconds(400)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseInOut}};
+   var fade=new DoubleAnimation(1,0,TimeSpan.FromMilliseconds(450)){EasingFunction=new CubicEase{EasingMode=EasingMode.EaseInOut}};
    fade.Completed+=delegate{if(updateHold!=held||!backgroundFading)return;scene.Children.Remove(held);updateHold=null;backgroundFading=false;};
    held.BeginAnimation(OpacityProperty,fade);
   }
