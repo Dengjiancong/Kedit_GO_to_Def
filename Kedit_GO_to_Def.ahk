@@ -198,6 +198,7 @@ SetTimer, UsageFlushTimer, 2000
 Global StartupHotkeysOK := true
 UpdateHotkeys()
 SetTimer, ConfirmUpdateStartup, -100
+SchedulePreviousCleanup()
 
 ; =======================================================
 ; 原有的注册表逻辑
@@ -4072,4 +4073,36 @@ ConfirmUpdateStartup:
             return
         }
     }
+return
+
+; Legacy installers retain a fixed backup. Only a normal compiled startup may clean it.
+SchedulePreviousCleanup() {
+    global PreviousCleanupPath, PreviousCleanupStamp, PreviousCleanupSize, PreviousCleanupAttempts
+    if (!A_IsCompiled)
+        return
+    for _, argument in A_Args
+        if (argument = "--update-ready")
+            return ; The updater owns backup lifetime until readiness/observation succeeds.
+    PreviousCleanupPath := A_ScriptFullPath . ".previous"
+    if (!FileExist(PreviousCleanupPath) || InStr(FileExist(PreviousCleanupPath), "D"))
+        return
+    FileGetTime, PreviousCleanupStamp, %PreviousCleanupPath%, M
+    FileGetSize, PreviousCleanupSize, %PreviousCleanupPath%
+    PreviousCleanupAttempts := 0
+    SetTimer, CleanupPreviousBackup, -60000
+}
+
+CleanupPreviousBackup:
+    if (!StartupHotkeysOK)
+        return
+    if (!FileExist(PreviousCleanupPath))
+        return
+    FileGetTime, CleanupStamp, %PreviousCleanupPath%, M
+    FileGetSize, CleanupSize, %PreviousCleanupPath%
+    if (CleanupStamp != PreviousCleanupStamp || CleanupSize != PreviousCleanupSize)
+        return ; Never remove a replacement backup created since this startup.
+    FileDelete, %PreviousCleanupPath%
+    PreviousCleanupAttempts += 1
+    if (ErrorLevel && PreviousCleanupAttempts < 3)
+        SetTimer, CleanupPreviousBackup, -60000
 return

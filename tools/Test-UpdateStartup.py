@@ -2,7 +2,7 @@ import ctypes, subprocess, uuid
 from pathlib import Path
 root=Path(__file__).resolve().parent.parent
 source=(root/'Kedit_GO_to_Def.ahk').read_text(encoding='utf-8-sig')
-label=source[source.index('ConfirmUpdateStartup:\n'):]
+label=source[source.index('ConfirmUpdateStartup:\n'):source.index('; Legacy installers retain a fixed backup.')]
 k=ctypes.WinDLL('kernel32',use_last_error=True)
 k.CreateEventW.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_int,ctypes.c_wchar_p];k.CreateEventW.restype=ctypes.c_void_p
 k.WaitForSingleObject.argtypes=[ctypes.c_void_p,ctypes.c_uint];k.CloseHandle.argtypes=[ctypes.c_void_p]
